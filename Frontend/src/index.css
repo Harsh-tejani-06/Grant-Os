@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+/* ─── Terra "Rooted Warmth" Design Tokens ─── */
+@theme {
+  --color-primary: #4a7c59;
+  --color-primary-light: #5e9a6f;
+  --color-primary-dark: #3a6247;
+  --color-primary-50: #f0f7f2;
+  --color-primary-100: #dceee1;
+  --color-primary-200: #b8dcc3;
+  --color-primary-900: #1e3326;
+
+  --color-cream: #faf6f0;
+  --color-cream-dark: #f3ece0;
+  --color-cream-deeper: #ebe3d3;
+
+  --color-amber: #705c30;
+  --color-amber-light: #8a7340;
+  --color-amber-50: #fdf8ef;
+
+  --color-warm-gray-50: #faf8f5;
+  --color-warm-gray-100: #f0ece6;
+  --color-warm-gray-200: #e2ddd4;
+  --color-warm-gray-300: #cdc6b8;
+  --color-warm-gray-400: #a89e8c;
+  --color-warm-gray-500: #8a7f6e;
+  --color-warm-gray-600: #6b6256;
+  --color-warm-gray-700: #514a40;
+  --color-warm-gray-800: #3a3530;
+  --color-warm-gray-900: #252220;
+
+  --color-surface: #faf6f0;
+  --color-surface-elevated: #ffffff;
+
+  --font-heading: "Literata", "Georgia", serif;
+  --font-body: "Nunito Sans", "Segoe UI", sans-serif;
+
+  --shadow-soft: 0 4px 20px rgba(46, 50, 48, 0.06);
+  --shadow-medium: 0 8px 30px rgba(46, 50, 48, 0.1);
+  --shadow-glow: 0 0 40px rgba(74, 124, 89, 0.15);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  --animate-fade-up: fade-up 0.6s ease-out both;
+  --animate-fade-in: fade-in 0.5s ease-out both;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-pulse-soft: pulse-soft 3s ease-in-out infinite;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* ─── Base Styles ─── */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-cream);
+  color: var(--color-warm-gray-700);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  color: var(--color-warm-gray-900);
+}
+
+::selection {
+  background-color: var(--color-primary-200);
+  color: var(--color-primary-900);
+}
