@@ -1,5 +1,6 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
+import api from '../api'
 
 const LeafIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
@@ -31,23 +32,75 @@ const CheckIcon = () => (
 )
 
 export default function SignupPage() {
+  const navigate = useNavigate()
   const [showPassword, setShowPassword] = useState(false)
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
     password: '',
     role: 'org_admin',
+    organizationName: '',
   })
   const [isFundingAgency, setIsFundingAgency] = useState(false)
+  const [error, setError] = useState('')
+  const [errorType, setErrorType] = useState('') // 'org_not_found' | 'org_not_approved' | ''
+  const [isLoading, setIsLoading] = useState(false)
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    // TODO: Wire up to backend auth API
-    console.log('Signup:', { ...formData, isFundingAgency })
+    setError('')
+    setErrorType('')
+    setIsLoading(true)
+    try {
+      // Team member → call member register endpoint
+      if (formData.role === 'team_member') {
+        const res = await api.post('/member/register', {
+          fullName: formData.fullName,
+          email: formData.email,
+          password: formData.password,
+          organizationName: formData.organizationName,
+        })
+        if (res.data.success) {
+          // Store minimal info for the pending page
+          localStorage.setItem('grantos_member_pending', JSON.stringify({
+            fullName: res.data.member.fullName,
+            organizationName: res.data.member.organizationName,
+          }))
+          navigate('/member/pending-verification')
+        }
+      } else {
+        // Org admin or funding agency → signup
+        const signupRole = isFundingAgency ? 'funding_agency' : formData.role
+        const res = await api.post('/auth/signup', {
+          fullName: formData.fullName,
+          email: formData.email,
+          password: formData.password,
+          role: signupRole,
+        })
+        if (res.data.success) {
+          localStorage.setItem('grantos_token', res.data.token)
+          localStorage.setItem('grantos_user', JSON.stringify(res.data.user))
+          if (res.data.user.role === 'org_admin') {
+            navigate('/org/register')
+          } else if (res.data.user.role === 'funding_agency') {
+            navigate('/agency/register')
+          } else {
+            navigate('/')
+          }
+        }
+      }
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Signup failed. Please try again.'
+      const eType = err.response?.data?.errorType || ''
+      setError(msg)
+      setErrorType(eType)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -108,6 +161,25 @@ export default function SignupPage() {
                 Funding Agency
               </button>
             </div>
+
+            {error && (
+              <div className={`p-4 rounded-[12px] mb-4 ${
+                errorType === 'org_not_approved'
+                  ? 'bg-amber-50 border border-amber/20'
+                  : errorType === 'org_not_found'
+                    ? 'bg-red-50 border border-red-200'
+                    : 'bg-red-50 border border-red-200'
+              }`}>
+                <div className="flex items-start gap-2">
+                  <span className="text-base mt-0.5">
+                    {errorType === 'org_not_approved' ? '⏳' : errorType === 'org_not_found' ? '🚫' : '⚠️'}
+                  </span>
+                  <p className={`text-sm ${
+                    errorType === 'org_not_approved' ? 'text-amber' : 'text-red-700'
+                  }`}>{error}</p>
+                </div>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-5" id="signup-form">
               {/* Full Name / Agency Name */}
@@ -235,10 +307,32 @@ export default function SignupPage() {
                       </span>
                       <div>
                         <span className="block font-semibold text-warm-gray-900 text-sm">Join an existing organization</span>
-                        <span className="block text-warm-gray-500 text-xs mt-0.5">You'll join via an invite link as a Team Member</span>
+                        <span className="block text-warm-gray-500 text-xs mt-0.5">Enter your organization name and get verified by the admin</span>
                       </div>
                     </label>
                   </div>
+                </div>
+              )}
+
+              {/* Organization Name (team_member only) */}
+              {!isFundingAgency && formData.role === 'team_member' && (
+                <div className="animate-fade-up">
+                  <label htmlFor="signup-org-name" className="block text-sm font-semibold text-warm-gray-700 mb-2">
+                    Organization Name
+                  </label>
+                  <input
+                    type="text"
+                    id="signup-org-name"
+                    name="organizationName"
+                    value={formData.organizationName}
+                    onChange={handleChange}
+                    placeholder="Enter your organization's registered name"
+                    required
+                    className="w-full px-4 py-3 rounded-[12px] bg-cream border border-warm-gray-200 text-warm-gray-900 placeholder:text-warm-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all duration-200"
+                  />
+                  <p className="text-xs text-warm-gray-400 mt-1.5">
+                    Must match the exact name registered by your Organization Admin
+                  </p>
                 </div>
               )}
 
@@ -255,13 +349,14 @@ export default function SignupPage() {
               <button
                 type="submit"
                 id="signup-submit-btn"
-                className={`w-full py-3.5 rounded-[12px] font-semibold text-white shadow-soft hover:shadow-medium transition-all duration-300 hover:-translate-y-0.5 cursor-pointer ${
+                disabled={isLoading}
+                className={`w-full py-3.5 rounded-[12px] font-semibold text-white shadow-soft hover:shadow-medium transition-all duration-300 hover:-translate-y-0.5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
                   isFundingAgency
                     ? 'bg-amber hover:bg-amber-light'
                     : 'bg-primary hover:bg-primary-dark'
                 }`}
               >
-                {isFundingAgency ? 'Submit for Verification' : 'Create Account'}
+                {isLoading ? 'Creating Account...' : (isFundingAgency ? 'Submit for Verification' : 'Create Account')}
               </button>
             </form>
 

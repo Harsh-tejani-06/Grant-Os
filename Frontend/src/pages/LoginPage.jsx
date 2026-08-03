@@ -1,5 +1,6 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
+import api from '../api'
 
 const LeafIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
@@ -25,14 +26,83 @@ const EyeOffIcon = () => (
 )
 
 export default function LoginPage() {
+  const navigate = useNavigate()
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    // TODO: Wire up to backend auth API
-    console.log('Login:', { email, password })
+    setError('')
+    setIsLoading(true)
+    try {
+      const res = await api.post('/auth/login', { email, password })
+      if (res.data.success) {
+        localStorage.setItem('grantos_token', res.data.token)
+        localStorage.setItem('grantos_user', JSON.stringify(res.data.user))
+
+        const { user, orgStatus, agencyStatus, memberStatus } = res.data
+
+        // system_admin → admin dashboard
+        if (user.role === 'system_admin') {
+          navigate('/admin/dashboard')
+          return
+        }
+
+        // funding_agency with agency status
+        if (user.role === 'funding_agency') {
+          if (agencyStatus) {
+            if (agencyStatus.status === 'pending') {
+              navigate('/agency/pending')
+            } else if (agencyStatus.status === 'rejected') {
+              navigate('/agency/rejected')
+            } else if (agencyStatus.status === 'approved') {
+              navigate('/')
+            }
+          } else {
+            navigate('/agency/register')
+          }
+          return
+        }
+
+        // team_member → check verification
+        if (user.role === 'team_member') {
+          if (memberStatus && !memberStatus.isVerified) {
+            // Store info for pending page
+            localStorage.setItem('grantos_member_pending', JSON.stringify({
+              fullName: user.fullName,
+              organizationName: orgStatus?.organizationName || '',
+            }))
+            navigate('/member/pending-verification')
+          } else {
+            navigate('/member/dashboard')
+          }
+          return
+        }
+
+        // org_admin with org status
+        if (orgStatus) {
+          if (orgStatus.status === 'pending') {
+            navigate('/org/pending')
+          } else if (orgStatus.status === 'rejected') {
+            navigate('/org/rejected')
+          } else if (orgStatus.status === 'approved') {
+            navigate('/org/dashboard')
+          }
+        } else if (user.role === 'org_admin') {
+          // No org registered yet
+          navigate('/org/register')
+        } else {
+          navigate('/')
+        }
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Login failed. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -61,6 +131,12 @@ export default function LoginPage() {
               <h1 className="font-heading text-3xl font-bold text-warm-gray-900 mb-2">Welcome back</h1>
               <p className="text-warm-gray-500">Sign in to your GrantOS account</p>
             </div>
+
+            {error && (
+              <div className="p-4 rounded-[12px] bg-red-50 border border-red-200 mb-4">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-5" id="login-form">
               {/* Email */}
@@ -114,9 +190,10 @@ export default function LoginPage() {
               <button
                 type="submit"
                 id="login-submit-btn"
-                className="w-full py-3.5 rounded-[12px] font-semibold text-white bg-primary hover:bg-primary-dark shadow-soft hover:shadow-medium transition-all duration-300 hover:-translate-y-0.5 cursor-pointer"
+                disabled={isLoading}
+                className="w-full py-3.5 rounded-[12px] font-semibold text-white bg-primary hover:bg-primary-dark shadow-soft hover:shadow-medium transition-all duration-300 hover:-translate-y-0.5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Sign In
+                {isLoading ? 'Signing In...' : 'Sign In'}
               </button>
             </form>
 
