@@ -34,10 +34,14 @@ const CheckIcon = () => (
 export default function SignupPage() {
   const navigate = useNavigate()
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [passwordTouched, setPasswordTouched] = useState(false)
+  const [confirmPasswordTouched, setConfirmPasswordTouched] = useState(false)
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
     password: '',
+    confirmPassword: '',
     role: 'org_admin',
     organizationName: '',
   })
@@ -54,6 +58,18 @@ export default function SignupPage() {
     e.preventDefault()
     setError('')
     setErrorType('')
+
+    // Client-side password validation
+    if (formData.password.length < 8) {
+      setError('Password must be at least 8 characters long.')
+      return
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match. Please ensure both passwords match.')
+      return
+    }
+
     setIsLoading(true)
     try {
       // Team member → call member register endpoint
@@ -218,9 +234,18 @@ export default function SignupPage() {
 
               {/* Password */}
               <div>
-                <label htmlFor="signup-password" className="block text-sm font-semibold text-warm-gray-700 mb-2">
-                  Password
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label htmlFor="signup-password" className="block text-sm font-semibold text-warm-gray-700">
+                    Password
+                  </label>
+                  {passwordTouched && formData.password && (
+                    <span className={`text-xs font-medium ${
+                      formData.password.length >= 8 ? 'text-emerald-600' : 'text-warm-gray-500'
+                    }`}>
+                      {formData.password.length >= 8 ? '✓ Min 8 characters' : `${formData.password.length}/8 min characters`}
+                    </span>
+                  )}
+                </div>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -228,10 +253,17 @@ export default function SignupPage() {
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
-                    placeholder="Create a strong password"
+                    onBlur={() => setPasswordTouched(true)}
+                    placeholder="Create a strong password (min 8 chars)"
                     required
                     minLength={8}
-                    className="w-full px-4 py-3 pr-12 rounded-[12px] bg-cream border border-warm-gray-200 text-warm-gray-900 placeholder:text-warm-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all duration-200"
+                    className={`w-full px-4 py-3 pr-12 rounded-[12px] bg-cream border text-warm-gray-900 placeholder:text-warm-gray-400 focus:outline-none focus:ring-2 transition-all duration-200 ${
+                      passwordTouched && formData.password
+                        ? formData.password.length >= 8
+                          ? 'border-emerald-400 focus:ring-emerald-200/50 focus:border-emerald-500'
+                          : 'border-amber-300 focus:ring-amber-200/50 focus:border-amber-500'
+                        : 'border-warm-gray-200 focus:ring-primary/30 focus:border-primary'
+                    }`}
                   />
                   <button
                     type="button"
@@ -240,6 +272,58 @@ export default function SignupPage() {
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label htmlFor="signup-confirm-password" className="block text-sm font-semibold text-warm-gray-700">
+                    Confirm Password
+                  </label>
+                  {confirmPasswordTouched && formData.confirmPassword && (
+                    <span className={`text-xs font-medium flex items-center gap-1 ${
+                      formData.password === formData.confirmPassword
+                        ? 'text-emerald-600'
+                        : 'text-red-500'
+                    }`}>
+                      {formData.password === formData.confirmPassword ? (
+                        <>
+                          <CheckIcon /> Passwords match
+                        </>
+                      ) : (
+                        '✕ Passwords do not match'
+                      )}
+                    </span>
+                  )}
+                </div>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    id="signup-confirm-password"
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    onBlur={() => setConfirmPasswordTouched(true)}
+                    placeholder="Re-enter your password"
+                    required
+                    minLength={8}
+                    className={`w-full px-4 py-3 pr-12 rounded-[12px] bg-cream border text-warm-gray-900 placeholder:text-warm-gray-400 focus:outline-none focus:ring-2 transition-all duration-200 ${
+                      confirmPasswordTouched && formData.confirmPassword
+                        ? formData.password === formData.confirmPassword
+                          ? 'border-emerald-400 focus:ring-emerald-200/50 focus:border-emerald-500'
+                          : 'border-red-300 focus:ring-red-200/50 focus:border-red-500'
+                        : 'border-warm-gray-200 focus:ring-primary/30 focus:border-primary'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-gray-400 hover:text-warm-gray-600 transition-colors"
+                    aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                  >
+                    {showConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
                   </button>
                 </div>
               </div>
