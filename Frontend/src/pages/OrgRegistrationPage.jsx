@@ -27,9 +27,6 @@ const STEPS = [
 const ORG_TYPES = [
   { value: 'university', label: 'University' },
   { value: 'college', label: 'College' },
-  { value: 'research_institute', label: 'Research Institute' },
-  { value: 'ngo', label: 'NGO' },
-  { value: 'other', label: 'Other' },
 ]
 
 const NAAC_GRADES = ['A++', 'A+', 'A', 'B++', 'B+', 'B', 'N/A']

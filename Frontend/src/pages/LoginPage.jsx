@@ -58,11 +58,11 @@ export default function LoginPage() {
               navigate('/agency/pending')
             } else if (agencyStatus.status === 'rejected') {
               navigate('/agency/rejected')
-            } else if (agencyStatus.status === 'approved') {
-              navigate('/')
+            } else {
+              navigate('/agency/welcome')
             }
           } else {
-            navigate('/agency/register')
+            navigate('/agency/welcome')
           }
           return
         }

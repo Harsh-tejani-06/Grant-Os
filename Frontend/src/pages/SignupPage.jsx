@@ -103,7 +103,7 @@ export default function SignupPage() {
           if (res.data.user.role === 'org_admin') {
             navigate('/org/register')
           } else if (res.data.user.role === 'funding_agency') {
-            navigate('/agency/register')
+            navigate('/agency/welcome')
           } else {
             navigate('/')
           }

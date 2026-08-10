@@ -12,6 +12,7 @@ import TeamMemberDashboard from './pages/TeamMemberDashboard.jsx'
 import FundingAgencyRegistrationPage from './pages/FundingAgencyRegistrationPage.jsx'
 import FundingAgencyPendingPage from './pages/FundingAgencyPendingPage.jsx'
 import FundingAgencyRejectedPage from './pages/FundingAgencyRejectedPage.jsx'
+import FundingAgencyWelcomePage from './pages/FundingAgencyWelcomePage.jsx'
 
 function App() {
   return (
@@ -29,6 +30,8 @@ function App() {
       <Route path="/agency/register" element={<FundingAgencyRegistrationPage />} />
       <Route path="/agency/pending" element={<FundingAgencyPendingPage />} />
       <Route path="/agency/rejected" element={<FundingAgencyRejectedPage />} />
+      <Route path="/agency/welcome" element={<FundingAgencyWelcomePage />} />
+      <Route path="/agency/dashboard" element={<FundingAgencyWelcomePage />} />
     </Routes>
   )
 }
