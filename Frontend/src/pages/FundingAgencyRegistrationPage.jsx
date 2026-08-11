@@ -40,8 +40,6 @@ const FUNDING_DOMAINS = [
 
 const GRANT_TYPES = [
   { value: 'research_grant', label: 'Research Grant', desc: 'Project-based research funding for institutions and labs' },
-  { value: 'fellowship', label: 'Fellowship', desc: 'Stipends & support for individual scholars/researchers' },
-  { value: 'travel_grant', label: 'Travel Grant', desc: 'Assistance for international conference presentations' },
   { value: 'startup_seed', label: 'Startup & Innovation Seed Grant', desc: 'Pre-seed or proof-of-concept capital' },
   { value: 'institutional_infra', label: 'Institutional Infrastructure', desc: 'Equipment, lab upgrading & facility grants' },
 ]
@@ -177,7 +175,7 @@ export default function FundingAgencyRegistrationPage() {
       <div className="relative z-10 flex-1 flex items-start justify-center px-6 py-8">
         <div className="w-full max-w-2xl">
           {/* Logo */}
-          <Link to="/" className="flex items-center justify-center gap-2 mb-8 group" id="agency-reg-logo">
+          <Link to="/agency/dashboard" className="flex items-center justify-center gap-2 mb-8 group" id="agency-reg-logo">
             <div className="w-11 h-11 bg-amber rounded-[12px] flex items-center justify-center text-white transition-transform duration-300 group-hover:scale-105">
               <LeafIcon />
             </div>
@@ -458,8 +456,8 @@ export default function FundingAgencyRegistrationPage() {
           </div>
 
           <p className="text-center mt-6">
-            <Link to="/" className="text-sm text-warm-gray-400 hover:text-warm-gray-600 transition-colors">
-              ← Back to home
+            <Link to="/agency/dashboard" className="text-sm text-warm-gray-400 hover:text-warm-gray-600 transition-colors">
+              ← Back to Dashboard
             </Link>
           </p>
         </div>

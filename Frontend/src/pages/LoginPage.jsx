@@ -62,7 +62,7 @@ export default function LoginPage() {
               navigate('/agency/welcome')
             }
           } else {
-            navigate('/agency/welcome')
+            navigate('/agency/register')
           }
           return
         }
@@ -206,7 +206,7 @@ export default function LoginPage() {
 
             {/* Funding Agency */}
             <Link
-              to="/signup"
+              to="/signup?role=funding_agency"
               id="login-register-agency-link"
               className="block w-full text-center py-3 rounded-[12px] font-semibold text-amber border-2 border-amber/20 bg-amber-50 hover:border-amber/40 transition-all duration-200"
             >

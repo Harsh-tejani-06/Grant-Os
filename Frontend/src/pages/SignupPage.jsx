@@ -1,5 +1,5 @@
-import { Link, useNavigate } from 'react-router-dom'
-import { useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import api from '../api'
 
 const LeafIcon = () => (
@@ -33,6 +33,9 @@ const CheckIcon = () => (
 
 export default function SignupPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const roleParam = searchParams.get('role')
+
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [passwordTouched, setPasswordTouched] = useState(false)
@@ -45,7 +48,14 @@ export default function SignupPage() {
     role: 'org_admin',
     organizationName: '',
   })
-  const [isFundingAgency, setIsFundingAgency] = useState(false)
+  const [isFundingAgency, setIsFundingAgency] = useState(() => roleParam === 'funding_agency' || roleParam === 'agency')
+
+  useEffect(() => {
+    if (roleParam === 'funding_agency' || roleParam === 'agency') {
+      setIsFundingAgency(true)
+    }
+  }, [roleParam])
+
   const [error, setError] = useState('')
   const [errorType, setErrorType] = useState('') // 'org_not_found' | 'org_not_approved' | ''
   const [isLoading, setIsLoading] = useState(false)
@@ -103,7 +113,7 @@ export default function SignupPage() {
           if (res.data.user.role === 'org_admin') {
             navigate('/org/register')
           } else if (res.data.user.role === 'funding_agency') {
-            navigate('/agency/welcome')
+            navigate('/agency/register')
           } else {
             navigate('/')
           }
@@ -440,7 +450,7 @@ export default function SignupPage() {
                     : 'bg-primary hover:bg-primary-dark'
                 }`}
               >
-                {isLoading ? 'Creating Account...' : (isFundingAgency ? 'Submit for Verification' : 'Create Account')}
+                {isLoading ? 'Creating Account...' : (isFundingAgency ? 'Create Account' : 'Create Account')}
               </button>
             </form>
 

@@ -113,6 +113,7 @@ export default function FundingAgencyWelcomePage() {
   const [newGrantDomain, setNewGrantDomain] = useState('Science & Technology')
   const [programsList, setProgramsList] = useState(SAMPLE_PROGRAMS)
   const [notificationMsg, setNotificationMsg] = useState('')
+  const [hasAgencyProfile, setHasAgencyProfile] = useState(true)
 
   useEffect(() => {
     // 1. Check local storage
@@ -133,8 +134,16 @@ export default function FundingAgencyWelcomePage() {
         const res = await api.get('/agency/status')
         if (res.data.success && res.data.agency) {
           setAgencyName(res.data.agency.agencyName || '')
+          if (res.data.agency.status === 'pending') {
+            navigate('/agency/pending')
+          } else if (res.data.agency.status === 'rejected') {
+            navigate('/agency/rejected')
+          }
         }
-      } catch {
+      } catch (err) {
+        if (err.response?.status === 404 && err.response?.data?.hasAgency === false) {
+          setHasAgencyProfile(false)
+        }
         // Fallback to /auth/me
         try {
           const meRes = await api.get('/auth/me')
@@ -149,7 +158,7 @@ export default function FundingAgencyWelcomePage() {
     }
 
     fetchAgencyData()
-  }, [])
+  }, [navigate])
 
   const handleLogout = () => {
     localStorage.removeItem('grantos_token')
@@ -244,6 +253,8 @@ export default function FundingAgencyWelcomePage() {
         </div>
       </header>
 
+
+
       {/* Main Content Area */}
       <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Notification Toast */}
@@ -279,12 +290,6 @@ export default function FundingAgencyWelcomePage() {
               >
                 <PlusIcon /> Publish Grant Call
               </button>
-              <Link
-                to="/agency/register"
-                className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-[12px] bg-cream hover:bg-cream-dark border border-warm-gray-200 text-warm-gray-700 font-semibold transition-all duration-200 text-sm text-center"
-              >
-                ⚙️ Agency Profile
-              </Link>
             </div>
           </div>
         </section>
@@ -361,16 +366,6 @@ export default function FundingAgencyWelcomePage() {
             }`}
           >
             📋 Submitted Proposals ({SAMPLE_PROPOSALS.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('profile')}
-            className={`px-4 py-2 rounded-[10px] text-sm font-semibold transition-all cursor-pointer whitespace-nowrap ${
-              activeTab === 'profile'
-                ? 'bg-amber text-white shadow-soft'
-                : 'text-warm-gray-600 hover:text-warm-gray-900 hover:bg-warm-gray-100'
-            }`}
-          >
-            🏛️ Agency Credentials
           </button>
         </div>
 
@@ -679,60 +674,7 @@ export default function FundingAgencyWelcomePage() {
           </div>
         )}
 
-        {/* Tab Content: PROFILE */}
-        {activeTab === 'profile' && (
-          <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
-            <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/70 p-6 sm:p-8 shadow-soft">
-              <div className="flex items-center justify-between mb-6 pb-4 border-b border-warm-gray-200">
-                <div>
-                  <h2 className="font-heading text-2xl font-bold text-warm-gray-900">Agency Identification & Profile</h2>
-                  <p className="text-xs text-warm-gray-500 mt-1">Official agency metadata and legal credentials.</p>
-                </div>
-                <Link
-                  to="/agency/register"
-                  className="px-4 py-2 rounded-[8px] bg-amber text-white text-xs font-semibold hover:bg-amber-light transition-colors"
-                >
-                  Edit Registration Details
-                </Link>
-              </div>
 
-              <div className="space-y-4 text-sm">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-2 border-b border-warm-gray-100">
-                  <span className="text-warm-gray-500 font-medium">Agency Name</span>
-                  <span className="sm:col-span-2 font-bold text-warm-gray-900">{displayName}</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-2 border-b border-warm-gray-100">
-                  <span className="text-warm-gray-500 font-medium">Registered Official Email</span>
-                  <span className="sm:col-span-2 text-warm-gray-800">{contactEmail || 'contact@agency.gov.in'}</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-2 border-b border-warm-gray-100">
-                  <span className="text-warm-gray-500 font-medium">Account Role</span>
-                  <span className="sm:col-span-2">
-                    <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber text-xs font-semibold border border-amber/20">
-                      funding_agency
-                    </span>
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-2 border-b border-warm-gray-100">
-                  <span className="text-warm-gray-500 font-medium">Network Access Status</span>
-                  <span className="sm:col-span-2 text-emerald-700 font-semibold flex items-center gap-1.5">
-                    <CheckCircleIcon /> Active Funding Partner
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-2">
-                  <span className="text-warm-gray-500 font-medium">GrantOS Portal Link</span>
-                  <span className="sm:col-span-2 text-xs font-mono text-warm-gray-600 bg-cream p-2 rounded border border-warm-gray-200 select-all">
-                    https://grantos.gov.in/agency/{encodeURIComponent(displayName.toLowerCase().replace(/\s+/g, '-'))}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </main>
 
       {/* Modal: Publish New Grant Call */}

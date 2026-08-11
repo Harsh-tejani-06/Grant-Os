@@ -221,16 +221,16 @@ function HeroSection() {
             id="hero-get-started-btn"
             className="group inline-flex items-center gap-2 px-8 py-4 rounded-[12px] font-semibold text-lg text-white bg-primary hover:bg-primary-dark shadow-soft hover:shadow-medium transition-all duration-300 hover:-translate-y-0.5"
           >
-            Get Started Free
+            Get Started
             <span className="transition-transform duration-300 group-hover:translate-x-1"><ArrowRightIcon /></span>
           </Link>
-          <a
+          {/* <a
             href="#features"
             id="hero-learn-more-btn"
             className="inline-flex items-center gap-2 px-8 py-4 rounded-[12px] font-semibold text-lg text-primary bg-cream-dark hover:bg-cream-deeper border-2 border-primary/10 hover:border-primary/25 transition-all duration-300"
           >
             Learn More
-          </a>
+          </a> */}
         </div>
 
         {/* Stats */}
