@@ -14,7 +14,6 @@ const fundingAgencySchema = new mongoose.Schema(
       enum: [
         'government_central',
         'government_state',
-        'corporate_csr',
         'private_foundation',
         'international_agency',
       ],

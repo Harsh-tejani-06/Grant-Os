@@ -454,12 +454,12 @@ export default function FundingAgencyRegistrationPage() {
               )}
             </div>
           </div>
-
+{/* 
           <p className="text-center mt-6">
             <Link to="/agency/dashboard" className="text-sm text-warm-gray-400 hover:text-warm-gray-600 transition-colors">
               ← Back to Dashboard
             </Link>
-          </p>
+          </p> */}
         </div>
       </div>
     </div>
