@@ -50,7 +50,7 @@ const registerMember = async (req, res) => {
       });
     }
 
-    // 5. Organization is approved → create member with isVerified=false
+    // 5. Organization is approved → create member with isVerified=false and default proposal_writing task
     const member = await User.create({
       fullName,
       email,
@@ -58,6 +58,7 @@ const registerMember = async (req, res) => {
       role: 'team_member',
       organization: organization._id,
       isVerified: false, // Needs org admin verification
+      assignedTasks: ['proposal_writing'],
     });
 
     res.status(201).json({
@@ -157,6 +158,9 @@ const verifyMember = async (req, res) => {
     member.isVerified = true;
     member.verifiedBy = req.user._id;
     member.verifiedAt = new Date();
+    if (!member.assignedTasks || member.assignedTasks.length === 0) {
+      member.assignedTasks = ['proposal_writing'];
+    }
     await member.save();
 
     res.json({

@@ -12,6 +12,7 @@ const orgRoutes = require('./routes/orgRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const memberRoutes = require('./routes/memberRoutes');
 const fundingAgencyRoutes = require('./routes/fundingAgencyRoutes');
+const proposalRoutes = require('./routes/proposalRoutes');
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.use('/api/org', orgRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/member', memberRoutes);
 app.use('/api/agency', fundingAgencyRoutes);
+app.use('/api/proposals', proposalRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -63,3 +65,4 @@ const startServer = async () => {
 };
 
 startServer();
+
