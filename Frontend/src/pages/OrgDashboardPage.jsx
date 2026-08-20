@@ -63,6 +63,8 @@ export default function OrgAdminDashboard() {
   const [memberCounts, setMemberCounts] = useState({ total: 0, verified: 0, pending: 0 })
   const [membersLoading, setMembersLoading] = useState(false)
   const [taskModalMember, setTaskModalMember] = useState(null)
+  const [viewTasksModalMember, setViewTasksModalMember] = useState(null)
+  const [selectedViewGrantId, setSelectedViewGrantId] = useState('all')
   const [selectedTasks, setSelectedTasks] = useState([])
   const [actionLoading, setActionLoading] = useState('')
 
@@ -216,7 +218,7 @@ export default function OrgAdminDashboard() {
     if (activeSection === 'team' || activeSection === 'home' || activeSection === 'proposals') {
       fetchMembers()
     }
-    if (activeSection === 'proposals' || activeSection === 'home') {
+    if (activeSection === 'proposals' || activeSection === 'home' || activeSection === 'team') {
       fetchOrgProposals()
     }
   }, [activeSection])
@@ -414,6 +416,47 @@ export default function OrgAdminDashboard() {
     }
   }
 
+  const openViewTasksModal = (member) => {
+    setViewTasksModalMember(member)
+    setSelectedViewGrantId('all')
+    if (orgProposals.length === 0) {
+      fetchOrgProposals()
+    }
+  }
+
+  const getMemberAssignedProposals = (memberId, memberName) => {
+    if (!orgProposals || orgProposals.length === 0) return []
+    return orgProposals
+      .map((proposal) => {
+        const assignedSections = (proposal.sections || []).filter((sec) => {
+          if (!sec.assignedTo && !sec.assignedToName) return false
+          const matchId =
+            sec.assignedTo === memberId ||
+            sec.assignedTo?._id === memberId ||
+            (typeof sec.assignedTo === 'string' && sec.assignedTo === memberId?.toString())
+          const matchName =
+            sec.assignedToName &&
+            memberName &&
+            sec.assignedToName.trim().toLowerCase() === memberName.trim().toLowerCase()
+          return matchId || matchName
+        })
+
+        if (assignedSections.length > 0) {
+          return {
+            proposalId: proposal._id,
+            title: proposal.title,
+            grantTitle: proposal.grantTitle,
+            grantAgency: proposal.grantAgency,
+            fundingAmount: proposal.fundingAmount,
+            deadline: proposal.deadline,
+            sections: assignedSections,
+          }
+        }
+        return null
+      })
+      .filter(Boolean)
+  }
+
   const applyRolePreset = (presetName) => {
     if (ROLE_PRESETS[presetName]) {
       setSelectedTasks(ROLE_PRESETS[presetName])
@@ -491,8 +534,8 @@ export default function OrgAdminDashboard() {
                 key={item.key}
                 onClick={() => { setActiveSection(item.key); setSidebarOpen(false) }}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-[12px] text-sm font-medium transition-all duration-200 cursor-pointer ${activeSection === item.key
-                    ? 'bg-primary text-white shadow-soft'
-                    : 'text-warm-gray-600 hover:bg-warm-gray-50 hover:text-warm-gray-900'
+                  ? 'bg-primary text-white shadow-soft'
+                  : 'text-warm-gray-600 hover:bg-warm-gray-50 hover:text-warm-gray-900'
                   }`}
               >
                 <span className="text-lg">{item.icon}</span>
@@ -630,10 +673,10 @@ export default function OrgAdminDashboard() {
                           <p className="text-xs text-warm-gray-500">{d.date}</p>
                         </div>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${d.priority === 'high'
-                            ? 'bg-red-50 text-red-600 border-red-200'
-                            : d.priority === 'medium'
-                              ? 'bg-amber-50 text-amber border-amber/15'
-                              : 'bg-green-50 text-green-600 border-green-200'
+                          ? 'bg-red-50 text-red-600 border-red-200'
+                          : d.priority === 'medium'
+                            ? 'bg-amber-50 text-amber border-amber/15'
+                            : 'bg-green-50 text-green-600 border-green-200'
                           }`}>
                           {d.daysLeft}d left
                         </span>
@@ -696,8 +739,8 @@ export default function OrgAdminDashboard() {
                         <p className="text-xs text-warm-gray-500">{grant.agency}</p>
                       </div>
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${grant.status === 'Closing Soon'
-                          ? 'bg-red-50 text-red-600 border-red-200'
-                          : 'bg-green-50 text-green-600 border-green-200'
+                        ? 'bg-red-50 text-red-600 border-red-200'
+                        : 'bg-green-50 text-green-600 border-green-200'
                         }`}>
                         {grant.status}
                       </span>
@@ -763,10 +806,10 @@ export default function OrgAdminDashboard() {
                           </div>
                         </div>
                         <span className={`px-3 py-1 rounded-full text-xs font-bold border ${app.status === 'Approved'
-                            ? 'bg-green-50 text-green-600 border-green-200'
-                            : app.status === 'Under Review'
-                              ? 'bg-amber-50 text-amber border-amber/15'
-                              : 'bg-blue-50 text-blue-600 border-blue-200'
+                          ? 'bg-green-50 text-green-600 border-green-200'
+                          : app.status === 'Under Review'
+                            ? 'bg-amber-50 text-amber border-amber/15'
+                            : 'bg-blue-50 text-blue-600 border-blue-200'
                           }`}>
                           {app.status}
                         </span>
@@ -875,12 +918,20 @@ export default function OrgAdminDashboard() {
                                   <p className="text-sm text-warm-gray-500">{m.email}</p>
                                 </div>
                               </div>
-                              <button
-                                onClick={() => openTaskModal(m)}
-                                className="px-4 py-2 rounded-[10px] text-sm font-semibold text-primary bg-primary-50 hover:bg-primary-100 border border-primary/15 transition-all duration-200 cursor-pointer"
-                              >
-                                {m.assignedTasks?.length > 0 ? 'Edit Tasks' : 'Assign Tasks'}
-                              </button>
+                              <div className="flex flex-col items-end gap-2">
+                                <button
+                                  onClick={() => openTaskModal(m)}
+                                  className="px-4 py-2 rounded-[10px] text-sm font-semibold text-primary bg-primary-50 hover:bg-primary-100 border border-primary/15 transition-all duration-200 cursor-pointer"
+                                >
+                                  {m.assignedTasks?.length > 0 ? 'Edit Tasks' : 'Assign Tasks'}
+                                </button>
+                                <button
+                                  onClick={() => openViewTasksModal(m)}
+                                  className="px-4 py-2 rounded-[10px] text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition-all duration-200 cursor-pointer flex items-center gap-1.5 shadow-soft"
+                                >
+                                  <span>View Tasks</span>
+                                </button>
+                              </div>
                             </div>
                             {/* Assigned tasks display */}
                             {m.assignedTasks?.length > 0 && (
@@ -1044,8 +1095,8 @@ export default function OrgAdminDashboard() {
                       key={prop._id}
                       onClick={() => setSelectedProposalId(prop._id)}
                       className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer border whitespace-nowrap ${selectedProposalObj?._id === prop._id
-                          ? 'bg-purple-600 text-white border-purple-600 shadow-soft'
-                          : 'bg-white text-warm-gray-700 border-warm-gray-200 hover:bg-warm-gray-50'
+                        ? 'bg-purple-600 text-white border-purple-600 shadow-soft'
+                        : 'bg-white text-warm-gray-700 border-warm-gray-200 hover:bg-warm-gray-50'
                         }`}
                     >
                       {prop.title}
@@ -1110,9 +1161,9 @@ export default function OrgAdminDashboard() {
                             <div className="flex items-center gap-2 mb-1">
                               <span className="font-bold text-sm text-warm-gray-900">{sec.title}</span>
                               <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${sec.status === 'Ready for Review' ? 'bg-green-50 text-green-700 border-green-200 animate-pulse'
-                                  : sec.status === 'Approved' ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                    : sec.status === 'In Progress' ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                      : 'bg-warm-gray-50 text-warm-gray-600 border-warm-gray-200'
+                                : sec.status === 'Approved' ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                  : sec.status === 'In Progress' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-warm-gray-50 text-warm-gray-600 border-warm-gray-200'
                                 }`}>
                                 {sec.status}
                               </span>
@@ -1126,11 +1177,10 @@ export default function OrgAdminDashboard() {
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => setReviewSectionModal(sec)}
-                              className={`px-3 py-2 rounded-[10px] text-xs font-bold border transition-all cursor-pointer flex items-center gap-1 ${
-                                sec.status === 'Ready for Review'
+                              className={`px-3 py-2 rounded-[10px] text-xs font-bold border transition-all cursor-pointer flex items-center gap-1 ${sec.status === 'Ready for Review'
                                   ? 'bg-green-600 text-white border-green-600 hover:bg-green-700 shadow-soft'
                                   : 'bg-warm-gray-100 hover:bg-warm-gray-200 text-warm-gray-800 border-warm-gray-300'
-                              }`}
+                                }`}
                             >
                               <span>👁️</span> {sec.status === 'Ready for Review' ? 'Review & Approve' : 'View Text'}
                             </button>
@@ -1299,8 +1349,8 @@ export default function OrgAdminDashboard() {
                 <label
                   key={task.key}
                   className={`flex items-center gap-3 p-3 rounded-[12px] border-2 cursor-pointer transition-all duration-200 ${selectedTasks.includes(task.key)
-                      ? 'border-primary bg-primary-50'
-                      : 'border-warm-gray-200 bg-cream hover:border-warm-gray-300'
+                    ? 'border-primary bg-primary-50'
+                    : 'border-warm-gray-200 bg-cream hover:border-warm-gray-300'
                     }`}
                 >
                   <input
@@ -1310,8 +1360,8 @@ export default function OrgAdminDashboard() {
                     className="sr-only"
                   />
                   <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${selectedTasks.includes(task.key)
-                      ? 'border-primary bg-primary text-white'
-                      : 'border-warm-gray-300'
+                    ? 'border-primary bg-primary text-white'
+                    : 'border-warm-gray-300'
                     }`}>
                     {selectedTasks.includes(task.key) && (
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
@@ -1350,11 +1400,10 @@ export default function OrgAdminDashboard() {
           <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-medium w-full max-w-2xl p-6 sm:p-8 animate-fade-up max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between pb-4 border-b border-warm-gray-200/60 mb-4">
               <div>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                  reviewSectionModal.status === 'Ready for Review' ? 'bg-green-50 text-green-700 border-green-200'
-                  : reviewSectionModal.status === 'Approved' ? 'bg-blue-50 text-blue-700 border-blue-200'
-                  : 'bg-warm-gray-50 text-warm-gray-600 border-warm-gray-200'
-                }`}>
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${reviewSectionModal.status === 'Ready for Review' ? 'bg-green-50 text-green-700 border-green-200'
+                    : reviewSectionModal.status === 'Approved' ? 'bg-blue-50 text-blue-700 border-blue-200'
+                      : 'bg-warm-gray-50 text-warm-gray-600 border-warm-gray-200'
+                  }`}>
                   {reviewSectionModal.status}
                 </span>
                 <h2 className="font-heading text-lg font-bold text-warm-gray-900 mt-1">{reviewSectionModal.title}</h2>
@@ -1410,11 +1459,10 @@ export default function OrgAdminDashboard() {
                 <div key={sec._id} className="pb-6 border-b border-warm-gray-200/60 last:border-0">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-heading font-bold text-sm text-purple-950">{sec.title}</h3>
-                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
-                      sec.status === 'Approved' ? 'bg-blue-50 text-blue-700 border-blue-200'
-                      : sec.status === 'Ready for Review' ? 'bg-green-50 text-green-700 border-green-200'
-                      : 'bg-warm-gray-50 text-warm-gray-500 border-warm-gray-200'
-                    }`}>
+                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${sec.status === 'Approved' ? 'bg-blue-50 text-blue-700 border-blue-200'
+                        : sec.status === 'Ready for Review' ? 'bg-green-50 text-green-700 border-green-200'
+                          : 'bg-warm-gray-50 text-warm-gray-500 border-warm-gray-200'
+                      }`}>
                       {sec.status} &nbsp;•&nbsp; Writer: {sec.assignedToName || 'Unassigned'}
                     </span>
                   </div>
@@ -1447,6 +1495,177 @@ export default function OrgAdminDashboard() {
                 className="px-5 py-2.5 rounded-[10px] font-bold text-white bg-green-600 hover:bg-green-700 shadow-soft transition-all text-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
               >
                 <span>✓</span> {actionLoading === selectedProposalObj._id ? 'Approving All...' : 'Approve All 17 Sections'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ─── View Assigned Tasks Modal ─── */}
+      {viewTasksModalMember && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={() => setViewTasksModalMember(null)} />
+          <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-medium w-full max-w-3xl p-6 sm:p-8 animate-fade-up max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-warm-gray-200/60 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center text-lg shadow-inner">
+                  {viewTasksModalMember.fullName?.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h2 className="font-heading text-xl font-bold text-warm-gray-900">
+                    Assigned Tasks: {viewTasksModalMember.fullName}
+                  </h2>
+                  <p className="text-xs text-warm-gray-500">
+                    {viewTasksModalMember.email} {viewTasksModalMember.jobTitle ? `• ${viewTasksModalMember.jobTitle}` : ''}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setViewTasksModalMember(null)} className="text-warm-gray-400 hover:text-warm-gray-700 text-lg font-bold p-1 cursor-pointer">
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto space-y-6 pr-1">
+              {/* Module Permissions */}
+              <div className="bg-cream/60 rounded-[14px] p-4 border border-warm-gray-200/60">
+                <h4 className="text-xs font-bold text-warm-gray-700 uppercase tracking-wider mb-2">Module Permissions:</h4>
+                <div className="flex flex-wrap gap-2">
+                  {viewTasksModalMember.assignedTasks?.length > 0 ? (
+                    viewTasksModalMember.assignedTasks.map((t) => {
+                      const taskInfo = TASK_TYPES.find((tt) => tt.key === t)
+                      return taskInfo ? (
+                        <span key={t} className={`px-3 py-1 rounded-full text-xs font-semibold border ${taskInfo.color}`}>
+                          {taskInfo.icon} {taskInfo.label}
+                        </span>
+                      ) : null
+                    })
+                  ) : (
+                    <span className="text-xs text-warm-gray-400 italic">No module permissions assigned yet.</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Grant Proposal Sections */}
+              <div>
+                {(() => {
+                  const memberProposals = getMemberAssignedProposals(viewTasksModalMember._id, viewTasksModalMember.fullName)
+
+                  if (memberProposals.length === 0) {
+                    return (
+                      <>
+                        <h4 className="text-xs font-bold text-warm-gray-700 uppercase tracking-wider mb-3">
+                          Assigned Grant Proposal Sections
+                        </h4>
+                        <div className="bg-white rounded-[16px] p-8 border border-warm-gray-200/80 text-center">
+                          <span className="text-3xl block mb-2">📋</span>
+                          <p className="text-sm font-semibold text-warm-gray-700">No grant proposal sections assigned yet</p>
+                          <p className="text-xs text-warm-gray-400 mt-1 max-w-sm mx-auto">
+                            You can assign sections to <strong>{viewTasksModalMember.fullName}</strong> from the <strong>Proposal Management</strong> tab or using Auto-Assign.
+                          </p>
+                        </div>
+                      </>
+                    )
+                  }
+
+                  const filteredProposals = selectedViewGrantId === 'all'
+                    ? memberProposals
+                    : memberProposals.filter((p) => p.proposalId === selectedViewGrantId)
+
+                  return (
+                    <div>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                        <h4 className="text-xs font-bold text-warm-gray-700 uppercase tracking-wider">
+                          Assigned Grant Proposal Sections ({memberProposals.length} Grant{memberProposals.length > 1 ? 's' : ''})
+                        </h4>
+
+                        {/* Grant Selection Dropdown */}
+                        <div className="flex items-center gap-2">
+                          <label htmlFor="view-grant-select" className="text-xs font-bold text-warm-gray-600">
+                            Select Grant:
+                          </label>
+                          <select
+                            id="view-grant-select"
+                            value={selectedViewGrantId}
+                            onChange={(e) => setSelectedViewGrantId(e.target.value)}
+                            className="px-3 py-1.5 rounded-[10px] border border-purple-200 bg-white text-xs font-bold text-purple-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 cursor-pointer shadow-soft"
+                          >
+                            <option value="all">-- All Assigned Grants ({memberProposals.length}) --</option>
+                            {memberProposals.map((prop) => (
+                              <option key={prop.proposalId} value={prop.proposalId}>
+                                🎯 {prop.title} {prop.grantAgency ? `(${prop.grantAgency})` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {filteredProposals.length === 0 ? (
+                        <div className="bg-white rounded-[16px] p-6 border border-warm-gray-200/80 text-center">
+                          <p className="text-xs text-warm-gray-500">No sections found for the selected grant.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {filteredProposals.map((prop) => (
+                            <div key={prop.proposalId} className="bg-white rounded-[16px] border border-warm-gray-200 shadow-soft overflow-hidden">
+                              {/* Grant Banner */}
+                              <div className="bg-purple-50/70 p-4 border-b border-purple-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div>
+                                  <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider">Grant Proposal</span>
+                                  <h5 className="font-heading font-bold text-warm-gray-900 text-sm">{prop.title}</h5>
+                                  <p className="text-xs text-warm-gray-500">
+                                    {prop.grantTitle ? `${prop.grantTitle} • ` : ''}{prop.grantAgency || 'Funding Agency'}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-warm-gray-600">
+                                  {prop.fundingAmount && (
+                                    <span className="bg-white px-2.5 py-1 rounded-md border border-purple-200 font-semibold text-purple-900">
+                                      💰 {prop.fundingAmount}
+                                    </span>
+                                  )}
+                                  {prop.deadline && (
+                                    <span className="bg-white px-2.5 py-1 rounded-md border border-purple-200 font-semibold text-purple-900">
+                                      📅 {prop.deadline}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Sections List */}
+                              <div className="p-3 divide-y divide-warm-gray-100">
+                                {prop.sections.map((sec) => (
+                                  <div key={sec._id} className="py-2.5 px-2 flex items-center justify-between gap-2">
+                                    <div>
+                                      <p className="text-xs font-bold text-warm-gray-800">{sec.title}</p>
+                                      <p className="text-[11px] text-warm-gray-400">Word limit: {sec.wordCountLimit || 500} words</p>
+                                    </div>
+                                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${sec.status === 'Approved' ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                        : sec.status === 'Ready for Review' ? 'bg-green-50 text-green-700 border-green-200'
+                                          : sec.status === 'In Progress' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                            : 'bg-warm-gray-50 text-warm-gray-600 border-warm-gray-200'
+                                      }`}>
+                                      {sec.status}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end pt-4 border-t border-warm-gray-200/60 mt-4">
+              <button
+                onClick={() => setViewTasksModalMember(null)}
+                className="px-5 py-2.5 rounded-[12px] font-bold text-white bg-primary hover:bg-primary-dark shadow-soft transition-all text-xs cursor-pointer"
+              >
+                Close
               </button>
             </div>
           </div>
