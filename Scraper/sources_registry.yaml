@@ -1,0 +1,95 @@
+# sources_registry.yaml
+#
+# Each entry defines one scraping source. To add/remove a source, add/delete
+# an entry here — no pipeline code changes needed. Existing scraped grants
+# remain in the DB; they simply stop refreshing when a source is removed.
+#
+# Fields:
+#   spider_name:       which Scrapy spider class handles this source
+#   agency_name:       parent agency (DST/DBT/AICTE/UGC) — goes into agency.name
+#   implementing_body: optional sub-body (BIRAC, KIRAN, etc.) — agency.implementingBody
+#   urls:              list of seed URLs to crawl
+#   extraction_method: default method (html_table | html_text | pdf_table | pdf_text)
+#                      Note: spiders auto-detect PDF responses at runtime regardless
+#                      of this setting.  Set to pdf_text if ALL urls for a source are PDFs.
+#   enabled:           set to false to skip without deleting the entry
+#   notes:             human-readable description
+
+sources:
+  # ═══════════════════════════════════════════════════════
+  # DST — Department of Science and Technology
+  # ═══════════════════════════════════════════════════════
+  - spider_name: dst
+    agency_name: "Department of Science and Technology"
+    implementing_body: ""
+    urls:
+      - "https://dst.gov.in/scientific-programmes"
+      - "https://dst.gov.in/call-for-proposals"
+    extraction_method: html_text
+    enabled: true
+    notes: "Main DST site — programme listings and call-for-proposals pages"
+
+  - spider_name: dst
+    agency_name: "Department of Science and Technology"
+    implementing_body: "SERB"
+    urls:
+      - "https://serb.gov.in/page/english/research_grants"
+    extraction_method: html_text
+    enabled: true
+    notes: "SERB (Science and Engineering Research Board) — DST sub-body"
+
+  - spider_name: dst
+    agency_name: "Department of Science and Technology"
+    implementing_body: ""
+    urls:
+      - "https://online-inspire.gov.in"
+    extraction_method: html_text
+    enabled: true
+    notes: "INSPIRE programme portal"
+
+  # ═══════════════════════════════════════════════════════
+  # DBT — Department of Biotechnology
+  # ═══════════════════════════════════════════════════════
+  - spider_name: dbt
+    agency_name: "Department of Biotechnology"
+    implementing_body: ""
+    urls:
+      - "https://dbt.gov.in/offerings"
+    extraction_method: html_text
+    enabled: true
+    notes: "Main DBT site — scheme listings"
+
+  - spider_name: dbt
+    agency_name: "Department of Biotechnology"
+    implementing_body: "BIRAC"
+    urls:
+      - "https://birac.nic.in/scheme_categories.php"
+    extraction_method: html_text
+    enabled: true
+    notes: "BIRAC — Biotechnology Industry Research Assistance Council"
+
+  # ═══════════════════════════════════════════════════════
+  # AICTE — All India Council for Technical Education
+  # ═══════════════════════════════════════════════════════
+  - spider_name: aicte
+    agency_name: "All India Council for Technical Education"
+    implementing_body: ""
+    urls:
+      - "https://www.aicte-india.org/bureaus"
+      - "https://www.aicte-india.org/schemes"
+    extraction_method: html_text
+    enabled: true
+    notes: "AICTE schemes and bureau pages"
+
+  # ═══════════════════════════════════════════════════════
+  # UGC — University Grants Commission
+  # ═══════════════════════════════════════════════════════
+  - spider_name: ugc
+    agency_name: "University Grants Commission"
+    implementing_body: ""
+    urls:
+      - "https://www.ugc.gov.in/subpage/gen-fellowship.aspx"
+      - "https://www.ugc.gov.in/subpage/fellowships.aspx"
+    extraction_method: html_text
+    enabled: true
+    notes: "UGC fellowship and grant listings"

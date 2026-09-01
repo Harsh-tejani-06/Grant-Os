@@ -13,6 +13,8 @@ const adminRoutes = require('./routes/adminRoutes');
 const memberRoutes = require('./routes/memberRoutes');
 const fundingAgencyRoutes = require('./routes/fundingAgencyRoutes');
 const proposalRoutes = require('./routes/proposalRoutes');
+const grantIngestRoutes = require('./routes/grantIngestRoutes');
+const grantAdminRoutes = require('./routes/grantAdminRoutes');
 
 const app = express();
 
@@ -33,6 +35,10 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/member', memberRoutes);
 app.use('/api/agency', fundingAgencyRoutes);
 app.use('/api/proposals', proposalRoutes);
+app.use('/api/admin/grants', grantAdminRoutes);
+
+// ─── Internal Routes (machine-to-machine, no public CORS) ───
+app.use('/api/internal/grants', grantIngestRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
