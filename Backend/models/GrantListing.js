@@ -302,6 +302,14 @@ const GrantListingSchema = new Schema(
     firstDiscoveredAt: { type: Date, default: Date.now, immutable: true },
     lastScrapedAt: { type: Date, default: Date.now },
 
+    // ─── Embedding (Grant Discovery) ───
+    // 768-dim vector from gemini-embedding-001, used for semantic similarity
+    // ranking against organization profiles.
+    embedding: { type: [Number], default: [] },
+    // SHA-256 hash of the concatenated source text fed to the embedding model.
+    // Compared before re-embedding so unchanged grants don't burn API calls.
+    embeddingContentHash: { type: String, default: null },
+
     // Soft-delete: when a grant disappears from its source site (deadline
     // long passed, page removed, or the site itself is de-registered from
     // the scraper config), flip this instead of deleting the document so

@@ -532,7 +532,13 @@ export default function OrgAdminDashboard() {
             {NAV_ITEMS.map((item) => (
               <button
                 key={item.key}
-                onClick={() => { setActiveSection(item.key); setSidebarOpen(false) }}
+                onClick={() => {
+                  if (item.key === 'grants') {
+                    navigate('/org/grants/discover')
+                    return
+                  }
+                  setActiveSection(item.key); setSidebarOpen(false)
+                }}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-[12px] text-sm font-medium transition-all duration-200 cursor-pointer ${activeSection === item.key
                   ? 'bg-primary text-white shadow-soft'
                   : 'text-warm-gray-600 hover:bg-warm-gray-50 hover:text-warm-gray-900'

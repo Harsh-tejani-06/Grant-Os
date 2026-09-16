@@ -155,7 +155,13 @@ export default function TeamMemberDashboard() {
                 return (
                   <button
                     key={taskKey}
-                    onClick={() => { setActiveTask(taskKey); setSidebarOpen(false) }}
+                    onClick={() => {
+                      if (taskKey === 'grant_discovery') {
+                        navigate('/org/grants/discover')
+                        return
+                      }
+                      setActiveTask(taskKey); setSidebarOpen(false)
+                    }}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-[12px] text-sm font-medium transition-all duration-200 cursor-pointer ${activeTask === taskKey
                         ? 'bg-primary text-white shadow-soft'
                         : 'text-warm-gray-600 hover:bg-warm-gray-50 hover:text-warm-gray-900'

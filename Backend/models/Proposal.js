@@ -92,6 +92,11 @@ const proposalSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    grantListingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'GrantListing',
+      default: null,
+    },
     organization: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Organization',

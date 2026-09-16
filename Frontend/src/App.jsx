@@ -13,6 +13,7 @@ import FundingAgencyRegistrationPage from './pages/FundingAgencyRegistrationPage
 import FundingAgencyPendingPage from './pages/FundingAgencyPendingPage.jsx'
 import FundingAgencyRejectedPage from './pages/FundingAgencyRejectedPage.jsx'
 import FundingAgencyWelcomePage from './pages/FundingAgencyWelcomePage.jsx'
+import GrantDiscoveryPage from './pages/GrantDiscoveryPage.jsx'
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
       <Route path="/org/pending" element={<OrgPendingPage />} />
       <Route path="/org/rejected" element={<OrgRejectedPage />} />
       <Route path="/org/dashboard" element={<OrgDashboardPage />} />
+      <Route path="/org/grants/discover" element={<GrantDiscoveryPage />} />
       <Route path="/admin/dashboard" element={<AdminDashboard />} />
       <Route path="/member/pending-verification" element={<MemberPendingVerificationPage />} />
       <Route path="/member/dashboard" element={<TeamMemberDashboard />} />

@@ -3,6 +3,7 @@ const { body } = require('express-validator');
 const {
   registerOrganization,
   getOrgStatus,
+  discoverGrants,
 } = require('../controllers/orgController');
 const { protect, requireRole } = require('../middleware/auth');
 
@@ -52,5 +53,13 @@ router.post(
 
 // GET /api/org/status
 router.get('/status', protect, requireRole('org_admin'), getOrgStatus);
+
+// GET /api/org/grants/discover
+router.get(
+  '/grants/discover',
+  protect,
+  requireRole('org_admin', 'team_member'),
+  discoverGrants
+);
 
 module.exports = router;

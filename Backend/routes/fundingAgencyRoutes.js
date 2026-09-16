@@ -3,6 +3,8 @@ const { body } = require('express-validator');
 const {
   registerFundingAgency,
   getAgencyStatus,
+  publishGrantCall,
+  getMyGrantCalls,
 } = require('../controllers/fundingAgencyController');
 const { protect, requireRole } = require('../middleware/auth');
 
@@ -64,4 +66,67 @@ router.post(
 // GET /api/agency/status
 router.get('/status', protect, requireRole('funding_agency'), getAgencyStatus);
 
+// ─── Grant Call Routes ───
+
+// POST /api/agency/grants — Publish a new grant call
+router.post(
+  '/grants',
+  protect,
+  requireRole('funding_agency'),
+  [
+    body('title')
+      .trim()
+      .notEmpty()
+      .withMessage('Grant title is required')
+      .isLength({ max: 300 })
+      .withMessage('Title must be at most 300 characters'),
+    body('description')
+      .optional()
+      .trim()
+      .isLength({ max: 2000 })
+      .withMessage('Description must be at most 2000 characters'),
+    body('grantType')
+      .optional()
+      .isIn([
+        'research_grant', 'fellowship', 'startup_funding', 'institutional_infra',
+        'facility_access', 'science_communication', 'academic_programme', 'scholarship',
+        'faculty_training', 'student_competition_travel', 'institutional_recognition',
+        'general_scheme', 'travel_grant', 'other',
+      ])
+      .withMessage('Invalid grant type'),
+    body('deadline')
+      .notEmpty()
+      .withMessage('Application deadline is required')
+      .isISO8601()
+      .withMessage('Deadline must be a valid date')
+      .custom((value) => {
+        if (new Date(value) <= new Date()) {
+          throw new Error('Deadline must be a future date');
+        }
+        return true;
+      }),
+    body('infoUrl')
+      .trim()
+      .notEmpty()
+      .withMessage('Info/Source URL is required')
+      .isURL({ protocols: ['http', 'https'], require_protocol: true })
+      .withMessage('Info URL must be a valid http(s) URL'),
+    body('applicationUrl')
+      .optional({ values: 'falsy' })
+      .trim()
+      .isURL({ protocols: ['http', 'https'], require_protocol: true })
+      .withMessage('Application URL must be a valid http(s) URL'),
+    body('guidelinesUrl')
+      .optional({ values: 'falsy' })
+      .trim()
+      .isURL({ protocols: ['http', 'https'], require_protocol: true })
+      .withMessage('Guidelines URL must be a valid http(s) URL'),
+  ],
+  publishGrantCall
+);
+
+// GET /api/agency/grants — Get all grant calls by this agency
+router.get('/grants', protect, requireRole('funding_agency'), getMyGrantCalls);
+
 module.exports = router;
+

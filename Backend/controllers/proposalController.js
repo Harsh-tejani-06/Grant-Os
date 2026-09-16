@@ -344,10 +344,25 @@ User focus: ${prompt || 'Focus on state-of-the-art methodology, clear milestones
 // @access  Private (org_admin)
 exports.createProposal = async (req, res) => {
   try {
-    const { title, grantTitle, grantAgency, fundingAmount, deadline } = req.body;
+    const { title, grantTitle, grantAgency, fundingAmount, deadline, grantListingId } = req.body;
 
     if (!title) {
       return res.status(400).json({ success: false, message: 'Proposal title is required' });
+    }
+
+    // Duplicate guard: prevent multiple active proposals for the same grant
+    if (grantListingId) {
+      const existing = await Proposal.findOne({
+        organization: req.user.organization,
+        grantListingId,
+        status: { $nin: ['Rejected'] },
+      });
+      if (existing) {
+        return res.status(409).json({
+          success: false,
+          message: 'Your organization already has an active proposal for this grant',
+        });
+      }
     }
 
     const sections = Proposal.getDefaultSections();
@@ -358,6 +373,7 @@ exports.createProposal = async (req, res) => {
       grantAgency: grantAgency || '',
       fundingAmount: fundingAmount || '',
       deadline: deadline || '',
+      grantListingId: grantListingId || null,
       organization: req.user.organization,
       status: 'In Progress',
       progress: 0,
