@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../api'
+import GrantCallEditorModal from '../components/GrantCallEditorModal'
 
 const LeafIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
@@ -23,49 +24,25 @@ const PlusIcon = () => (
   </svg>
 )
 
-const SAMPLE_PROGRAMS = [
-  {
-    id: 'GP-2026-01',
-    title: 'National Deep Tech & AI Innovation Grant',
-    category: 'Technology & Computing',
-    budget: '₹5,00,00,000',
-    deadline: '2026-10-15',
-    applicationsCount: 24,
-    status: 'Active',
-    fundingType: 'Research & Commercialization',
-  },
-  {
-    id: 'GP-2026-02',
-    title: 'Clean Energy & Carbon Neutrality Research Fellowship',
-    category: 'Environmental Sciences',
-    budget: '₹2,50,00,000',
-    deadline: '2026-11-01',
-    applicationsCount: 16,
-    status: 'Active',
-    fundingType: 'Institutional Fellowship',
-  },
-  {
-    id: 'GP-2026-03',
-    title: 'Translational Healthcare & Biotechnology Initiative',
-    category: 'Medical Science',
-    budget: '₹4,00,00,000',
-    deadline: '2026-09-30',
-    applicationsCount: 31,
-    status: 'Reviewing',
-    fundingType: 'Project Grant',
-  },
-  {
-    id: 'GP-2026-04',
-    title: 'Smart Agriculture & Rural Tech Seed Fund',
-    category: 'Agriculture',
-    budget: '₹1,00,00,000',
-    deadline: '2026-12-15',
-    applicationsCount: 8,
-    status: 'Active',
-    fundingType: 'Pre-Seed Grant',
-  },
-]
+const formatDate = (dateValue) => {
+  if (!dateValue) return '—'
+  const d = new Date(dateValue)
+  if (Number.isNaN(d.getTime())) return dateValue
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+}
 
+const STATUS_TONE = {
+  Draft: 'bg-warm-gray-100 text-warm-gray-600 border-warm-gray-200',
+  Upcoming: 'bg-blue-50 text-blue-700 border-blue-200',
+  Active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  Closed: 'bg-amber-50 text-amber border-amber/20',
+  'Under Review': 'bg-purple-50 text-purple-700 border-purple-200',
+  Completed: 'bg-warm-gray-100 text-warm-gray-600 border-warm-gray-200',
+  Archived: 'bg-warm-gray-100 text-warm-gray-400 border-warm-gray-200',
+}
+
+// Mock — Proposal review is out of scope for this pass (existing AgencyProposalsPage
+// handles real proposal data separately); left as-is per instructions not to touch it.
 const SAMPLE_PROPOSALS = [
   {
     id: 'PROP-801',
@@ -104,16 +81,45 @@ const SAMPLE_PROPOSALS = [
 
 export default function FundingAgencyWelcomePage() {
   const navigate = useNavigate()
+  const fileInputRef = useRef(null)
   const [agencyName, setAgencyName] = useState('')
   const [contactEmail, setContactEmail] = useState('')
   const [activeTab, setActiveTab] = useState('overview')
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const [newGrantTitle, setNewGrantTitle] = useState('')
-  const [newGrantBudget, setNewGrantBudget] = useState('')
-  const [newGrantDomain, setNewGrantDomain] = useState('Science & Technology')
-  const [programsList, setProgramsList] = useState(SAMPLE_PROGRAMS)
+  const [editingProgram, setEditingProgram] = useState(null) // null = closed, {} = new, {...} = editing
+  const [programsList, setProgramsList] = useState([])
+  const [loadingPrograms, setLoadingPrograms] = useState(true)
   const [notificationMsg, setNotificationMsg] = useState('')
   const [hasAgencyProfile, setHasAgencyProfile] = useState(true)
+
+  // ─── Profile / verification document ───
+  const [profile, setProfile] = useState(null)
+  const [loadingProfile, setLoadingProfile] = useState(true)
+  const [uploadingDoc, setUploadingDoc] = useState(false)
+  const [uploadError, setUploadError] = useState('')
+
+  const fetchPrograms = async () => {
+    setLoadingPrograms(true)
+    try {
+      const res = await api.get('/agency/programs')
+      if (res.data.success) setProgramsList(res.data.programs || [])
+    } catch {
+      // agency not approved yet — leave empty
+    } finally {
+      setLoadingPrograms(false)
+    }
+  }
+
+  const fetchProfile = async () => {
+    setLoadingProfile(true)
+    try {
+      const res = await api.get('/agency/profile')
+      if (res.data.success) setProfile(res.data.agency)
+    } catch {
+      // agency not approved yet — leave null
+    } finally {
+      setLoadingProfile(false)
+    }
+  }
 
   useEffect(() => {
     // 1. Check local storage
@@ -158,6 +164,8 @@ export default function FundingAgencyWelcomePage() {
     }
 
     fetchAgencyData()
+    fetchPrograms()
+    fetchProfile()
   }, [navigate])
 
   const handleLogout = () => {
@@ -166,30 +174,73 @@ export default function FundingAgencyWelcomePage() {
     navigate('/login')
   }
 
-  const handleCreateGrant = (e) => {
-    e.preventDefault()
-    if (!newGrantTitle.trim()) return
+  const handleGrantSaved = (savedProgram, { published, silent } = {}) => {
+    fetchPrograms()
+    if (published) {
+      setNotificationMsg('Grant call published successfully!')
+      setTimeout(() => setNotificationMsg(''), 4000)
+    } else if (!silent) {
+      setNotificationMsg('Grant call saved.')
+      setTimeout(() => setNotificationMsg(''), 3000)
+    }
+  }
 
-    const newProg = {
-      id: `GP-2026-0${programsList.length + 1}`,
-      title: newGrantTitle,
-      category: newGrantDomain,
-      budget: newGrantBudget || '₹2,00,00,000',
-      deadline: '2026-11-30',
-      applicationsCount: 0,
-      status: 'Active',
-      fundingType: 'Project Grant',
+  const handleDeleteDraft = async (prog) => {
+    if (!window.confirm(`Delete draft "${prog.title}"? This cannot be undone.`)) return
+    try {
+      await api.delete(`/agency/programs/${prog._id}`)
+      fetchPrograms()
+      setNotificationMsg('Draft deleted.')
+      setTimeout(() => setNotificationMsg(''), 3000)
+    } catch (err) {
+      setNotificationMsg(err.response?.data?.message || 'Failed to delete draft.')
+      setTimeout(() => setNotificationMsg(''), 3000)
+    }
+  }
+
+  const handleUploadClick = () => fileInputRef.current?.click()
+
+  const handleFileSelected = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow re-selecting the same file later
+    if (!file) return
+
+    setUploadError('')
+
+    if (file.type !== 'application/pdf') {
+      setUploadError('Only PDF files are accepted.')
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError('File exceeds the 10 MB size limit.')
+      return
     }
 
-    setProgramsList([newProg, ...programsList])
-    setShowCreateModal(false)
-    setNewGrantTitle('')
-    setNewGrantBudget('')
-    setNotificationMsg('New Grant Program published successfully!')
-    setTimeout(() => setNotificationMsg(''), 4000)
+    const formData = new FormData()
+    formData.append('document', file)
+
+    setUploadingDoc(true)
+    try {
+      const res = await api.post('/agency/verification-document', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      if (res.data.success) {
+        setProfile((prev) => (prev ? { ...prev, verificationDocument: res.data.verificationDocument } : prev))
+        setNotificationMsg('Document uploaded and sent for verification.')
+        setTimeout(() => setNotificationMsg(''), 4000)
+      }
+    } catch (err) {
+      setUploadError(err.response?.data?.message || 'Failed to upload document.')
+    } finally {
+      setUploadingDoc(false)
+    }
   }
 
   const displayName = agencyName || 'Funding Agency Partner'
+  const verificationDoc = profile?.verificationDocument
+  const isVerified = verificationDoc?.status === 'verified'
+  const draftCount = programsList.filter((p) => p.status === 'Draft').length
+  const activeCount = programsList.filter((p) => p.status === 'Active').length
 
   return (
     <div className="min-h-screen bg-cream flex flex-col font-body">
@@ -284,11 +335,11 @@ export default function FundingAgencyWelcomePage() {
 
             <div className="flex flex-col sm:flex-row md:flex-col gap-3 flex-shrink-0">
               <button
-                onClick={() => setShowCreateModal(true)}
+                onClick={() => setEditingProgram({})}
                 className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-[12px] bg-amber hover:bg-amber-light text-white font-semibold shadow-soft hover:shadow-medium transition-all duration-200 hover:-translate-y-0.5 cursor-pointer text-sm"
                 id="hero-create-grant-btn"
               >
-                <PlusIcon /> Publish Grant Call
+                <PlusIcon /> New Grant Call
               </button>
             </div>
           </div>
@@ -301,7 +352,7 @@ export default function FundingAgencyWelcomePage() {
               <span className="text-xs font-bold uppercase tracking-wider text-warm-gray-400">Active Programs</span>
               <span className="p-2 rounded-[10px] bg-amber-50 text-amber text-lg">📢</span>
             </div>
-            <div className="text-3xl font-heading font-bold text-warm-gray-900 mb-1">{programsList.length}</div>
+            <div className="text-3xl font-heading font-bold text-warm-gray-900 mb-1">{activeCount}</div>
             <p className="text-xs text-warm-gray-500 font-medium flex items-center gap-1 text-emerald-600">
               <span>●</span> Open for Institutional Submissions
             </p>
@@ -366,6 +417,16 @@ export default function FundingAgencyWelcomePage() {
             }`}
           >
             📋 Submitted Proposals ({SAMPLE_PROPOSALS.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('profile')}
+            className={`px-4 py-2 rounded-[10px] text-sm font-semibold transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'profile'
+                ? 'bg-amber text-white shadow-soft'
+                : 'text-warm-gray-600 hover:text-warm-gray-900 hover:bg-warm-gray-100'
+            }`}
+          >
+            🏛️ Agency Profile
           </button>
         </div>
 
@@ -442,34 +503,44 @@ export default function FundingAgencyWelcomePage() {
                 </div>
 
                 <div className="space-y-3.5">
+                  {loadingPrograms && (
+                    <p className="text-xs text-warm-gray-400 py-4 text-center">Loading grant calls…</p>
+                  )}
+                  {!loadingPrograms && programsList.length === 0 && (
+                    <p className="text-xs text-warm-gray-400 py-4 text-center">
+                      No grant calls yet. Click "New Grant Call" to create your first one.
+                    </p>
+                  )}
                   {programsList.slice(0, 3).map((prog) => (
                     <div
-                      key={prog.id}
+                      key={prog._id}
                       className="p-4 rounded-[12px] bg-cream border border-warm-gray-200/70 hover:border-amber/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                     >
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-xs font-mono font-semibold text-amber bg-amber-50 px-2 py-0.5 rounded">
-                            {prog.id}
+                            {prog.displayId}
                           </span>
-                          <span className="text-xs text-warm-gray-400">• {prog.category}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold border ${STATUS_TONE[prog.status] || STATUS_TONE.Draft}`}>
+                            {prog.status}
+                          </span>
                         </div>
                         <h4 className="font-semibold text-warm-gray-900 text-sm mb-1">{prog.title}</h4>
                         <div className="flex items-center gap-3 text-xs text-warm-gray-500">
-                          <span>💰 Budget: <strong>{prog.budget}</strong></span>
-                          <span>⏳ Deadline: {prog.deadline}</span>
+                          <span>💰 Budget: <strong>{prog.budget || '—'}</strong></span>
+                          <span>⏳ Deadline: {formatDate(prog.deadline)}</span>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-3 flex-shrink-0">
                         <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
-                          {prog.applicationsCount} Submissions
+                          {prog.applicationsCount || 0} Submissions
                         </span>
                         <button
-                          onClick={() => setActiveTab('proposals')}
+                          onClick={() => setEditingProgram(prog)}
                           className="text-xs font-semibold text-amber hover:bg-amber-50 px-3 py-1.5 rounded-[8px] border border-amber/20 transition-colors cursor-pointer"
                         >
-                          Review
+                          Open
                         </button>
                       </div>
                     </div>
@@ -492,18 +563,28 @@ export default function FundingAgencyWelcomePage() {
                       </div>
                     </div>
 
-                    <div className="flex items-start gap-2.5 p-3 rounded-[10px] bg-cream border border-warm-gray-200/60">
-                      <span className="text-amber mt-0.5">●</span>
+                    <div className={`flex items-start gap-2.5 p-3 rounded-[10px] border ${
+                      activeCount > 0 ? 'bg-emerald-50/60 border-emerald-200/50' : 'bg-cream border-warm-gray-200/60'
+                    }`}>
+                      <span className={`mt-0.5 ${activeCount > 0 ? 'text-emerald-600' : 'text-amber'}`}>
+                        {activeCount > 0 ? '✓' : '●'}
+                      </span>
                       <div>
                         <p className="text-xs font-semibold text-warm-gray-900">Publish Initial RFP</p>
-                        <p className="text-[11px] text-warm-gray-500">Specify grant scope, domain, and corpus</p>
+                        <p className="text-[11px] text-warm-gray-500">
+                          {activeCount > 0 ? `${activeCount} active grant call${activeCount === 1 ? '' : 's'}` : 'Specify grant scope, domain, and corpus'}
+                        </p>
                       </div>
                     </div>
 
-                    <div className="flex items-start gap-2.5 p-3 rounded-[10px] bg-cream border border-warm-gray-200/60">
-                      <span className="text-warm-gray-400 mt-0.5">○</span>
+                    <div className={`flex items-start gap-2.5 p-3 rounded-[10px] border ${
+                      isVerified ? 'bg-emerald-50/60 border-emerald-200/50' : 'bg-cream border-warm-gray-200/60'
+                    }`}>
+                      <span className={`mt-0.5 ${isVerified ? 'text-emerald-600' : 'text-warm-gray-400'}`}>
+                        {isVerified ? '✓' : '○'}
+                      </span>
                       <div>
-                        <p className="text-xs font-semibold text-warm-gray-900">Legal Verification (CIN/Darpan)</p>
+                        <p className="text-xs font-semibold text-warm-gray-900">Legal Verification Document</p>
                         <p className="text-[11px] text-warm-gray-500">Enhanced trust badge for applicant institutes</p>
                       </div>
                     </div>
@@ -512,10 +593,10 @@ export default function FundingAgencyWelcomePage() {
 
                 <div className="mt-6 pt-4 border-t border-warm-gray-200">
                   <button
-                    onClick={() => setShowCreateModal(true)}
+                    onClick={() => setEditingProgram({})}
                     className="w-full py-2.5 rounded-[10px] bg-amber text-white text-xs font-semibold hover:bg-amber-light transition-colors shadow-soft cursor-pointer"
                   >
-                    + Publish New Grant Opportunity
+                    + New Grant Call
                   </button>
                 </div>
               </div>
@@ -528,51 +609,66 @@ export default function FundingAgencyWelcomePage() {
           <div className="space-y-6 animate-fade-in">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-elevated rounded-[16px] border border-warm-gray-200/70 p-6 shadow-soft">
               <div>
-                <h2 className="font-heading text-2xl font-bold text-warm-gray-900">Grant Programs & Calls</h2>
-                <p className="text-xs text-warm-gray-500 mt-1">Manage open, upcoming, and closed funding opportunities.</p>
+                <h2 className="font-heading text-2xl font-bold text-warm-gray-900">Grant Calls</h2>
+                <p className="text-xs text-warm-gray-500 mt-1">
+                  {draftCount > 0 ? `${draftCount} draft${draftCount === 1 ? '' : 's'} in progress • ` : ''}
+                  Manage draft, upcoming, active, and closed funding opportunities.
+                </p>
               </div>
               <button
-                onClick={() => setShowCreateModal(true)}
+                onClick={() => setEditingProgram({})}
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-[10px] bg-amber hover:bg-amber-light text-white text-sm font-semibold transition-all shadow-soft cursor-pointer"
               >
-                <PlusIcon /> New Grant Opportunity
+                <PlusIcon /> New Grant Call
               </button>
             </div>
+
+            {loadingPrograms && (
+              <p className="text-sm text-warm-gray-400 py-8 text-center">Loading grant calls…</p>
+            )}
+
+            {!loadingPrograms && programsList.length === 0 && (
+              <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/70 p-10 text-center">
+                <p className="text-sm text-warm-gray-500 mb-4">You haven't created any grant calls yet.</p>
+                <button
+                  onClick={() => setEditingProgram({})}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-[10px] bg-amber hover:bg-amber-light text-white text-sm font-semibold transition-all shadow-soft cursor-pointer"
+                >
+                  <PlusIcon /> Create Your First Grant Call
+                </button>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {programsList.map((prog) => (
                 <div
-                  key={prog.id}
+                  key={prog._id}
                   className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/70 p-6 shadow-soft hover:shadow-medium transition-all"
                 >
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-xs font-mono font-bold text-amber bg-amber-50 px-2.5 py-1 rounded-full border border-amber/15">
-                      {prog.id}
+                      {prog.displayId}
                     </span>
-                    <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${
-                      prog.status === 'Active'
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : 'bg-amber-50 text-amber border border-amber/20'
-                    }`}>
+                    <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${STATUS_TONE[prog.status] || STATUS_TONE.Draft}`}>
                       {prog.status}
                     </span>
                   </div>
 
                   <h3 className="font-heading text-lg font-bold text-warm-gray-900 mb-2">{prog.title}</h3>
-                  <p className="text-xs text-warm-gray-500 mb-4">{prog.category} • {prog.fundingType}</p>
+                  <p className="text-xs text-warm-gray-500 mb-4">{prog.category || 'No category yet'} • {prog.fundingType}</p>
 
                   <div className="grid grid-cols-2 gap-3 p-3.5 rounded-[12px] bg-cream border border-warm-gray-200 mb-5 text-xs">
                     <div>
                       <span className="text-warm-gray-400 block text-[11px]">Total Funding</span>
-                      <strong className="text-warm-gray-900 font-semibold text-sm">{prog.budget}</strong>
+                      <strong className="text-warm-gray-900 font-semibold text-sm">{prog.budget || '—'}</strong>
                     </div>
                     <div>
                       <span className="text-warm-gray-400 block text-[11px]">Submissions</span>
-                      <strong className="text-warm-gray-900 font-semibold text-sm">{prog.applicationsCount} Proposals</strong>
+                      <strong className="text-warm-gray-900 font-semibold text-sm">{prog.applicationsCount || 0} Proposals</strong>
                     </div>
                     <div>
                       <span className="text-warm-gray-400 block text-[11px]">Submission Deadline</span>
-                      <span className="text-warm-gray-700 font-medium">{prog.deadline}</span>
+                      <span className="text-warm-gray-700 font-medium">{formatDate(prog.deadline)}</span>
                     </div>
                     <div>
                       <span className="text-warm-gray-400 block text-[11px]">Match Filter</span>
@@ -580,22 +676,21 @@ export default function FundingAgencyWelcomePage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setActiveTab('proposals')}
+                      onClick={() => setEditingProgram(prog)}
                       className="flex-1 py-2 text-xs font-semibold rounded-[8px] bg-amber text-white hover:bg-amber-light transition-colors text-center cursor-pointer"
                     >
-                      Review Proposals ({prog.applicationsCount})
+                      {prog.status === 'Draft' ? 'Edit Draft' : 'Open'}
                     </button>
-                    <button
-                      onClick={() => {
-                        setNotificationMsg(`Edited grant call ${prog.id}`)
-                        setTimeout(() => setNotificationMsg(''), 3000)
-                      }}
-                      className="px-3 py-2 text-xs font-semibold rounded-[8px] bg-cream hover:bg-cream-dark border border-warm-gray-200 text-warm-gray-700 transition-colors cursor-pointer"
-                    >
-                      Edit Call
-                    </button>
+                    {prog.status === 'Draft' && (
+                      <button
+                        onClick={() => handleDeleteDraft(prog)}
+                        className="px-3 py-2 text-xs font-semibold rounded-[8px] bg-cream hover:bg-cream-dark border border-warm-gray-200 text-warm-gray-700 transition-colors cursor-pointer"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -674,94 +769,154 @@ export default function FundingAgencyWelcomePage() {
           </div>
         )}
 
+        {/* Tab Content: PROFILE */}
+        {activeTab === 'profile' && (
+          <div className="space-y-6 animate-fade-in max-w-3xl">
+            {/* Agency Identity (locked) */}
+            <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/70 p-6 shadow-soft">
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className="font-heading text-lg font-bold text-warm-gray-900">Agency Identity</h3>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-warm-gray-400 bg-warm-gray-100 px-2 py-0.5 rounded-full">
+                  Locked
+                </span>
+              </div>
+              {loadingProfile ? (
+                <p className="text-sm text-warm-gray-400">Loading profile…</p>
+              ) : profile ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="block text-[11px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Agency Name</span>
+                    <p className="font-semibold text-warm-gray-800">{profile.agencyName || '—'}</p>
+                  </div>
+                  <div>
+                    <span className="block text-[11px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Agency Type</span>
+                    <p className="font-semibold text-warm-gray-800 capitalize">{(profile.agencyType || '').replace(/_/g, ' ') || '—'}</p>
+                  </div>
+                  <div>
+                    <span className="block text-[11px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Established Year</span>
+                    <p className="font-semibold text-warm-gray-800">{profile.establishedYear || '—'}</p>
+                  </div>
+                  <div>
+                    <span className="block text-[11px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Approval Status</span>
+                    <span className={`inline-block text-xs px-2.5 py-0.5 rounded-full font-semibold border ${
+                      profile.status === 'approved'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-amber-50 text-amber border-amber/20'
+                    }`}>
+                      {profile.status === 'approved' ? '✓ Approved Partner' : profile.status}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-warm-gray-400">Profile unavailable.</p>
+              )}
+            </div>
+
+            {/* Verification Document */}
+            <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/70 p-6 shadow-soft">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-heading text-lg font-bold text-warm-gray-900">Verification Document</h3>
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                  isVerified
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : verificationDoc?.status === 'rejected'
+                    ? 'bg-red-50 text-red-700'
+                    : verificationDoc?.status === 'pending'
+                    ? 'bg-amber-50 text-amber'
+                    : 'bg-warm-gray-100 text-warm-gray-500'
+                }`}>
+                  {isVerified
+                    ? 'Verified'
+                    : verificationDoc?.status === 'rejected'
+                    ? 'Rejected'
+                    : verificationDoc?.status === 'pending'
+                    ? 'Pending Verification'
+                    : 'Not Submitted'}
+                </span>
+              </div>
+              <p className="text-xs text-warm-gray-500 mb-5">
+                Accepted format: <strong>PDF only</strong>, maximum size <strong>10 MB</strong>.
+                Submit your agency's registration certificate or authorization letter for
+                System Admin verification.
+              </p>
+
+              {verificationDoc?.status === 'rejected' && verificationDoc.rejectionReason && (
+                <div className="mb-4 p-3 rounded-[10px] bg-red-50 border border-red-200 text-xs text-red-700">
+                  <strong>Rejection reason:</strong> {verificationDoc.rejectionReason}
+                </div>
+              )}
+
+              {verificationDoc?.url ? (
+                <div className="flex items-center justify-between gap-3 p-3.5 rounded-[10px] bg-cream border border-warm-gray-200 mb-4">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-warm-gray-800 truncate">
+                      📄 {verificationDoc.originalFileName || 'Verification document.pdf'}
+                    </p>
+                    <p className="text-[11px] text-warm-gray-400 mt-0.5">
+                      Submitted {formatDate(verificationDoc.submittedAt)}
+                      {verificationDoc.fileSizeBytes
+                        ? ` • ${(verificationDoc.fileSizeBytes / (1024 * 1024)).toFixed(2)} MB`
+                        : ''}
+                    </p>
+                  </div>
+                   <a
+                    href={`${api.defaults.baseURL?.replace(/\/api\/?$/, '') || ''}${verificationDoc.url}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-semibold text-amber hover:underline flex-shrink-0"
+                  >
+                    View →
+                  </a>
+                </div>
+              ) : (
+                <p className="text-sm text-warm-gray-400 mb-4">No document submitted yet.</p>
+              )}
+
+              {uploadError && (
+                <div className="mb-4 p-3 rounded-[10px] bg-red-50 border border-red-200 text-xs text-red-700">
+                  ⚠️ {uploadError}
+                </div>
+              )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf"
+                onChange={handleFileSelected}
+                className="hidden"
+              />
+
+              {isVerified ? (
+                <p className="text-[11px] text-warm-gray-400">
+                  This document has been verified and is now read-only. Contact the GrantOS admin
+                  team if you need to submit a replacement.
+                </p>
+              ) : (
+                <button
+                  onClick={handleUploadClick}
+                  disabled={uploadingDoc}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-[10px] bg-amber hover:bg-amber-light text-white text-sm font-semibold transition-all shadow-soft cursor-pointer disabled:opacity-60"
+                >
+                  {uploadingDoc
+                    ? 'Uploading…'
+                    : verificationDoc?.url
+                    ? 'Replace Document'
+                    : 'Upload Document'}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
       </main>
 
-      {/* Modal: Publish New Grant Call */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-warm-gray-900/40 backdrop-blur-xs">
-          <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/80 shadow-medium w-full max-w-lg p-6 sm:p-8 animate-fade-in">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="font-heading text-xl font-bold text-warm-gray-900">
-                Publish New Grant Opportunity
-              </h3>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="text-warm-gray-400 hover:text-warm-gray-600 text-lg cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateGrant} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-warm-gray-700 mb-1.5">
-                  Grant Program Title
-                </label>
-                <input
-                  type="text"
-                  value={newGrantTitle}
-                  onChange={(e) => setNewGrantTitle(e.target.value)}
-                  placeholder="e.g. AI for Climate Resilience Initiative 2026"
-                  required
-                  className="w-full px-4 py-2.5 rounded-[10px] bg-cream border border-warm-gray-200 text-warm-gray-900 placeholder:text-warm-gray-400 focus:outline-none focus:ring-2 focus:ring-amber/30 focus:border-amber text-sm"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-warm-gray-700 mb-1.5">
-                    Funding Domain
-                  </label>
-                  <select
-                    value={newGrantDomain}
-                    onChange={(e) => setNewGrantDomain(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-[10px] bg-cream border border-warm-gray-200 text-warm-gray-900 focus:outline-none focus:ring-2 focus:ring-amber/30 focus:border-amber text-sm"
-                  >
-                    <option value="Science & Technology">Science & Technology</option>
-                    <option value="Healthcare & Medicine">Healthcare & Medicine</option>
-                    <option value="Environmental Sciences">Environmental Sciences</option>
-                    <option value="Social Sciences">Social Sciences</option>
-                    <option value="Agriculture & Rural">Agriculture & Rural</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-warm-gray-700 mb-1.5">
-                    Total Corpus Amount
-                  </label>
-                  <input
-                    type="text"
-                    value={newGrantBudget}
-                    onChange={(e) => setNewGrantBudget(e.target.value)}
-                    placeholder="e.g. ₹3,50,00,000"
-                    className="w-full px-4 py-2.5 rounded-[10px] bg-cream border border-warm-gray-200 text-warm-gray-900 placeholder:text-warm-gray-400 focus:outline-none focus:ring-2 focus:ring-amber/30 focus:border-amber text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="p-3 rounded-[10px] bg-amber-50 border border-amber/15 text-xs text-amber leading-relaxed">
-                📢 Once published, registered universities and principal investigators will receive instant match notifications based on their research focus.
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 rounded-[10px] text-xs font-semibold text-warm-gray-600 hover:bg-warm-gray-100 transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-[10px] bg-amber hover:bg-amber-light text-white text-xs font-semibold shadow-soft transition-all cursor-pointer"
-                >
-                  Publish Grant Call
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {/* Grant Call Editor / Preview / Publish modal */}
+      {editingProgram !== null && (
+        <GrantCallEditorModal
+          program={Object.keys(editingProgram).length > 0 ? editingProgram : null}
+          onClose={() => setEditingProgram(null)}
+          onSaved={handleGrantSaved}
+        />
       )}
 
       {/* Footer */}

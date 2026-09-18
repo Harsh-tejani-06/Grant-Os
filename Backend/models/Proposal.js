@@ -96,10 +96,65 @@ const proposalSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Organization',
     },
+    grantProgram: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'GrantProgram',
+      default: null,
+    },
+    aiScore: {
+      type: Number,
+      default: null,
+    },
     status: {
       type: String,
-      enum: ['Draft', 'In Progress', 'Under Review', 'Submitted', 'Accepted', 'Rejected'],
+      enum: [
+        'Draft',
+        'In Progress',
+        'Under Review',
+        'Submitted',
+        'Shortlisted',
+        'Rejected',
+        'Awarded',
+        'Not Awarded',
+        'Withdrawn',
+        'Accepted',
+      ],
       default: 'In Progress',
+    },
+
+    // ─── Eligibility snapshot (recorded at submission time) ───
+    eligibilitySnapshot: {
+      isEligible: { type: Boolean, default: null },
+      checks: {
+        type: [
+          {
+            label: { type: String },
+            passed: { type: Boolean },
+          },
+        ],
+        default: [],
+      },
+      checkedAt: { type: Date, default: null },
+    },
+
+    // ─── Agency decision ───
+    decision: {
+      status: {
+        type: String,
+        enum: ['pending', 'shortlisted', 'rejected', 'awarded', 'not_awarded'],
+        default: 'pending',
+      },
+      notes: { type: String, default: '' },
+      decidedAt: { type: Date, default: null },
+      decidedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    },
+    awardAmount: {
+      type: Number,
+      default: null,
+    },
+    requestedAmountValue: {
+      type: Number,
+      default: null,
     },
     progress: {
       type: Number,

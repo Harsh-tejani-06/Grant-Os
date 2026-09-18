@@ -1,4 +1,69 @@
 const Proposal = require('../models/Proposal');
+const GrantProgram = require('../models/GrantProgram');
+const FundingAgency = require('../models/FundingAgency');
+const Organization = require('../models/Organization');
+const GrantListing = require('../models/GrantListing');
+
+// Maps Organization.organizationType values to GrantProgram.eligibility.applicantTypes values
+// (the two enums were defined independently and don't share exact spelling).
+const ORG_TYPE_TO_APPLICANT_TYPE = {
+  university: 'university',
+  college: 'college',
+  research_institute: 'research_institution',
+  ngo: 'ngo',
+  other: null, // no direct equivalent — never auto-matches a specific applicantType
+};
+
+// Reusable eligibility engine: compares an Organization against a GrantProgram's
+// eligibility rules and returns a structured result, never a bare boolean.
+// NOTE: this still runs inside createProposal below and gates submission —
+// removing the standalone "Check Eligibility" button from the UI does not
+// remove backend enforcement.
+async function evaluateEligibility(organization, grantProgram) {
+  const checks = [];
+
+  // Organization must be an approved GrantOS organization to apply at all.
+  checks.push({
+    label: 'Organization is approved on GrantOS',
+    passed: organization.status === 'approved',
+  });
+
+  const rules = grantProgram.eligibility || {};
+
+  if (rules.applicantTypes && rules.applicantTypes.length > 0) {
+    const mapped = ORG_TYPE_TO_APPLICANT_TYPE[organization.organizationType];
+    checks.push({
+      label: `Organization type matches required type (${rules.applicantTypes.join(', ')})`,
+      passed: Boolean(mapped && rules.applicantTypes.includes(mapped)),
+    });
+  }
+
+  if (rules.geographicScope === 'State' && rules.eligibleStates?.length > 0) {
+    const orgState = (organization.address?.state || '').trim().toLowerCase();
+    checks.push({
+      label: `Organization state is within eligible states (${rules.eligibleStates.join(', ')})`,
+      passed: rules.eligibleStates.some((s) => s.trim().toLowerCase() === orgState),
+    });
+  } else if (rules.geographicScope === 'National' && rules.eligibleStates?.length > 0) {
+    const orgState = (organization.address?.state || '').trim().toLowerCase();
+    checks.push({
+      label: `Organization state is within funded regions (${rules.eligibleStates.join(', ')})`,
+      passed: rules.eligibleStates.some((s) => s.trim().toLowerCase() === orgState),
+    });
+  }
+  // 'Local', 'International', or no eligibleStates specified — no geographic gate applied.
+
+  if (rules.minOrganizationAge) {
+    const orgAge = new Date().getFullYear() - (organization.establishedYear || 0);
+    checks.push({
+      label: `Organization is at least ${rules.minOrganizationAge} year(s) old`,
+      passed: orgAge >= rules.minOrganizationAge,
+    });
+  }
+
+  const isEligible = checks.every((c) => c.passed);
+  return { isEligible, checks, checkedAt: new Date() };
+}
 
 // ─── Default sample proposals for first-time team members ───
 const DEFAULT_SAMPLE_PROPOSALS = (userId, userName, orgId) => [
@@ -339,12 +404,47 @@ User focus: ${prompt || 'Focus on state-of-the-art methodology, clear milestones
   }
 };
 
+// @desc    Check whether the logged-in org's organization is eligible for a grant program
+// @route   GET /api/proposals/eligibility/:grantProgramId
+// @access  Private (org_admin, team_member)
+exports.checkEligibility = async (req, res) => {
+  try {
+    const { grantProgramId } = req.params;
+
+    if (!req.user.organization) {
+      return res.status(400).json({
+        success: false,
+        message: 'Complete your organization profile before checking eligibility',
+      });
+    }
+
+    const [organization, grantProgram] = await Promise.all([
+      Organization.findById(req.user.organization),
+      GrantProgram.findById(grantProgramId),
+    ]);
+
+    if (!grantProgram) {
+      return res.status(404).json({ success: false, message: 'Grant program not found' });
+    }
+    if (!organization) {
+      return res.status(404).json({ success: false, message: 'Organization profile not found' });
+    }
+
+    const result = await evaluateEligibility(organization, grantProgram);
+
+    res.json({ success: true, eligibility: result });
+  } catch (error) {
+    console.error('Error checking eligibility:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Create a new proposal with 17 default sections (org_admin only)
 // @route   POST /api/proposals/create
 // @access  Private (org_admin)
 exports.createProposal = async (req, res) => {
   try {
-    const { title, grantTitle, grantAgency, fundingAmount, deadline } = req.body;
+    const { title, grantTitle, grantAgency, fundingAmount, deadline, grantProgramId } = req.body;
 
     if (!title) {
       return res.status(400).json({ success: false, message: 'Proposal title is required' });
@@ -352,13 +452,70 @@ exports.createProposal = async (req, res) => {
 
     const sections = Proposal.getDefaultSections();
 
+    // If the proposal is being submitted against a published grant call,
+    // link it, gate on eligibility, and auto-fill the agency-facing fields
+    // from the program itself. This is the only place eligibility is
+    // enforced now that the standalone "Check Eligibility" UI button has
+    // been removed — an ineligible org still cannot start a proposal.
+    let linkedProgram = null;
+    let eligibilitySnapshot = { isEligible: null, checks: [], checkedAt: null };
+    let resolvedGrantTitle = grantTitle || '';
+    let resolvedGrantAgency = grantAgency || '';
+    let resolvedFundingAmount = fundingAmount || '';
+    let resolvedDeadline = deadline || '';
+
+    if (grantProgramId) {
+      linkedProgram = await GrantProgram.findById(grantProgramId);
+      if (!linkedProgram) {
+        return res.status(404).json({ success: false, message: 'Grant program not found' });
+      }
+      if (linkedProgram.status !== 'Active') {
+        return res.status(400).json({
+          success: false,
+          message: 'This grant call is no longer accepting submissions',
+        });
+      }
+      if (new Date(linkedProgram.deadline) < new Date()) {
+        return res.status(400).json({
+          success: false,
+          message: 'The submission deadline for this grant call has passed',
+        });
+      }
+
+      const organization = await Organization.findById(req.user.organization);
+      if (!organization) {
+        return res.status(400).json({
+          success: false,
+          message: 'Complete your organization profile before submitting a proposal',
+        });
+      }
+
+      const result = await evaluateEligibility(organization, linkedProgram);
+      if (!result.isEligible) {
+        return res.status(403).json({
+          success: false,
+          message: 'Your organization is not eligible for this grant call',
+          eligibility: result,
+        });
+      }
+      eligibilitySnapshot = result;
+
+      const agency = await FundingAgency.findById(linkedProgram.fundingAgency);
+      resolvedGrantTitle = linkedProgram.title;
+      resolvedGrantAgency = agency ? agency.agencyName : resolvedGrantAgency;
+      resolvedFundingAmount = resolvedFundingAmount || linkedProgram.budget;
+      resolvedDeadline = linkedProgram.deadline.toISOString().split('T')[0];
+    }
+
     const proposal = await Proposal.create({
       title,
-      grantTitle: grantTitle || '',
-      grantAgency: grantAgency || '',
-      fundingAmount: fundingAmount || '',
-      deadline: deadline || '',
+      grantTitle: resolvedGrantTitle,
+      grantAgency: resolvedGrantAgency,
+      fundingAmount: resolvedFundingAmount,
+      deadline: resolvedDeadline,
       organization: req.user.organization,
+      grantProgram: linkedProgram ? linkedProgram._id : null,
+      eligibilitySnapshot,
       status: 'In Progress',
       progress: 0,
       sections,
@@ -371,6 +528,52 @@ exports.createProposal = async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating proposal:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Browse all currently open (Active) grant programs across all approved agencies.
+//          Populates a richer, still-safe subset of the funding agency profile
+//          (no contactPerson, no registration documents) so the org-side "View
+//          Agency Profile" popup has real data without an extra round trip.
+// @route   GET /api/proposals/open-grants
+// @access  Private (org_admin, team_member)
+exports.getOpenGrantPrograms = async (req, res) => {
+  try {
+    const programs = await GrantProgram.find({ status: 'Active', isDeleted: { $ne: true } })
+      .populate(
+        'fundingAgency',
+        'agencyName shortName agencyType organizationType ownershipType establishedYear website description mission vision headquarters cin darpanId grantTypesOffered fundingScope fundingStates status'
+      )
+      .sort({ deadline: 1 });
+
+    // Only surface calls from agencies that are themselves approved
+    const openPrograms = programs.filter(
+      (p) => p.fundingAgency && p.fundingAgency.status === 'approved'
+    );
+
+    res.json({ success: true, programs: openPrograms });
+  } catch (error) {
+    console.error('Error fetching open grant programs:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Browse active scraped/government grant listings for org discovery.
+//          Read-only — reuses the existing GrantListing model/collection built
+//          by the scraper pipeline; no new storage or ingestion added here.
+// @route   GET /api/proposals/scraped-grants
+// @access  Private (org_admin, team_member)
+exports.getScrapedGrants = async (req, res) => {
+  try {
+    const grants = await GrantListing.find({ isActive: true })
+      .sort({ lastScrapedAt: -1 })
+      .limit(100)
+      .lean();
+
+    res.json({ success: true, grants });
+  } catch (error) {
+    console.error('Error fetching scraped grants:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -488,4 +691,3 @@ exports.deleteProposal = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-

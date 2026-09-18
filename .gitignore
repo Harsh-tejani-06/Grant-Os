@@ -1,1 +1,23 @@
 ProjectDocs/ 
+# Node
+node_modules/
+npm-debug.log*
+
+# Environment variables
+.env
+.env.*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Uploads
+Backend/uploads/
+
+# Build files
+dist/
+build/
+
+# IDE
+.vscode/

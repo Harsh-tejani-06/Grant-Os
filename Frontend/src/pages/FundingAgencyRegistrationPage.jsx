@@ -32,12 +32,6 @@ const AGENCY_TYPES = [
   { value: 'international_agency', label: 'International Agency (UN / World Bank / Global)' },
 ]
 
-const FUNDING_DOMAINS = [
-  'Science & Technology', 'Healthcare & Medicine', 'Social Sciences & Humanities',
-  'Education & Skill Development', 'Environmental Conservation', 'Agriculture & Rural Development',
-  'Innovation & Entrepreneurship', 'Artificial Intelligence & Deep Tech',
-]
-
 const GRANT_TYPES = [
   { value: 'research_grant', label: 'Research Grant', desc: 'Project-based research funding for institutions and labs' },
   { value: 'startup_seed', label: 'Startup & Innovation Seed Grant', desc: 'Pre-seed or proof-of-concept capital' },
@@ -56,7 +50,11 @@ export default function FundingAgencyRegistrationPage() {
 
   const [formData, setFormData] = useState({
     agencyName: '',
+    shortName: '',
     agencyType: '',
+    organizationType: '',
+    ownershipType: '',
+    registrationNumber: '',
     establishedYear: '',
     website: '',
     cin: '',
@@ -66,7 +64,6 @@ export default function FundingAgencyRegistrationPage() {
     registrationCertificateUrl: '',
     headquarters: { street: '', city: '', state: '', pincode: '', country: 'India' },
     contactPerson: { name: '', designation: '', email: '', phone: '' },
-    fundingDomains: [],
     grantTypesOffered: [],
   })
 
@@ -239,7 +236,11 @@ export default function FundingAgencyRegistrationPage() {
               <div className="space-y-5">
                 <div>
                   <label className={labelClass} htmlFor="agency-name">Funding Agency Name *</label>
-                  <input id="agency-name" type="text" className={inputClass} placeholder="e.g. Dept. of Science & Technology (DST)" value={formData.agencyName} onChange={e => updateField('agencyName', e.target.value)} required />
+                  <input id="agency-name" type="text" className={inputClass} placeholder="e.g. Innovexa Research Foundation Pvt. Ltd." value={formData.agencyName} onChange={e => updateField('agencyName', e.target.value)} required />
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="short-name">Short Name</label>
+                  <input id="short-name" type="text" className={inputClass} placeholder="e.g. IRF" value={formData.shortName} onChange={e => updateField('shortName', e.target.value)} />
                 </div>
                 <div>
                   <label className={labelClass} htmlFor="agency-type">Agency Classification *</label>
@@ -250,12 +251,26 @@ export default function FundingAgencyRegistrationPage() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div>
+                    <label className={labelClass} htmlFor="org-type">Organization Type</label>
+                    <input id="org-type" type="text" className={inputClass} placeholder="e.g. Private Limited Company" value={formData.organizationType} onChange={e => updateField('organizationType', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className={labelClass} htmlFor="ownership-type">Ownership Type</label>
+                    <input id="ownership-type" type="text" className={inputClass} placeholder="e.g. Privately Held" value={formData.ownershipType} onChange={e => updateField('ownershipType', e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="registration-number">Registration Number</label>
+                  <input id="registration-number" type="text" className={inputClass} placeholder="e.g. U74999GJ2021PTC128547" value={formData.registrationNumber} onChange={e => updateField('registrationNumber', e.target.value)} />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div>
                     <label className={labelClass} htmlFor="est-year">Established Year *</label>
-                    <input id="est-year" type="number" className={inputClass} placeholder="e.g. 1971" value={formData.establishedYear} onChange={e => updateField('establishedYear', e.target.value)} min="1800" max={new Date().getFullYear()} required />
+                    <input id="est-year" type="number" className={inputClass} placeholder="e.g. 2021" value={formData.establishedYear} onChange={e => updateField('establishedYear', e.target.value)} min="1800" max={new Date().getFullYear()} required />
                   </div>
                   <div>
                     <label className={labelClass} htmlFor="website">Official Website URL</label>
-                    <input id="website" type="url" className={inputClass} placeholder="https://dst.gov.in" value={formData.website} onChange={e => updateField('website', e.target.value)} />
+                    <input id="website" type="url" className={inputClass} placeholder="https://innovexarf.example" value={formData.website} onChange={e => updateField('website', e.target.value)} />
                   </div>
                 </div>
               </div>
@@ -313,17 +328,17 @@ export default function FundingAgencyRegistrationPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div>
                     <label className={labelClass} htmlFor="city">City *</label>
-                    <input id="city" type="text" className={inputClass} placeholder="e.g. New Delhi" value={formData.headquarters.city} onChange={e => updateNested('headquarters', 'city', e.target.value)} required />
+                    <input id="city" type="text" className={inputClass} placeholder="e.g. Ahmedabad" value={formData.headquarters.city} onChange={e => updateNested('headquarters', 'city', e.target.value)} required />
                   </div>
                   <div>
                     <label className={labelClass} htmlFor="state">State *</label>
-                    <input id="state" type="text" className={inputClass} placeholder="e.g. Delhi" value={formData.headquarters.state} onChange={e => updateNested('headquarters', 'state', e.target.value)} required />
+                    <input id="state" type="text" className={inputClass} placeholder="e.g. Gujarat" value={formData.headquarters.state} onChange={e => updateNested('headquarters', 'state', e.target.value)} required />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div>
                     <label className={labelClass} htmlFor="pincode">Pincode *</label>
-                    <input id="pincode" type="text" className={inputClass} placeholder="e.g. 110016" value={formData.headquarters.pincode} onChange={e => updateNested('headquarters', 'pincode', e.target.value)} required />
+                    <input id="pincode" type="text" className={inputClass} placeholder="e.g. 380001" value={formData.headquarters.pincode} onChange={e => updateNested('headquarters', 'pincode', e.target.value)} required />
                   </div>
                   <div>
                     <label className={labelClass} htmlFor="country">Country</label>
@@ -344,19 +359,19 @@ export default function FundingAgencyRegistrationPage() {
 
                 <div>
                   <label className={labelClass} htmlFor="contact-name">Nodal Officer / Contact Name *</label>
-                  <input id="contact-name" type="text" className={inputClass} placeholder="Dr. A. K. Sharma" value={formData.contactPerson.name} onChange={e => updateNested('contactPerson', 'name', e.target.value)} required />
+                  <input id="contact-name" type="text" className={inputClass} placeholder="e.g. Priya Mehta" value={formData.contactPerson.name} onChange={e => updateNested('contactPerson', 'name', e.target.value)} required />
                 </div>
                 <div>
                   <label className={labelClass} htmlFor="contact-designation">Official Designation</label>
-                  <input id="contact-designation" type="text" className={inputClass} placeholder="e.g. Scientist G / Head of Grants" value={formData.contactPerson.designation} onChange={e => updateNested('contactPerson', 'designation', e.target.value)} />
+                  <input id="contact-designation" type="text" className={inputClass} placeholder="e.g. Grants Manager" value={formData.contactPerson.designation} onChange={e => updateNested('contactPerson', 'designation', e.target.value)} />
                 </div>
                 <div>
                   <label className={labelClass} htmlFor="contact-email">Official Email Address *</label>
-                  <input id="contact-email" type="email" className={inputClass} placeholder="officer@agency.gov.in (must use official domain)" value={formData.contactPerson.email} onChange={e => updateNested('contactPerson', 'email', e.target.value)} required />
+                  <input id="contact-email" type="email" className={inputClass} placeholder="grants@yourorg.example" value={formData.contactPerson.email} onChange={e => updateNested('contactPerson', 'email', e.target.value)} required />
                 </div>
                 <div>
                   <label className={labelClass} htmlFor="contact-phone">Official Phone Number *</label>
-                  <input id="contact-phone" type="tel" className={inputClass} placeholder="+91 11 2659 0000" value={formData.contactPerson.phone} onChange={e => updateNested('contactPerson', 'phone', e.target.value)} required />
+                  <input id="contact-phone" type="tel" className={inputClass} placeholder="+91-79-4000-2847" value={formData.contactPerson.phone} onChange={e => updateNested('contactPerson', 'phone', e.target.value)} required />
                 </div>
               </div>
             )}
@@ -364,23 +379,6 @@ export default function FundingAgencyRegistrationPage() {
             {/* Step 5: Funding Profile & Review */}
             {currentStep === 5 && (
               <div className="space-y-6">
-                <div>
-                  <label className={labelClass}>Funding Focus Domains</label>
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {FUNDING_DOMAINS.map(domain => (
-                      <button key={domain} type="button"
-                        onClick={() => toggleArrayItem('fundingDomains', domain)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 cursor-pointer ${
-                          formData.fundingDomains.includes(domain)
-                            ? 'bg-amber text-white'
-                            : 'bg-cream border border-warm-gray-200 text-warm-gray-600 hover:border-amber hover:text-amber'
-                        }`}>
-                        {domain}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 <div>
                   <label className={labelClass}>Grant Categories Offered</label>
                   <div className="space-y-3 mb-6">
@@ -454,12 +452,6 @@ export default function FundingAgencyRegistrationPage() {
               )}
             </div>
           </div>
-{/* 
-          <p className="text-center mt-6">
-            <Link to="/agency/dashboard" className="text-sm text-warm-gray-400 hover:text-warm-gray-600 transition-colors">
-              ← Back to Dashboard
-            </Link>
-          </p> */}
         </div>
       </div>
     </div>

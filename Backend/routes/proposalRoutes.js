@@ -11,6 +11,9 @@ const {
   bulkAssignSections,
   approveAllSections,
   deleteProposal,
+  getOpenGrantPrograms,
+  checkEligibility,
+  getScrapedGrants,
 } = require('../controllers/proposalController');
 const { protect, requireRole } = require('../middleware/auth');
 
@@ -31,6 +34,16 @@ router.post('/:proposalId/sections/:sectionId/comments', protect, addSectionComm
 
 // POST /api/proposals/ai-assist — Gemini AI assistance
 router.post('/ai-assist', protect, aiAssist);
+
+// GET /api/proposals/open-grants — Browse all active grant calls from approved agencies
+router.get('/open-grants', protect, getOpenGrantPrograms);
+
+// GET /api/proposals/scraped-grants — Browse active scraped/government grant listings
+router.get('/scraped-grants', protect, getScrapedGrants);
+
+// GET /api/proposals/eligibility/:grantProgramId — Check org eligibility for a grant call
+// (backend enforcement only now — the standalone frontend button was removed)
+router.get('/eligibility/:grantProgramId', protect, checkEligibility);
 
 // ─── Org Admin Routes ───
 // POST /api/proposals/create — Create new proposal with 17 sections

@@ -26,15 +26,64 @@ const NAV_ITEMS = [
   { key: 'analytics', label: 'Analytics', icon: '📈' },
 ]
 
-// ─── Static grant data ───
-const MOCK_GRANTS = [
-  { id: 1, title: 'UGC Major Research Project', agency: 'University Grants Commission', amount: '₹25,00,000', deadline: '2026-09-15', category: 'Research', status: 'Open', match: 95 },
-  { id: 2, title: 'DST SERB Core Research Grant', agency: 'Dept. of Science & Technology', amount: '₹50,00,000', deadline: '2026-10-01', category: 'Science', status: 'Open', match: 88 },
-  { id: 3, title: 'ICSSR Research Fellowship', agency: 'Indian Council of Social Science Research', amount: '₹8,00,000', deadline: '2026-08-30', category: 'Fellowship', status: 'Closing Soon', match: 82 },
-  { id: 4, title: 'DBT Institutional Development', agency: 'Dept. of Biotechnology', amount: '₹1,20,00,000', deadline: '2026-11-15', category: 'Infrastructure', status: 'Open', match: 76 },
-  { id: 5, title: 'AICTE Research Promotion Scheme', agency: 'AICTE', amount: '₹15,00,000', deadline: '2026-09-30', category: 'Research', status: 'Open', match: 71 },
-  { id: 6, title: 'CSIR Senior Research Fellowship', agency: 'Council of Scientific & Industrial Research', amount: '₹4,20,000/yr', deadline: '2026-08-20', category: 'Fellowship', status: 'Closing Soon', match: 68 },
+const GRANT_CATEGORIES = [
+  'Science & Technology',
+  'Healthcare & Medicine',
+  'Environmental Sciences',
+  'Social Sciences',
+  'Agriculture & Rural',
+  'Technology & Computing',
+  'Medical Science',
+  'Agriculture',
 ]
+
+const GRANT_FUNDING_TYPES = [
+  'Project Grant',
+  'Research & Commercialization',
+  'Institutional Fellowship',
+  'Pre-Seed Grant',
+]
+
+const APPLICANT_TYPE_LABELS = {
+  university: 'University',
+  college: 'College',
+  research_institution: 'Research Institution',
+  ngo: 'NGO',
+  startup: 'Startup',
+  government_organization: 'Government Organization',
+  private_company: 'Private Company',
+  individual: 'Individual Researchers',
+  faculty_member: 'Faculty Members / Professors',
+  student: 'Students',
+  research_scholar: 'Research Scholars / PhD Scholars',
+  hospital_medical_institution: 'Hospitals / Medical Institutions',
+}
+
+const AGENCY_TYPE_LABELS = {
+  government_central: 'Central Government',
+  government_state: 'State Government',
+  private_foundation: 'Private Foundation',
+  international_agency: 'International Agency',
+  corporate_csr: 'Corporate CSR',
+}
+
+const formatGrantDate = (dateValue) => {
+  if (!dateValue) return '—'
+  const d = new Date(dateValue)
+  if (Number.isNaN(d.getTime())) return dateValue
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+const daysUntil = (dateValue) => {
+  if (!dateValue) return null
+  const d = new Date(dateValue)
+  if (Number.isNaN(d.getTime())) return null
+  const diffMs = d.setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)
+  return Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+}
+
+const grantDocumentUrl = (doc) =>
+  doc?.fileUrl ? `${api.defaults.baseURL?.replace(/\/api\/?$/, '') || ''}${doc.fileUrl}` : null
 
 const MOCK_APPLICATIONS = [
   { id: 1, title: 'UGC Major Research Project', status: 'Submitted', date: '2026-07-20', amount: '₹25,00,000' },
@@ -79,11 +128,25 @@ export default function OrgAdminDashboard() {
     grantAgency: '',
     fundingAmount: '',
     deadline: '',
+    grantProgramId: '',
   })
   const [proposalSubmitting, setProposalSubmitting] = useState(false)
+  const [proposalCreateError, setProposalCreateError] = useState('')
   const [assigningSectionId, setAssigningSectionId] = useState('')
   const [reviewSectionModal, setReviewSectionModal] = useState(null)
   const [showFullProposalModal, setShowFullProposalModal] = useState(false)
+
+  // Grant Discovery state — real data from GrantProgram via GET /proposals/open-grants
+  const [grantSource, setGrantSource] = useState('agency') // 'agency' | 'scraped'
+  const [openGrants, setOpenGrants] = useState([])
+  const [grantsLoading, setGrantsLoading] = useState(false)
+  const [scrapedGrants, setScrapedGrants] = useState([])
+  const [scrapedGrantsLoading, setScrapedGrantsLoading] = useState(false)
+  const [grantSearch, setGrantSearch] = useState('')
+  const [grantCategoryFilter, setGrantCategoryFilter] = useState('All Categories')
+  const [grantFundingTypeFilter, setGrantFundingTypeFilter] = useState('All Types')
+  const [viewAgencyGrant, setViewAgencyGrant] = useState(null) // grant whose agency popup is open
+  const [viewGrantDetails, setViewGrantDetails] = useState(null) // grant whose details popup is open
 
   const handleApproveSection = async (sectionId) => {
     if (!selectedProposalId) return
@@ -213,7 +276,7 @@ export default function OrgAdminDashboard() {
     fetchData()
   }, [])
 
-  // Fetch members and proposals when sections are active
+  // Fetch members, proposals, and open grants when relevant sections are active
   useEffect(() => {
     if (activeSection === 'team' || activeSection === 'home' || activeSection === 'proposals') {
       fetchMembers()
@@ -221,7 +284,17 @@ export default function OrgAdminDashboard() {
     if (activeSection === 'proposals' || activeSection === 'home' || activeSection === 'team') {
       fetchOrgProposals()
     }
+    if (activeSection === 'grants' || activeSection === 'home') {
+      fetchOpenGrants()
+    }
   }, [activeSection])
+
+  // Fetch scraped grants lazily — only once, the first time that tab is opened
+  useEffect(() => {
+    if (activeSection === 'grants' && grantSource === 'scraped' && scrapedGrants.length === 0 && !scrapedGrantsLoading) {
+      fetchScrapedGrants()
+    }
+  }, [activeSection, grantSource])
 
   const fetchMembers = async () => {
     setMembersLoading(true)
@@ -255,22 +328,72 @@ export default function OrgAdminDashboard() {
     }
   }
 
+  // Real open grant calls — Active, non-deleted, from approved funding agencies.
+  const fetchOpenGrants = async () => {
+    setGrantsLoading(true)
+    try {
+      const res = await api.get('/proposals/open-grants')
+      if (res.data.success) {
+        setOpenGrants(res.data.programs || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch open grants:', err)
+    } finally {
+      setGrantsLoading(false)
+    }
+  }
+
+  // Real scraped/government grant listings, reusing the existing GrantListing collection.
+  const fetchScrapedGrants = async () => {
+    setScrapedGrantsLoading(true)
+    try {
+      const res = await api.get('/proposals/scraped-grants')
+      if (res.data.success) {
+        setScrapedGrants(res.data.grants || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch scraped grants:', err)
+    } finally {
+      setScrapedGrantsLoading(false)
+    }
+  }
+
   const handleCreateProposal = async (e) => {
     e.preventDefault()
     if (!newProposalData.title.trim()) return
+    setProposalCreateError('')
     setProposalSubmitting(true)
     try {
       const res = await api.post('/proposals/create', newProposalData)
       if (res.data.success) {
         setCreateProposalModal(false)
-        setNewProposalData({ title: '', grantTitle: '', grantAgency: '', fundingAmount: '', deadline: '' })
-        fetchOrgProposals()
+        setNewProposalData({ title: '', grantTitle: '', grantAgency: '', fundingAmount: '', deadline: '', grantProgramId: '' })
+        await fetchOrgProposals()
+        setSelectedProposalId(res.data.proposal._id)
+        setActiveSection('proposals')
       }
     } catch (err) {
       console.error('Create proposal error:', err)
+      setProposalCreateError(err.response?.data?.message || 'Failed to create proposal.')
     } finally {
       setProposalSubmitting(false)
     }
+  }
+
+  // Pre-fills the create-proposal form from a specific agency-created grant
+  // call and opens the modal — this is the "Write Proposal" entry point from
+  // a Grant Discovery card.
+  const handleStartProposalForGrant = (grant) => {
+    setProposalCreateError('')
+    setNewProposalData({
+      title: `${grant.title} — Proposal`,
+      grantTitle: grant.title,
+      grantAgency: grant.fundingAgency?.agencyName || '',
+      fundingAmount: grant.budget || '',
+      deadline: grant.deadline ? new Date(grant.deadline).toISOString().split('T')[0] : '',
+      grantProgramId: grant._id,
+    })
+    setCreateProposalModal(true)
   }
 
   const handleAssignSectionMember = async (proposalId, sectionId, memberId, memberName) => {
@@ -507,6 +630,30 @@ export default function OrgAdminDashboard() {
   const verifiedMembers = members.filter((m) => m.isVerified)
   const selectedProposalObj = orgProposals.find((p) => p._id === selectedProposalId) || orgProposals[0]
 
+  // Client-side filter over the real open-grants list (agency-created grants only —
+  // scraped grants have their own tab and their own, much simpler, card).
+  const filteredGrants = openGrants.filter((g) => {
+    const q = grantSearch.trim().toLowerCase()
+    const matchesSearch =
+      !q ||
+      g.title?.toLowerCase().includes(q) ||
+      g.fundingAgency?.agencyName?.toLowerCase().includes(q) ||
+      g.category?.toLowerCase().includes(q)
+    const matchesCategory = grantCategoryFilter === 'All Categories' || g.category === grantCategoryFilter
+    const matchesFundingType = grantFundingTypeFilter === 'All Types' || g.fundingType === grantFundingTypeFilter
+    return matchesSearch && matchesCategory && matchesFundingType
+  })
+
+  const filteredScrapedGrants = scrapedGrants.filter((g) => {
+    const q = grantSearch.trim().toLowerCase()
+    if (!q) return true
+    return (
+      g.title?.toLowerCase().includes(q) ||
+      g.agency?.name?.toLowerCase().includes(q) ||
+      g.grantType?.toLowerCase().includes(q)
+    )
+  })
+
   return (
     <div className="min-h-screen bg-cream flex">
       {/* ─── Sidebar ─── */}
@@ -604,7 +751,7 @@ export default function OrgAdminDashboard() {
                 {[
                   { label: 'Team Members', value: memberCounts.total, icon: '👥', accent: 'bg-blue-50 text-blue-600' },
                   { label: 'Pending Requests', value: memberCounts.pending, icon: '⏳', accent: 'bg-amber-50 text-amber' },
-                  { label: 'Active Grants', value: 3, icon: '📋', accent: 'bg-green-50 text-green-600' },
+                  { label: 'Open Grant Calls', value: openGrants.length, icon: '📋', accent: 'bg-green-50 text-green-600' },
                   { label: 'Total Funding', value: '₹33L', icon: '💰', accent: 'bg-purple-50 text-purple-600' },
                 ].map((stat, i) => (
                   <div
@@ -688,12 +835,34 @@ export default function OrgAdminDashboard() {
             </div>
           )}
 
-          {/* ═══════════════════════════════════ GRANTS ═══════════════════════════════════ */}
+          {/* ═══════════════════════════════════ GRANTS (real data) ═══════════════════════════════════ */}
           {activeSection === 'grants' && (
             <div className="animate-fade-up">
               <div className="mb-8">
                 <h1 className="font-heading text-3xl font-bold text-warm-gray-900 mb-2">Grant Discovery</h1>
-                <p className="text-warm-gray-500">Find and apply for grants matching your organization profile</p>
+                <p className="text-warm-gray-500">Browse open calls from GrantOS funding agencies and government/scraped listings</p>
+              </div>
+
+              {/* Source toggle */}
+              <div className="flex items-center gap-2 mb-6 border-b border-warm-gray-200/60 pb-3">
+                <button
+                  onClick={() => setGrantSource('agency')}
+                  className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer border ${grantSource === 'agency'
+                    ? 'bg-primary text-white border-primary shadow-soft'
+                    : 'bg-white text-warm-gray-700 border-warm-gray-200 hover:bg-warm-gray-50'
+                    }`}
+                >
+                  🏛️ GrantOS Funding Agencies ({openGrants.length})
+                </button>
+                <button
+                  onClick={() => setGrantSource('scraped')}
+                  className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer border ${grantSource === 'scraped'
+                    ? 'bg-primary text-white border-primary shadow-soft'
+                    : 'bg-white text-warm-gray-700 border-warm-gray-200 hover:bg-warm-gray-50'
+                    }`}
+                >
+                  🏢 Government & Other Sources
+                </button>
               </div>
 
               {/* Search Bar */}
@@ -703,67 +872,231 @@ export default function OrgAdminDashboard() {
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-warm-gray-400">🔍</span>
                     <input
                       type="text"
-                      placeholder="Search grants by name, agency, or keyword..."
+                      value={grantSearch}
+                      onChange={(e) => setGrantSearch(e.target.value)}
+                      placeholder="Search grants by name, agency, or category..."
                       className="w-full pl-11 pr-4 py-3 rounded-[12px] bg-cream border border-warm-gray-200 text-warm-gray-900 placeholder:text-warm-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
                       id="grant-search-input"
                     />
                   </div>
-                  <div className="flex gap-2">
-                    <select className="px-4 py-3 rounded-[12px] bg-cream border border-warm-gray-200 text-warm-gray-600 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer" id="grant-category-filter">
-                      <option>All Categories</option>
-                      <option>Research</option>
-                      <option>Fellowship</option>
-                      <option>Infrastructure</option>
-                      <option>Science</option>
-                    </select>
-                    <select className="px-4 py-3 rounded-[12px] bg-cream border border-warm-gray-200 text-warm-gray-600 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer" id="grant-status-filter">
-                      <option>All Status</option>
-                      <option>Open</option>
-                      <option>Closing Soon</option>
-                    </select>
-                  </div>
+                  {grantSource === 'agency' && (
+                    <div className="flex gap-2">
+                      <select
+                        value={grantCategoryFilter}
+                        onChange={(e) => setGrantCategoryFilter(e.target.value)}
+                        className="px-4 py-3 rounded-[12px] bg-cream border border-warm-gray-200 text-warm-gray-600 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
+                        id="grant-category-filter"
+                      >
+                        <option>All Categories</option>
+                        {GRANT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <select
+                        value={grantFundingTypeFilter}
+                        onChange={(e) => setGrantFundingTypeFilter(e.target.value)}
+                        className="px-4 py-3 rounded-[12px] bg-cream border border-warm-gray-200 text-warm-gray-600 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
+                        id="grant-funding-type-filter"
+                      >
+                        <option>All Types</option>
+                        {GRANT_FUNDING_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Grants Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                {MOCK_GRANTS.map((grant, i) => (
-                  <div
-                    key={grant.id}
-                    className="group bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-6 hover:shadow-medium hover:-translate-y-0.5 transition-all duration-300 animate-fade-up"
-                    style={{ animationDelay: `${0.1 * (i + 1)}s` }}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <h3 className="font-heading text-base font-bold text-warm-gray-900 group-hover:text-primary transition-colors mb-1">{grant.title}</h3>
-                        <p className="text-xs text-warm-gray-500">{grant.agency}</p>
-                      </div>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${grant.status === 'Closing Soon'
-                        ? 'bg-red-50 text-red-600 border-red-200'
-                        : 'bg-green-50 text-green-600 border-green-200'
-                        }`}>
-                        {grant.status}
-                      </span>
+              {/* ─── GrantOS Funding Agency grants ─── */}
+              {grantSource === 'agency' && (
+                <>
+                  {grantsLoading && (
+                    <div className="flex justify-center py-16">
+                      <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
                     </div>
-                    <div className="flex items-center gap-4 mb-4">
-                      <span className="text-sm font-bold text-warm-gray-900">{grant.amount}</span>
-                      <span className="text-xs text-warm-gray-400">•</span>
-                      <span className="text-xs text-warm-gray-500">Deadline: {grant.deadline}</span>
+                  )}
+
+                  {!grantsLoading && openGrants.length === 0 && (
+                    <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-12 text-center">
+                      <span className="text-4xl block mb-3">📭</span>
+                      <p className="text-warm-gray-500">No open grant calls available right now.</p>
+                      <p className="text-sm text-warm-gray-400 mt-1">Check back later — funding agencies publish new calls regularly.</p>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="px-2.5 py-1 rounded-full bg-cream text-warm-gray-600 text-xs font-medium border border-warm-gray-200/60">
-                        {grant.category}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <div className="w-16 h-1.5 rounded-full bg-warm-gray-100 overflow-hidden">
-                          <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${grant.match}%` }} />
+                  )}
+
+                  {!grantsLoading && openGrants.length > 0 && filteredGrants.length === 0 && (
+                    <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-12 text-center">
+                      <p className="text-warm-gray-500">No grants match your search or filters.</p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    {filteredGrants.map((grant, i) => {
+                      const daysLeft = daysUntil(grant.deadline)
+                      const isClosingSoon = daysLeft !== null && daysLeft <= 14 && daysLeft >= 0
+                      const docUrl = grantDocumentUrl(grant.document)
+
+                      return (
+                        <div
+                          key={grant._id}
+                          className="group bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-6 hover:shadow-medium hover:-translate-y-0.5 transition-all duration-300 animate-fade-up"
+                          style={{ animationDelay: `${0.1 * (i + 1)}s` }}
+                        >
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <span className="text-[10px] font-mono font-bold text-primary bg-primary-50 px-2 py-0.5 rounded-full border border-primary/15">
+                                {grant.displayId}
+                              </span>
+                              <h3 className="font-heading text-base font-bold text-warm-gray-900 group-hover:text-primary transition-colors mt-1.5 mb-1">
+                                {grant.title}
+                              </h3>
+                              <p className="text-xs text-warm-gray-500">
+                                {grant.fundingAgency?.agencyName || 'Funding Agency'}
+                              </p>
+                            </div>
+                            {isClosingSoon && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border bg-red-50 text-red-600 border-red-200 flex-shrink-0">
+                                Closing Soon
+                              </span>
+                            )}
+                          </div>
+
+                          {grant.description && (
+                            <p className="text-xs text-warm-gray-600 leading-relaxed mb-3 line-clamp-2">{grant.description}</p>
+                          )}
+
+                          <div className="flex items-center gap-4 mb-3 flex-wrap">
+                            <span className="text-sm font-bold text-warm-gray-900">{grant.budget || '—'}</span>
+                            <span className="text-xs text-warm-gray-400">•</span>
+                            <span className="text-xs text-warm-gray-500">
+                              Deadline: {formatGrantDate(grant.deadline)}
+                              {daysLeft !== null && daysLeft >= 0 && ` (${daysLeft}d left)`}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between mb-4">
+                            <span className="px-2.5 py-1 rounded-full bg-cream text-warm-gray-600 text-xs font-medium border border-warm-gray-200/60">
+                              {grant.category || 'Uncategorized'}
+                            </span>
+                            <span className="text-[11px] text-warm-gray-400">{grant.fundingType}</span>
+                          </div>
+
+                          {/* Action buttons */}
+                          <div className="grid grid-cols-2 gap-2 pt-3 border-t border-warm-gray-100">
+                            <button
+                              onClick={() => setViewAgencyGrant(grant)}
+                              className="py-2 rounded-[10px] text-xs font-semibold text-warm-gray-700 bg-cream hover:bg-warm-gray-100 border border-warm-gray-200 transition-all cursor-pointer"
+                            >
+                              🏛️ View Agency
+                            </button>
+                            <button
+                              onClick={() => setViewGrantDetails(grant)}
+                              className="py-2 rounded-[10px] text-xs font-semibold text-warm-gray-700 bg-cream hover:bg-warm-gray-100 border border-warm-gray-200 transition-all cursor-pointer"
+                            >
+                              📄 View Details
+                            </button>
+                          </div>
+                          <button
+                            onClick={() => handleStartProposalForGrant(grant)}
+                            className="w-full mt-2 py-2.5 rounded-[10px] text-xs font-bold text-white bg-primary hover:bg-primary-dark shadow-soft transition-all cursor-pointer"
+                          >
+                            ✏️ Write Proposal
+                          </button>
+                          {docUrl && (
+                            <a
+                              href={docUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block text-center mt-2 text-[11px] font-semibold text-primary hover:underline"
+                            >
+                              📎 Download Guidelines Document
+                            </a>
+                          )}
                         </div>
-                        <span className="text-xs font-bold text-primary">{grant.match}%</span>
-                      </div>
-                    </div>
+                      )
+                    })}
                   </div>
-                ))}
-              </div>
+                </>
+              )}
+
+              {/* ─── Scraped / Government grants (read-only) ─── */}
+              {grantSource === 'scraped' && (
+                <>
+                  {scrapedGrantsLoading && (
+                    <div className="flex justify-center py-16">
+                      <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+
+                  {!scrapedGrantsLoading && scrapedGrants.length === 0 && (
+                    <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-12 text-center">
+                      <span className="text-4xl block mb-3">📭</span>
+                      <p className="text-warm-gray-500">No scraped grant listings available right now.</p>
+                    </div>
+                  )}
+
+                  {!scrapedGrantsLoading && scrapedGrants.length > 0 && filteredScrapedGrants.length === 0 && (
+                    <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-12 text-center">
+                      <p className="text-warm-gray-500">No grants match your search.</p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    {filteredScrapedGrants.map((grant, i) => (
+                      <div
+                        key={grant._id}
+                        className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-6 hover:shadow-medium transition-all duration-300 animate-fade-up"
+                        style={{ animationDelay: `${0.1 * (i + 1)}s` }}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <span className="text-[10px] font-mono font-bold text-warm-gray-500 bg-warm-gray-100 px-2 py-0.5 rounded-full border border-warm-gray-200">
+                              {grant.grantId || 'External'}
+                            </span>
+                            <h3 className="font-heading text-base font-bold text-warm-gray-900 mt-1.5 mb-1">{grant.title}</h3>
+                            <p className="text-xs text-warm-gray-500">{grant.agency?.name || 'Government / External Source'}</p>
+                          </div>
+                          {grant.needsReview && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border bg-amber-50 text-amber border-amber/15 flex-shrink-0">
+                              Unverified
+                            </span>
+                          )}
+                        </div>
+
+                        {grant.description && (
+                          <p className="text-xs text-warm-gray-600 leading-relaxed mb-3 line-clamp-2">{grant.description}</p>
+                        )}
+
+                        <div className="flex items-center gap-4 mb-3 flex-wrap text-xs text-warm-gray-500">
+                          {grant.fundingAmount?.max && (
+                            <span className="font-bold text-warm-gray-900 text-sm">
+                              ₹{grant.fundingAmount.min ? `${grant.fundingAmount.min}–` : ''}{grant.fundingAmount.max}
+                            </span>
+                          )}
+                          {grant.deadline?.date && <span>Deadline: {formatGrantDate(grant.deadline.date)}</span>}
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="px-2.5 py-1 rounded-full bg-cream text-warm-gray-600 text-xs font-medium border border-warm-gray-200/60">
+                            {grant.grantType || 'General'}
+                          </span>
+                          {grant.links?.applicationUrl && (
+                            <a
+                              href={grant.links.applicationUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-semibold text-primary hover:underline"
+                            >
+                              Visit Source →
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-warm-gray-400 mt-4">
+                    These listings are sourced from external government/agency websites and are read-only —
+                    GrantOS's proposal workspace applies only to grant calls published directly by GrantOS funding agencies (above).
+                  </p>
+                </>
+              )}
             </div>
           )}
 
@@ -1232,13 +1565,247 @@ export default function OrgAdminDashboard() {
         </div>
       </main>
 
+      {/* ─── View Funding Agency Profile Modal ─── */}
+      {viewAgencyGrant && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setViewAgencyGrant(null)} />
+          <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-medium w-full max-w-lg p-6 sm:p-8 animate-fade-up max-h-[85vh] overflow-y-auto">
+            {(() => {
+              const agency = viewAgencyGrant.fundingAgency || {}
+              return (
+                <>
+                  <div className="flex items-center justify-between mb-1">
+                    <h2 className="font-heading text-xl font-bold text-warm-gray-900">{agency.agencyName || 'Funding Agency'}</h2>
+                    <button onClick={() => setViewAgencyGrant(null)} className="text-warm-gray-400 hover:text-warm-gray-700 text-lg font-bold p-1 cursor-pointer">✕</button>
+                  </div>
+                  {agency.shortName && <p className="text-xs text-warm-gray-400 mb-4">{agency.shortName}</p>}
+
+                  <div className="grid grid-cols-2 gap-3 text-xs mb-4">
+                    <div>
+                      <span className="block text-warm-gray-400 uppercase tracking-wider font-bold text-[10px] mb-0.5">Agency Type</span>
+                      <span className="text-warm-gray-800 font-semibold">{AGENCY_TYPE_LABELS[agency.agencyType] || agency.agencyType || '—'}</span>
+                    </div>
+                    <div>
+                      <span className="block text-warm-gray-400 uppercase tracking-wider font-bold text-[10px] mb-0.5">Established</span>
+                      <span className="text-warm-gray-800 font-semibold">{agency.establishedYear || '—'}</span>
+                    </div>
+                    {agency.organizationType && (
+                      <div>
+                        <span className="block text-warm-gray-400 uppercase tracking-wider font-bold text-[10px] mb-0.5">Organization Type</span>
+                        <span className="text-warm-gray-800 font-semibold">{agency.organizationType}</span>
+                      </div>
+                    )}
+                    {agency.ownershipType && (
+                      <div>
+                        <span className="block text-warm-gray-400 uppercase tracking-wider font-bold text-[10px] mb-0.5">Ownership</span>
+                        <span className="text-warm-gray-800 font-semibold">{agency.ownershipType}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <span className="inline-block px-2.5 py-1 rounded-full text-[10px] font-bold border bg-green-50 text-green-700 border-green-200 mb-4">
+                    ✓ Verified Funding Agency
+                  </span>
+
+                  {agency.description && (
+                    <div className="mb-4">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">About</p>
+                      <p className="text-sm text-warm-gray-700 leading-relaxed">{agency.description}</p>
+                    </div>
+                  )}
+                  {agency.mission && (
+                    <div className="mb-4">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Mission</p>
+                      <p className="text-sm text-warm-gray-700 leading-relaxed">{agency.mission}</p>
+                    </div>
+                  )}
+                  {agency.vision && (
+                    <div className="mb-4">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Vision</p>
+                      <p className="text-sm text-warm-gray-700 leading-relaxed">{agency.vision}</p>
+                    </div>
+                  )}
+
+                  {agency.headquarters && (
+                    <div className="mb-4">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Headquarters</p>
+                      <p className="text-sm text-warm-gray-700">
+                        {[agency.headquarters.city, agency.headquarters.state, agency.headquarters.country].filter(Boolean).join(', ') || '—'}
+                      </p>
+                    </div>
+                  )}
+
+                  {agency.website && (
+                    <a href={agency.website} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-primary hover:underline">
+                      🌐 {agency.website}
+                    </a>
+                  )}
+
+                  <div className="flex justify-end mt-6 pt-4 border-t border-warm-gray-200/60">
+                    <button
+                      onClick={() => setViewAgencyGrant(null)}
+                      className="px-5 py-2.5 rounded-[10px] font-semibold text-warm-gray-600 hover:bg-warm-gray-100 text-xs cursor-pointer"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </>
+              )
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* ─── View Grant Details Modal ─── */}
+      {viewGrantDetails && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setViewGrantDetails(null)} />
+          <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-medium w-full max-w-2xl p-6 sm:p-8 animate-fade-up max-h-[85vh] overflow-y-auto">
+            {(() => {
+              const g = viewGrantDetails
+              const docUrl = grantDocumentUrl(g.document)
+              return (
+                <>
+                  <div className="flex items-start justify-between mb-1">
+                    <div>
+                      <span className="text-[10px] font-mono font-bold text-primary bg-primary-50 px-2 py-0.5 rounded-full border border-primary/15">{g.displayId}</span>
+                      <h2 className="font-heading text-xl font-bold text-warm-gray-900 mt-1">{g.title}</h2>
+                      {g.shortTitle && <p className="text-xs text-warm-gray-400 font-mono">{g.shortTitle}</p>}
+                    </div>
+                    <button onClick={() => setViewGrantDetails(null)} className="text-warm-gray-400 hover:text-warm-gray-700 text-lg font-bold p-1 cursor-pointer">✕</button>
+                  </div>
+                  <p className="text-xs text-warm-gray-500 mb-4">{g.fundingAgency?.agencyName || 'Funding Agency'}</p>
+
+                  {g.description && <p className="text-sm text-warm-gray-700 leading-relaxed mb-4">{g.description}</p>}
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3.5 rounded-[12px] bg-cream border border-warm-gray-200 mb-5 text-xs">
+                    <div><span className="text-warm-gray-400 block text-[10px]">Funding</span><strong className="text-warm-gray-900">{g.budget || '—'}</strong></div>
+                    <div><span className="text-warm-gray-400 block text-[10px]">Category</span><strong className="text-warm-gray-900">{g.category || '—'}</strong></div>
+                    <div><span className="text-warm-gray-400 block text-[10px]">Funding Type</span><strong className="text-warm-gray-900">{g.fundingType || '—'}</strong></div>
+                    <div><span className="text-warm-gray-400 block text-[10px]">Start Date</span><strong className="text-warm-gray-900">{formatGrantDate(g.startDate)}</strong></div>
+                    <div><span className="text-warm-gray-400 block text-[10px]">Deadline</span><strong className="text-warm-gray-900">{formatGrantDate(g.deadline)}</strong></div>
+                    <div>
+                      <span className="text-warm-gray-400 block text-[10px]">Duration</span>
+                      <strong className="text-warm-gray-900">
+                        {g.projectDurationMonths?.min || g.projectDurationMonths?.max
+                          ? `${g.projectDurationMonths.min || '?'}–${g.projectDurationMonths.max || '?'} months`
+                          : '—'}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {g.researchAreas?.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1.5">Research Areas</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {g.researchAreas.map((r) => (
+                          <span key={r} className="px-2.5 py-1 rounded-full bg-amber-50 text-amber text-[11px] font-semibold border border-amber/15">{r}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mb-4">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1.5">Eligibility</p>
+                    <p className="text-xs text-warm-gray-700 mb-1">
+                      <strong>Applicant Types:</strong>{' '}
+                      {g.eligibility?.applicantTypes?.length > 0
+                        ? g.eligibility.applicantTypes.map((t) => APPLICANT_TYPE_LABELS[t] || t).join(', ')
+                        : '—'}
+                    </p>
+                    <p className="text-xs text-warm-gray-700">
+                      <strong>Geographic Scope:</strong> {g.eligibility?.geographicScope || '—'}
+                      {g.eligibility?.eligibleStates?.length > 0 ? ` (${g.eligibility.eligibleStates.join(', ')})` : ''}
+                    </p>
+                    {g.eligibilityRulesText && (
+                      <p className="text-xs text-warm-gray-700 whitespace-pre-line mt-2 p-3 rounded-[10px] bg-cream border border-warm-gray-200">
+                        {g.eligibilityRulesText}
+                      </p>
+                    )}
+                  </div>
+
+                  {g.projectRequirements && (
+                    <DetailBlock label="Project Requirements" text={g.projectRequirements} />
+                  )}
+                  {g.allowableExpenses && <DetailBlock label="Allowable Expenses" text={g.allowableExpenses} />}
+                  {g.nonAllowableExpenses && <DetailBlock label="Non-Allowable Expenses" text={g.nonAllowableExpenses} />}
+                  {g.budgetRules && <DetailBlock label="Budget Rules" text={g.budgetRules} />}
+                  {g.proposalRequirements && <DetailBlock label="Proposal Requirements" text={g.proposalRequirements} />}
+
+                  {g.evaluationCriteria?.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1.5">Evaluation Criteria</p>
+                      <ul className="text-xs text-warm-gray-700 space-y-1">
+                        {g.evaluationCriteria.map((c, i) => (
+                          <li key={i} className="flex justify-between">
+                            <span>{c.label}</span>
+                            <strong className="text-warm-gray-900">{c.weight}%</strong>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {g.applicationProcess && <DetailBlock label="Application Process" text={g.applicationProcess} />}
+
+                  {(g.contactInformation?.name || g.contactInformation?.email || g.contactInformation?.phone) && (
+                    <div className="mb-4">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1.5">Program Contact</p>
+                      <p className="text-xs text-warm-gray-700">
+                        {[g.contactInformation.name, g.contactInformation.email, g.contactInformation.phone].filter(Boolean).join(' • ')}
+                      </p>
+                    </div>
+                  )}
+
+                  {docUrl && (
+                    <a
+                      href={docUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-[10px] bg-primary-50 text-primary text-xs font-bold border border-primary/15 hover:bg-primary-100 transition-all mb-2"
+                    >
+                      📄 View {g.document.documentType || 'Grant Document'} PDF →
+                    </a>
+                  )}
+
+                  <div className="flex items-center justify-end gap-3 mt-4 pt-4 border-t border-warm-gray-200/60">
+                    <button
+                      onClick={() => setViewGrantDetails(null)}
+                      className="px-4 py-2 rounded-[10px] font-semibold text-warm-gray-600 hover:bg-warm-gray-100 text-xs cursor-pointer"
+                    >
+                      Close
+                    </button>
+                    <button
+                      onClick={() => { setViewGrantDetails(null); handleStartProposalForGrant(g) }}
+                      className="px-5 py-2.5 rounded-[10px] font-bold text-white bg-primary hover:bg-primary-dark shadow-soft transition-all text-xs cursor-pointer"
+                    >
+                      ✏️ Write Proposal
+                    </button>
+                  </div>
+                </>
+              )
+            })()}
+          </div>
+        </div>
+      )}
+
       {/* ─── Create Proposal Modal ─── */}
       {createProposalModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setCreateProposalModal(false)} />
           <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-medium w-full max-w-lg p-8 animate-fade-up">
             <h2 className="font-heading text-xl font-bold text-warm-gray-900 mb-1">Start New Proposal</h2>
-            <p className="text-sm text-warm-gray-500 mb-6">This will automatically generate the 17-section proposal template.</p>
+            <p className="text-sm text-warm-gray-500 mb-6">
+              {newProposalData.grantProgramId
+                ? 'Pre-filled from the selected grant call. This will automatically generate the 17-section proposal template.'
+                : 'This will automatically generate the 17-section proposal template.'}
+            </p>
+
+            {proposalCreateError && (
+              <div className="mb-4 p-3 rounded-[10px] bg-red-50 border border-red-200 text-xs text-red-700">
+                ⚠️ {proposalCreateError}
+              </div>
+            )}
 
             <form onSubmit={handleCreateProposal} className="space-y-4">
               <div>
@@ -1261,7 +1828,8 @@ export default function OrgAdminDashboard() {
                     value={newProposalData.grantTitle}
                     onChange={(e) => setNewProposalData({ ...newProposalData, grantTitle: e.target.value })}
                     placeholder="e.g. DST SERB CRG"
-                    className="w-full px-3 py-2 rounded-[10px] border border-warm-gray-200 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                    disabled={Boolean(newProposalData.grantProgramId)}
+                    className="w-full px-3 py-2 rounded-[10px] border border-warm-gray-200 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-500/20 disabled:bg-warm-gray-50 disabled:text-warm-gray-500"
                   />
                 </div>
                 <div>
@@ -1271,7 +1839,8 @@ export default function OrgAdminDashboard() {
                     value={newProposalData.grantAgency}
                     onChange={(e) => setNewProposalData({ ...newProposalData, grantAgency: e.target.value })}
                     placeholder="e.g. DST / UGC"
-                    className="w-full px-3 py-2 rounded-[10px] border border-warm-gray-200 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                    disabled={Boolean(newProposalData.grantProgramId)}
+                    className="w-full px-3 py-2 rounded-[10px] border border-warm-gray-200 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-500/20 disabled:bg-warm-gray-50 disabled:text-warm-gray-500"
                   />
                 </div>
               </div>
@@ -1293,15 +1862,22 @@ export default function OrgAdminDashboard() {
                     type="date"
                     value={newProposalData.deadline}
                     onChange={(e) => setNewProposalData({ ...newProposalData, deadline: e.target.value })}
-                    className="w-full px-3 py-2 rounded-[10px] border border-warm-gray-200 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                    disabled={Boolean(newProposalData.grantProgramId)}
+                    className="w-full px-3 py-2 rounded-[10px] border border-warm-gray-200 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-500/20 disabled:bg-warm-gray-50 disabled:text-warm-gray-500"
                   />
                 </div>
               </div>
 
+              {newProposalData.grantProgramId && (
+                <p className="text-[11px] text-warm-gray-400">
+                  Eligibility for this grant call will be checked automatically when you create the proposal.
+                </p>
+              )}
+
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setCreateProposalModal(false)}
+                  onClick={() => { setCreateProposalModal(false); setProposalCreateError('') }}
                   className="flex-1 py-2.5 rounded-[12px] font-semibold text-warm-gray-600 hover:bg-warm-gray-100 transition-all text-xs cursor-pointer"
                 >
                   Cancel
@@ -1671,6 +2247,16 @@ export default function OrgAdminDashboard() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Small reusable block for Grant Details modal text sections ───
+function DetailBlock({ label, text }) {
+  return (
+    <div className="mb-4">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">{label}</p>
+      <p className="text-xs text-warm-gray-700 whitespace-pre-line leading-relaxed">{text}</p>
     </div>
   )
 }

@@ -413,14 +413,6 @@ export default function AdminDashboard() {
 
                           <div>
                             <h4 className="text-xs font-bold text-warm-gray-400 uppercase tracking-wider mb-3">Funding Profile</h4>
-                            {agency.fundingDomains?.length > 0 && (
-                              <div className="mb-2">
-                                <span className="text-xs text-warm-gray-500 block mb-1">Domains:</span>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {agency.fundingDomains.map(d => <span key={d} className="px-2 py-0.5 rounded-full bg-amber-50 text-amber text-xs font-medium">{d}</span>)}
-                                </div>
-                              </div>
-                            )}
                             {agency.grantTypesOffered?.length > 0 && (
                               <div>
                                 <span className="text-xs text-warm-gray-500 block mb-1">Grant Types:</span>
