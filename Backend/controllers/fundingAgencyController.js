@@ -521,7 +521,10 @@ const deleteGrantProgram = async (req, res) => {
   }
 };
 
-// @desc    Get all proposals submitted against this agency's grant programs
+
+// @desc    Get all proposals actually SUBMITTED to this agency's grant programs.
+//          Proposals still 'In Progress' or 'Draft' on the org side never
+//          appear here — only after the org admin explicitly submits.
 // @route   GET /api/agency/proposals
 // @access  Private (funding_agency)
 const getAgencyProposals = async (req, res) => {
@@ -532,10 +535,16 @@ const getAgencyProposals = async (req, res) => {
     const programs = await GrantProgram.find({ fundingAgency: agency._id }).select('_id');
     const programIds = programs.map((p) => p._id);
 
-    const proposals = await Proposal.find({ grantProgram: { $in: programIds } })
-      .populate('organization', 'organizationName organizationType')
+    const proposals = await Proposal.find({
+      grantProgram: { $in: programIds },
+      status: { $in: ['Submitted', 'Under Review', 'Shortlisted', 'Rejected', 'Awarded', 'Not Awarded'] },
+    })
+      .populate(
+        'organization',
+        'organizationName organizationType registrationNumber establishedYear website address contactPerson'
+      )
       .populate('grantProgram', 'title')
-      .sort({ createdAt: -1 });
+      .sort({ submittedAt: -1, createdAt: -1 });
 
     res.json({ success: true, proposals });
   } catch (error) {

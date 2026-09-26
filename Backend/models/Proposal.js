@@ -25,7 +25,7 @@ const commentSchema = new mongoose.Schema({
   },
 });
 
-// ─── Proposal Section Sub-Schema (17 sections) ───
+// ─── Proposal Section Sub-Schema (17 default + dynamically added/removed) ───
 const sectionSchema = new mongoose.Schema({
   sectionKey: {
     type: String,
@@ -120,6 +120,14 @@ const proposalSchema = new mongoose.Schema(
         'Accepted',
       ],
       default: 'In Progress',
+    },
+    // Set only when the org admin explicitly submits this proposal to its
+    // linked funding agency via PUT /proposals/:id/submit — this, not the
+    // presence of a grantProgram alone, is what makes the proposal visible
+    // on the agency's Proposals page.
+    submittedAt: {
+      type: Date,
+      default: null,
     },
 
     // ─── Eligibility snapshot (recorded at submission time) ───

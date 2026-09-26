@@ -16,9 +16,6 @@ const ORG_TYPE_TO_APPLICANT_TYPE = {
 
 // Reusable eligibility engine: compares an Organization against a GrantProgram's
 // eligibility rules and returns a structured result, never a bare boolean.
-// NOTE: this still runs inside createProposal below and gates submission —
-// removing the standalone "Check Eligibility" button from the UI does not
-// remove backend enforcement.
 async function evaluateEligibility(organization, grantProgram) {
   const checks = [];
 
@@ -193,7 +190,89 @@ exports.updateSection = async (req, res) => {
   }
 };
 
-// @desc    Approve all 17 sections of a proposal at once (Org Admin only)
+// @desc    Add a new, custom section to a proposal (dynamic sections — not
+//          part of the fixed 17-section template). Appended at the end.
+// @route   POST /api/proposals/:proposalId/sections
+// @access  Private (org_admin)
+exports.addSection = async (req, res) => {
+  try {
+    const { proposalId } = req.params;
+    const { title, wordCountLimit, starterGuide } = req.body;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ success: false, message: 'Section title is required' });
+    }
+
+    const proposal = await Proposal.findById(proposalId);
+    if (!proposal) {
+      return res.status(404).json({ success: false, message: 'Proposal not found' });
+    }
+
+    proposal.sections.push({
+      sectionKey: `custom_${Date.now()}`,
+      title: title.trim(),
+      wordCountLimit: wordCountLimit && Number(wordCountLimit) > 0 ? Number(wordCountLimit) : 500,
+      starterGuide: starterGuide || '',
+      status: 'Not Started',
+      content: '',
+    });
+
+    // A new section resets the completion percentage — recompute rather
+    // than assume.
+    const totalSections = proposal.sections.length;
+    const completedSections = proposal.sections.filter(
+      (s) => s.status === 'Ready for Review' || s.status === 'Approved'
+    ).length;
+    proposal.progress = totalSections > 0 ? Math.round((completedSections / totalSections) * 100) : 0;
+
+    await proposal.save();
+
+    res.status(201).json({ success: true, message: 'Section added', proposal: proposal.toObject() });
+  } catch (error) {
+    console.error('Error adding section:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Delete a section from a proposal (dynamic sections). Works on
+//          any section, including the original 17 — the template is a
+//          starting point, not a fixed structure.
+// @route   DELETE /api/proposals/:proposalId/sections/:sectionId
+// @access  Private (org_admin)
+exports.deleteSection = async (req, res) => {
+  try {
+    const { proposalId, sectionId } = req.params;
+
+    const proposal = await Proposal.findById(proposalId);
+    if (!proposal) {
+      return res.status(404).json({ success: false, message: 'Proposal not found' });
+    }
+
+    const section = proposal.sections.id(sectionId);
+    if (!section) {
+      return res.status(404).json({ success: false, message: 'Section not found' });
+    }
+
+    section.deleteOne();
+
+    const totalSections = proposal.sections.length;
+    const completedSections = proposal.sections.filter(
+      (s) => s.status === 'Ready for Review' || s.status === 'Approved'
+    ).length;
+    proposal.progress = totalSections > 0 ? Math.round((completedSections / totalSections) * 100) : 0;
+
+    await proposal.save();
+
+    res.json({ success: true, message: 'Section deleted', proposal: proposal.toObject() });
+  } catch (error) {
+    console.error('Error deleting section:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Approve all sections of a proposal at once (Org Admin only).
+//          This is an internal-team completeness check — it does NOT submit
+//          the proposal to the funding agency; see submitProposal for that.
 // @route   PUT /api/proposals/:proposalId/approve-all
 // @access  Private (Org Admin)
 exports.approveAllSections = async (req, res) => {
@@ -211,7 +290,6 @@ exports.approveAllSections = async (req, res) => {
     });
 
     proposal.progress = 100;
-    proposal.status = 'Under Review';
     await proposal.save();
 
     res.json({
@@ -221,6 +299,50 @@ exports.approveAllSections = async (req, res) => {
     });
   } catch (error) {
     console.error('Error approving all sections:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Submit a proposal to its linked funding agency (org_admin only).
+//          Only proposals created against a real GrantProgram (grantProgram
+//          set) can be submitted this way — that link is what makes them
+//          appear on the agency's Proposals page at all. Freeform proposals
+//          (no linked grant, e.g. started from a scraped listing) stay
+//          org-internal and simply have no "submit to agency" destination.
+// @route   PUT /api/proposals/:proposalId/submit
+// @access  Private (org_admin)
+exports.submitProposal = async (req, res) => {
+  try {
+    const { proposalId } = req.params;
+
+    const proposal = await Proposal.findById(proposalId);
+    if (!proposal) {
+      return res.status(404).json({ success: false, message: 'Proposal not found' });
+    }
+
+    if (!proposal.grantProgram) {
+      return res.status(400).json({
+        success: false,
+        message: 'This proposal is not linked to a GrantOS funding agency grant call and cannot be submitted.',
+      });
+    }
+
+    const alreadySubmittedStatuses = ['Submitted', 'Under Review', 'Shortlisted', 'Rejected', 'Awarded', 'Not Awarded'];
+    if (alreadySubmittedStatuses.includes(proposal.status)) {
+      return res.status(400).json({ success: false, message: 'This proposal has already been submitted.' });
+    }
+
+    proposal.status = 'Submitted';
+    proposal.submittedAt = new Date();
+    await proposal.save();
+
+    res.json({
+      success: true,
+      message: 'Proposal submitted to the funding agency',
+      proposal: proposal.toObject(),
+    });
+  } catch (error) {
+    console.error('Error submitting proposal:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -452,11 +574,9 @@ exports.createProposal = async (req, res) => {
 
     const sections = Proposal.getDefaultSections();
 
-    // If the proposal is being submitted against a published grant call,
-    // link it, gate on eligibility, and auto-fill the agency-facing fields
-    // from the program itself. This is the only place eligibility is
-    // enforced now that the standalone "Check Eligibility" UI button has
-    // been removed — an ineligible org still cannot start a proposal.
+    // If the proposal is being created against a published grant call, link
+    // it and gate on eligibility — the org still needs to explicitly submit
+    // via PUT /proposals/:id/submit before the agency can see it.
     let linkedProgram = null;
     let eligibilitySnapshot = { isEligible: null, checks: [], checkedAt: null };
     let resolvedGrantTitle = grantTitle || '';
@@ -688,6 +808,28 @@ exports.deleteProposal = async (req, res) => {
     });
   } catch (error) {
     console.error('Error deleting proposal:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+// @desc    Get the logged-in user's own organization profile — used by both
+//          org_admin and team_member so team members can see the org context
+//          they're writing proposals for. Read-only, no edit capability here.
+// @route   GET /api/proposals/my-organization
+// @access  Private (any authenticated user with an organization)
+exports.getMyOrganization = async (req, res) => {
+  try {
+    if (!req.user.organization) {
+      return res.status(404).json({ success: false, message: 'No organization found for this user' });
+    }
+
+    const organization = await Organization.findById(req.user.organization);
+    if (!organization) {
+      return res.status(404).json({ success: false, message: 'Organization not found' });
+    }
+
+    res.json({ success: true, organization });
+  } catch (error) {
+    console.error('Error fetching organization:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
