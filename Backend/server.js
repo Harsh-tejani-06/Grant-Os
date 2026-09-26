@@ -13,6 +13,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const memberRoutes = require('./routes/memberRoutes');
 const fundingAgencyRoutes = require('./routes/fundingAgencyRoutes');
 const proposalRoutes = require('./routes/proposalRoutes');
+const reminderRoutes = require('./routes/reminderRoutes');
 const grantIngestRoutes = require('./routes/grantIngestRoutes');
 const grantAdminRoutes = require('./routes/grantAdminRoutes');
 
@@ -35,6 +36,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/member', memberRoutes);
 app.use('/api/agency', fundingAgencyRoutes);
 app.use('/api/proposals', proposalRoutes);
+app.use('/api/reminders', reminderRoutes);
 app.use('/api/admin/grants', grantAdminRoutes);
 
 // ─── Internal Routes (machine-to-machine, no public CORS) ───
@@ -59,15 +61,34 @@ app.use((err, req, res, next) => {
   });
 });
 
+const http = require('http');
+const socketHelper = require('./socket');
+
 // ─── Start Server ───
 const PORT = process.env.PORT || 5000;
+const httpServer = http.createServer(app);
+
+// Initialize Socket.io
+socketHelper.init(httpServer, {
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  credentials: true,
+});
+
+const { runAutomatedCriticalDeadlineCheck } = require('./controllers/reminderController');
 
 const startServer = async () => {
   await connectDB();
-  app.listen(PORT, () => {
+  httpServer.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📡 API: http://localhost:${PORT}/api`);
+    console.log(`⚡ WebSocket Server initialized`);
   });
+
+  // Automated Critical Deadline Email Alerts (Runs on startup, then every 12 hours)
+  setTimeout(() => {
+    runAutomatedCriticalDeadlineCheck();
+  }, 5000);
+  setInterval(runAutomatedCriticalDeadlineCheck, 12 * 60 * 60 * 1000);
 };
 
 startServer();

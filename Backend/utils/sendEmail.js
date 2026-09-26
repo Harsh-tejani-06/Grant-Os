@@ -180,9 +180,93 @@ const sendAgencyRejectionEmail = async (agencyEmail, agencyName, reason) => {
   }
 };
 
+const sendCriticalDeadlineEmail = async ({
+  recipientEmail,
+  recipientName,
+  proposalTitle,
+  grantAgency,
+  grantTitle,
+  deadlineDate,
+  daysRemaining,
+  unapprovedSectionsCount,
+  workspaceUrl,
+}) => {
+  try {
+    if (!recipientEmail) return false;
+    if (!process.env.EMAIL_HOST || !process.env.EMAIL_USER) {
+      console.log(`[SIMULATED EMAIL] Critical deadline alert sent to ${recipientEmail} for "${proposalTitle}" (${daysRemaining}d left)`);
+      return true;
+    }
+
+    const transporter = createTransporter();
+    const formattedDate = deadlineDate
+      ? new Date(deadlineDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : 'Approaching Soon';
+
+    await transporter.sendMail({
+      from: `"GrantOS Institutional Alerts" <${process.env.EMAIL_USER}>`,
+      to: recipientEmail,
+      subject: `🚨 URGENT: ${daysRemaining <= 1 ? 'Final Day' : `${daysRemaining} Days Left`} — Grant Application Deadline for "${proposalTitle.slice(0, 45)}"`,
+      html: `
+        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #fff5f5; border-radius: 16px;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <span style="display: inline-block; background: #fee2e2; color: #991b1b; padding: 6px 16px; border-radius: 9999px; font-weight: 700; font-size: 12px; letter-spacing: 0.5px; border: 1px solid #fca5a5;">
+              🚨 CRITICAL GRANT DEADLINE ALERT
+            </span>
+          </div>
+
+          <div style="background: #ffffff; border-radius: 14px; padding: 28px; border: 1px solid #fecaca; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+            <h2 style="color: #1f2937; margin-top: 0; font-size: 20px; line-height: 1.3;">
+              Immediate Action Required, ${recipientName || 'Investigator'}
+            </h2>
+            <p style="color: #4b5563; font-size: 14px; line-height: 1.5; margin-bottom: 20px;">
+              The official submission deadline for your institutional grant proposal is approaching within <strong>${daysRemaining} day${daysRemaining === 1 ? '' : 's'}</strong>.
+            </p>
+
+            <div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
+              <p style="margin: 0 0 6px 0; font-size: 13px; color: #991b1b; font-weight: 700;">PROPOSAL DETAILS</p>
+              <p style="margin: 0 0 4px 0; font-size: 15px; color: #111827; font-weight: 600;">${proposalTitle}</p>
+              <p style="margin: 0 0 4px 0; font-size: 13px; color: #4b5563;">Funding Agency: <strong>${grantAgency || 'Official Agency'}</strong> ${grantTitle ? `• ${grantTitle}` : ''}</p>
+              <p style="margin: 0; font-size: 13px; color: #dc2626; font-weight: 700;">Target Deadline: ${formattedDate} (${daysRemaining} Days Left)</p>
+            </div>
+
+            ${
+              unapprovedSectionsCount > 0
+                ? `<div style="background: #fffbeb; border: 1px solid #fef3c7; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; font-size: 13px; color: #92400e;">
+                    ⚠️ <strong>${unapprovedSectionsCount} sections</strong> still require review and sign-off before institutional compliance dispatch.
+                  </div>`
+                : ''
+            }
+
+            <div style="text-align: center; margin: 28px 0 16px 0;">
+              <a href="${workspaceUrl || `${process.env.FRONTEND_URL}/login`}" style="display: inline-block; background: #dc2626; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 10px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 10px rgba(220, 38, 38, 0.3);">
+                Open Proposal Workspace & Review
+              </a>
+            </div>
+            <p style="text-align: center; color: #9ca3af; font-size: 12px; margin: 0;">
+              Please ensure all institutional clearances, endorsement letters, and budget audits are verified in GrantOS.
+            </p>
+          </div>
+
+          <p style="text-align: center; color: #9ca3af; font-size: 12px; margin-top: 20px;">
+            © ${new Date().getFullYear()} GrantOS Research Management Suite. All rights reserved.
+          </p>
+        </div>
+      `,
+    });
+
+    console.log(`✅ Critical deadline alert email sent to ${recipientEmail}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Failed to send critical deadline email: ${error.message}`);
+    return false;
+  }
+};
+
 module.exports = {
   sendApprovalEmail,
   sendRejectionEmail,
   sendAgencyApprovalEmail,
   sendAgencyRejectionEmail,
+  sendCriticalDeadlineEmail,
 };

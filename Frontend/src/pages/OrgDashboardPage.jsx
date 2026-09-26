@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useState, useEffect, useMemo } from 'react'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import api from '../api'
+import { socket, joinOrgRoom, leaveOrgRoom } from '../socket'
 
 const LeafIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
@@ -18,9 +19,9 @@ const TASK_TYPES = [
 // ─── Sidebar nav items ───
 const NAV_ITEMS = [
   { key: 'home', label: 'Dashboard', icon: '🏠' },
-  { key: 'proposals', label: 'Proposal Management', icon: '📝' },
   { key: 'grants', label: 'Grant Discovery', icon: '🔍' },
-  { key: 'applications', label: 'Applications', icon: '📋' },
+  { key: 'proposals', label: 'Proposal Management', icon: '📝' },
+  { key: 'tracking', label: 'Proposal Tracking', icon: '📊' },
   { key: 'team', label: 'Team Management', icon: '👥' },
   { key: 'deadlines', label: 'Deadline Alerts', icon: '🔔' },
   { key: 'analytics', label: 'Analytics', icon: '📈' },
@@ -50,9 +51,106 @@ const MOCK_DEADLINES = [
   { id: 5, title: 'AICTE Research Promotion', date: '2026-09-30', daysLeft: 59, priority: 'low' },
 ]
 
+// ─── Pre-Submission Compliance Checklist Items ───
+const COMPLIANCE_CHECKLIST_ITEMS = [
+  {
+    key: 'endorsementLetter',
+    label: 'Institutional Endorsement Letter (Mandatory)',
+    description: 'Official endorsement letter from Registrar / Dean of Research certifying institutional space, resources, and commitment.',
+    mandatory: true,
+  },
+  {
+    key: 'investigatorCvs',
+    label: 'Investigator CVs & Publications (Annexure I)',
+    description: 'Biographical sketches and citation metrics of Principal Investigator and Co-PIs matching funding agency format.',
+    mandatory: false,
+  },
+  {
+    key: 'ethicalClearance',
+    label: 'Institutional Ethics Committee (IEC) Clearance',
+    description: 'Ethics committee approval certificate or categorical exemption certificate for human/animal trials or bio-samples.',
+    mandatory: false,
+  },
+  {
+    key: 'biosafetyClearance',
+    label: 'Institutional Biosafety / Radiation Safety Clearance',
+    description: 'IBSC clearance or radiological authorization for recombinant DNA, pathogenic strains, or hazardous isotopes.',
+    mandatory: false,
+  },
+  {
+    key: 'financeAudit',
+    label: 'Finance & Overhead Audit Certification',
+    description: 'Internal audit verification confirming institutional overhead calculations (5%–15%), recurring expenses, and GST.',
+    mandatory: false,
+  },
+  {
+    key: 'conflictOfInterest',
+    label: 'No-Conflict of Interest Certificate',
+    description: 'Signed declaration by all investigators verifying zero personal, commercial, or financial conflict with funding agency.',
+    mandatory: false,
+  },
+]
+
+// ─── Post-Submission Proposal Tracking Stages (Lifecycle Pipeline) ───
+const TRACKING_STAGES = [
+  {
+    key: 'Submitted to Agency',
+    aliases: ['Submitted to Agency', 'Submitted', 'Submitted to Admin'],
+    label: 'Submitted to Agency',
+    icon: '🏛️',
+    color: 'border-blue-300 bg-blue-50/70 text-blue-900',
+    headerBadge: 'bg-blue-100 text-blue-800',
+    description: 'Dispatched to funding agency or undergoing final clearance',
+  },
+  {
+    key: 'Under Evaluation',
+    aliases: ['Under Evaluation'],
+    label: 'Under Evaluation',
+    icon: '🔍',
+    color: 'border-purple-300 bg-purple-50/70 text-purple-900',
+    headerBadge: 'bg-purple-100 text-purple-800',
+    description: 'Active peer review & scientific committee scoring',
+  },
+  {
+    key: 'Revisions Requested',
+    aliases: ['Revisions Requested'],
+    label: 'Revisions / Query',
+    icon: '⚠️',
+    color: 'border-amber-300 bg-amber-50/70 text-amber-900',
+    headerBadge: 'bg-amber-100 text-amber-800',
+    description: 'Agency requested budget revisions, queries, or presentation',
+  },
+  {
+    key: 'Awarded',
+    aliases: ['Awarded', 'Accepted'],
+    label: 'Awarded / Sanctioned',
+    icon: '🏆',
+    color: 'border-emerald-300 bg-emerald-50/70 text-emerald-900',
+    headerBadge: 'bg-emerald-100 text-emerald-800',
+    description: 'Grant sanctioned, award order issued & funds allocated',
+  },
+  {
+    key: 'Rejected',
+    aliases: ['Rejected'],
+    label: 'Rejected / Archived',
+    icon: '❌',
+    color: 'border-rose-300 bg-rose-50/70 text-rose-900',
+    headerBadge: 'bg-rose-100 text-rose-800',
+    description: 'Not shortlisted or rejected during peer review',
+  },
+]
+
 export default function OrgAdminDashboard() {
   const navigate = useNavigate()
-  const [activeSection, setActiveSection] = useState('home')
+  const location = useLocation()
+  const [activeSection, setActiveSection] = useState(location.state?.section || 'home')
+
+  useEffect(() => {
+    if (location.state?.section) {
+      setActiveSection(location.state.section)
+    }
+  }, [location.state?.section])
+
   const [orgName, setOrgName] = useState('')
   const [userName, setUserName] = useState('')
   const [loading, setLoading] = useState(true)
@@ -82,23 +180,53 @@ export default function OrgAdminDashboard() {
   })
   const [proposalSubmitting, setProposalSubmitting] = useState(false)
   const [assigningSectionId, setAssigningSectionId] = useState('')
-  const [reviewSectionModal, setReviewSectionModal] = useState(null)
   const [showFullProposalModal, setShowFullProposalModal] = useState(false)
+  const [pdfNotSubmittedMsg, setPdfNotSubmittedMsg] = useState(null)
 
-  const handleApproveSection = async (sectionId) => {
-    if (!selectedProposalId) return
-    try {
-      const res = await api.put(`/proposals/${selectedProposalId}/sections/${sectionId}`, {
-        status: 'Approved',
-      })
-      if (res.data.success) {
-        fetchOrgProposals()
-        setReviewSectionModal(null)
-      }
-    } catch (err) {
-      console.error('Failed to approve section:', err)
-    }
-  }
+  // ─── Proposal Tracking Dashboard State (GUI 4) ───
+  const [trackingView, setTrackingView] = useState('kanban') // 'kanban' | 'table'
+  const [trackingSearch, setTrackingSearch] = useState('')
+  const [trackingAgencyFilter, setTrackingAgencyFilter] = useState('all')
+  const [trackingStageFilter, setTrackingStageFilter] = useState('all')
+  const [statusChangeModal, setStatusChangeModal] = useState(null) // { proposal, newStatus, notes }
+  const [awardModal, setAwardModal] = useState(null) // proposal
+  const [awardForm, setAwardForm] = useState({
+    sanctionOrderNumber: '',
+    sanctionedAmount: '',
+    startDate: '',
+    durationMonths: 24,
+    sanctionNotes: '',
+  })
+  const [pingPiModal, setPingPiModal] = useState(null) // proposal
+  const [pingPiMessage, setPingPiMessage] = useState('')
+  const [timelineModal, setTimelineModal] = useState(null) // proposal
+  const [updatingTrackingStatus, setUpdatingTrackingStatus] = useState(false)
+
+  // ─── Grant Discovery & Proposal Management Search States ───
+  const [grantSearch, setGrantSearch] = useState('')
+  const [grantCategory, setGrantCategory] = useState('All Categories')
+  const [grantStatus, setGrantStatus] = useState('All Status')
+  const [proposalManagementSearch, setProposalManagementSearch] = useState('')
+
+  // ─── Real-Time Deadline Alerts & Follow-up Scheduler States ───
+  const [reminders, setReminders] = useState([])
+  const [remindersLoading, setRemindersLoading] = useState(false)
+  const [deadlineTab, setDeadlineTab] = useState('all') // 'all' | 'critical' | 'deadlines' | 'followups' | 'custom' | 'completed'
+  const [deadlineSearch, setDeadlineSearch] = useState('')
+  const [createReminderModal, setCreateReminderModal] = useState(false)
+  const [reminderForm, setReminderForm] = useState({
+    title: '',
+    targetDate: '',
+    proposalId: '',
+    reminderType: 'internal_review',
+    priority: 'high',
+    notes: '',
+    recipientName: '',
+  })
+  const [submittingReminder, setSubmittingReminder] = useState(false)
+  const [followupLetterModal, setFollowupLetterModal] = useState(null) // proposal
+  const [copiedLetter, setCopiedLetter] = useState(false)
+  const [sendingEmailAlertId, setSendingEmailAlertId] = useState(null)
 
   const handleApproveAllSections = async () => {
     if (!selectedProposalObj) return
@@ -118,6 +246,11 @@ export default function OrgAdminDashboard() {
 
   const handleExportPDF = (proposal) => {
     if (!proposal) return
+
+    if (!['Submitted to Admin', 'Submitted', 'Submitted to Agency', 'Under Evaluation', 'Revisions Requested', 'Awarded', 'Accepted'].includes(proposal.status)) {
+      alert('Cannot export: The proposal must be submitted before generating an official dossier PDF.')
+      return
+    }
 
     const printWindow = window.open('', '_blank')
     if (!printWindow) {
@@ -194,6 +327,74 @@ export default function OrgAdminDashboard() {
     printWindow.document.close()
   }
 
+  const [orgId, setOrgId] = useState('')
+  const [liveToast, setLiveToast] = useState(null)
+  const [submitAgencyModal, setSubmitAgencyModal] = useState(false)
+  const [agencySubmissionData, setAgencySubmissionData] = useState({
+    agencySubmissionId: '',
+    receiptNote: '',
+  })
+  const [submittingAgency, setSubmittingAgency] = useState(false)
+  const [updatingChecklistKey, setUpdatingChecklistKey] = useState('')
+
+  const showToast = (message) => {
+    setLiveToast(message)
+    setTimeout(() => {
+      setLiveToast((prev) => (prev === message ? null : prev))
+    }, 4500)
+  }
+
+  const handleToggleChecklist = async (proposalId, itemKey) => {
+    const prop = orgProposals.find((p) => p._id === proposalId)
+    if (!prop) return
+    const currentVal = Boolean(prop.preSubmissionChecklist?.[itemKey])
+    setUpdatingChecklistKey(itemKey)
+    try {
+      const res = await api.put(`/proposals/${proposalId}/checklist`, {
+        [itemKey]: !currentVal,
+      })
+      if (res.data.success) {
+        setOrgProposals((prev) =>
+          prev.map((p) => (p._id === proposalId ? { ...p, preSubmissionChecklist: res.data.checklist } : p))
+        )
+      }
+    } catch (err) {
+      console.error('Failed to update checklist:', err)
+      alert(err.response?.data?.message || 'Failed to update checklist item')
+    } finally {
+      setUpdatingChecklistKey('')
+    }
+  }
+
+  const handleSubmitToAgency = async (e) => {
+    e.preventDefault()
+    if (!selectedProposalObj) return
+    if (!agencySubmissionData.agencySubmissionId.trim()) {
+      alert('Please enter the Official Agency Reference / Confirmation ID.')
+      return
+    }
+    try {
+      setSubmittingAgency(true)
+      const res = await api.put(`/proposals/${selectedProposalObj._id}/submit-agency`, {
+        agencySubmissionId: agencySubmissionData.agencySubmissionId.trim(),
+        receiptNote: agencySubmissionData.receiptNote.trim(),
+      })
+      if (res.data.success) {
+        setOrgProposals((prev) =>
+          prev.map((p) => (p._id === selectedProposalObj._id ? res.data.proposal : p))
+        )
+        setSubmitAgencyModal(false)
+        setAgencySubmissionData({ agencySubmissionId: '', receiptNote: '' })
+        showToast('🏛️ Proposal officially submitted to Funding Agency!')
+      }
+    } catch (err) {
+      console.error('Agency submission failed:', err)
+      alert(err.response?.data?.message || 'Failed to submit proposal to agency')
+    } finally {
+      setSubmittingAgency(false)
+    }
+  }
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -202,6 +403,10 @@ export default function OrgAdminDashboard() {
           setUserName(res.data.user.fullName)
           if (res.data.orgStatus) {
             setOrgName(res.data.orgStatus.organizationName)
+          }
+          const detectedOrgId = res.data.user.organization || res.data.orgStatus?.organizationId || ''
+          if (detectedOrgId) {
+            setOrgId(detectedOrgId.toString())
           }
         }
       } catch (err) {
@@ -213,13 +418,187 @@ export default function OrgAdminDashboard() {
     fetchData()
   }, [])
 
-  // Fetch members and proposals when sections are active
+  // ─── Real-Time Live Updates via Socket.io for Org Admin ───
   useEffect(() => {
-    if (activeSection === 'team' || activeSection === 'home' || activeSection === 'proposals') {
+    if (!orgId) return
+
+    joinOrgRoom(orgId)
+
+    const handleSectionUpdate = (data) => {
+      if (!data || !data.proposalId) return
+      setOrgProposals((prev) =>
+        prev.map((p) => {
+          if (p._id === data.proposalId) {
+            const updatedSections = p.sections.map((s) =>
+              s._id === data.sectionId ? { ...s, ...data.section } : s
+            )
+            return {
+              ...p,
+              progress: data.progress !== undefined ? data.progress : p.progress,
+              sections: updatedSections,
+            }
+          }
+          return p
+        })
+      )
+      if (data.section?.title && data.section?.status) {
+        showToast(`⚡ Section "${data.section.title}" updated to "${data.section.status}"`)
+      }
+    }
+
+    const handleAllApproved = (data) => {
+      if (!data || !data.proposalId) return
+      setOrgProposals((prev) =>
+        prev.map((p) => {
+          if (p._id === data.proposalId) {
+            return {
+              ...p,
+              progress: 100,
+              status: data.status || 'Under Review',
+              sections: p.sections.map((s) => ({ ...s, status: 'Approved' })),
+            }
+          }
+          return p
+        })
+      )
+      showToast(`🎉 All 17 sections have been approved by Principal Investigator!`)
+    }
+
+    const handleSubmittedToAdmin = (data) => {
+      if (!data || !data.proposalId) return
+      setOrgProposals((prev) =>
+        prev.map((p) => {
+          if (p._id === data.proposalId) {
+            return {
+              ...p,
+              status: 'Submitted to Admin',
+              submittedByPIAt: data.submittedByPIAt || new Date(),
+            }
+          }
+          return p
+        })
+      )
+      showToast(`🚀 Final proposal successfully submitted by PI! PDF Export and Checklist are now unlocked.`)
+    }
+
+    const handleChecklistUpdated = (data) => {
+      if (!data || !data.proposalId) return
+      setOrgProposals((prev) =>
+        prev.map((p) => {
+          if (p._id === data.proposalId) {
+            return {
+              ...p,
+              preSubmissionChecklist: data.checklist,
+            }
+          }
+          return p
+        })
+      )
+    }
+
+    const handleSubmittedToAgency = (data) => {
+      if (!data || !data.proposalId) return
+      setOrgProposals((prev) =>
+        prev.map((p) => {
+          if (p._id === data.proposalId) {
+            return {
+              ...p,
+              status: 'Submitted to Agency',
+              agencySubmission: data.agencySubmission,
+            }
+          }
+          return p
+        })
+      )
+      showToast(`🏛️ Proposal officially submitted to ${data.agencySubmission?.agencySubmissionId || 'Funding Agency'}!`)
+    }
+
+    const handleSectionsAssigned = (data) => {
+      if (!data || !data.proposalId || !data.proposal) return
+      setOrgProposals((prev) =>
+        prev.map((p) => (p._id === data.proposalId ? { ...p, ...data.proposal } : p))
+      )
+    }
+
+    const handleTrackingStatusUpdated = (data) => {
+      if (!data || !data.proposalId) return
+      setOrgProposals((prev) =>
+        prev.map((p) => {
+          if (p._id === data.proposalId) {
+            return {
+              ...p,
+              status: data.status,
+              awardDetails: data.awardDetails || p.awardDetails,
+              trackingTimeline: data.trackingTimeline || p.trackingTimeline,
+            }
+          }
+          return p
+        })
+      )
+      showToast(`📊 Proposal status updated to "${data.status}"`)
+    }
+
+    const handleReminderCreated = (data) => {
+      if (data?.reminder) {
+        setReminders((prev) => [data.reminder, ...prev.filter((r) => r._id !== data.reminder._id)])
+        showToast(`🔔 New Reminder: "${data.reminder.title}"`)
+      }
+    }
+    const handleReminderUpdated = (data) => {
+      if (data?.reminder) {
+        setReminders((prev) => prev.map((r) => (r._id === data.reminder._id ? data.reminder : r)))
+      }
+    }
+    const handleReminderDeleted = (data) => {
+      if (data?.reminderId) {
+        setReminders((prev) => prev.filter((r) => r._id !== data.reminderId))
+      }
+    }
+
+    const handleDeadlineAlertEmailSent = (data) => {
+      if (data?.proposalTitle) {
+        showToast(`📧 Critical deadline email dispatched to ${data.recipientName || 'PI'}`)
+      }
+    }
+
+    socket.on('proposalSectionUpdated', handleSectionUpdate)
+    socket.on('proposalAllSectionsApproved', handleAllApproved)
+    socket.on('proposalSubmittedToAdmin', handleSubmittedToAdmin)
+    socket.on('proposalChecklistUpdated', handleChecklistUpdated)
+    socket.on('proposalSubmittedToAgency', handleSubmittedToAgency)
+    socket.on('proposalSectionsAssigned', handleSectionsAssigned)
+    socket.on('proposalTrackingStatusUpdated', handleTrackingStatusUpdated)
+    socket.on('reminderCreated', handleReminderCreated)
+    socket.on('reminderUpdated', handleReminderUpdated)
+    socket.on('reminderDeleted', handleReminderDeleted)
+    socket.on('deadlineAlertEmailSent', handleDeadlineAlertEmailSent)
+
+    return () => {
+      leaveOrgRoom(orgId)
+      socket.off('proposalSectionUpdated', handleSectionUpdate)
+      socket.off('proposalAllSectionsApproved', handleAllApproved)
+      socket.off('proposalSubmittedToAdmin', handleSubmittedToAdmin)
+      socket.off('proposalChecklistUpdated', handleChecklistUpdated)
+      socket.off('proposalSubmittedToAgency', handleSubmittedToAgency)
+      socket.off('proposalSectionsAssigned', handleSectionsAssigned)
+      socket.off('proposalTrackingStatusUpdated', handleTrackingStatusUpdated)
+      socket.off('reminderCreated', handleReminderCreated)
+      socket.off('reminderUpdated', handleReminderUpdated)
+      socket.off('reminderDeleted', handleReminderDeleted)
+      socket.off('deadlineAlertEmailSent', handleDeadlineAlertEmailSent)
+    }
+  }, [orgId])
+
+  // Fetch members, proposals, and reminders when sections are active
+  useEffect(() => {
+    if (activeSection === 'team' || activeSection === 'home' || activeSection === 'proposals' || activeSection === 'tracking' || activeSection === 'analytics') {
       fetchMembers()
     }
-    if (activeSection === 'proposals' || activeSection === 'home' || activeSection === 'team') {
+    if (activeSection === 'proposals' || activeSection === 'home' || activeSection === 'team' || activeSection === 'tracking' || activeSection === 'deadlines' || activeSection === 'analytics') {
       fetchOrgProposals()
+    }
+    if (activeSection === 'deadlines' || activeSection === 'home' || activeSection === 'analytics') {
+      fetchReminders()
     }
   }, [activeSection])
 
@@ -252,6 +631,91 @@ export default function OrgAdminDashboard() {
       console.error('Failed to fetch org proposals:', err)
     } finally {
       setProposalsLoading(false)
+    }
+  }
+
+  const fetchReminders = async () => {
+    setRemindersLoading(true)
+    try {
+      const res = await api.get('/reminders')
+      if (res.data.success && res.data.reminders) {
+        setReminders(res.data.reminders)
+      }
+    } catch (err) {
+      console.error('Failed to fetch reminders:', err)
+    } finally {
+      setRemindersLoading(false)
+    }
+  }
+
+  const handleCreateReminder = async (e) => {
+    e.preventDefault()
+    if (!reminderForm.title.trim() || !reminderForm.targetDate) {
+      alert('Please provide a title and target date for the reminder.')
+      return
+    }
+    setSubmittingReminder(true)
+    try {
+      const res = await api.post('/reminders', reminderForm)
+      if (res.data.success && res.data.reminder) {
+        setReminders((prev) => [res.data.reminder, ...prev.filter((r) => r._id !== res.data.reminder._id)])
+        setCreateReminderModal(false)
+        setReminderForm({
+          title: '',
+          targetDate: '',
+          proposalId: '',
+          reminderType: 'internal_review',
+          priority: 'high',
+          notes: '',
+          recipientName: '',
+        })
+        showToast('✓ Reminder scheduled successfully')
+      }
+    } catch (err) {
+      console.error('Failed to create reminder:', err)
+      alert(err.response?.data?.message || 'Failed to schedule reminder')
+    } finally {
+      setSubmittingReminder(false)
+    }
+  }
+
+  const handleToggleReminder = async (reminderId) => {
+    try {
+      const res = await api.put(`/reminders/${reminderId}/toggle`)
+      if (res.data.success && res.data.reminder) {
+        setReminders((prev) => prev.map((r) => (r._id === reminderId ? res.data.reminder : r)))
+        showToast(res.data.reminder.isCompleted ? '✓ Reminder marked completed' : 'Reminder reopened')
+      }
+    } catch (err) {
+      console.error('Failed to toggle reminder:', err)
+    }
+  }
+
+  const handleDeleteReminder = async (reminderId) => {
+    if (!window.confirm('Delete this scheduled reminder?')) return
+    try {
+      const res = await api.delete(`/reminders/${reminderId}`)
+      if (res.data.success) {
+        setReminders((prev) => prev.filter((r) => r._id !== reminderId))
+        showToast('Reminder deleted')
+      }
+    } catch (err) {
+      console.error('Failed to delete reminder:', err)
+    }
+  }
+
+  const handleSendDeadlineEmailAlert = async (proposalId, proposalTitle) => {
+    try {
+      setSendingEmailAlertId(proposalId)
+      const res = await api.post(`/reminders/proposals/${proposalId}/send-email-alert`)
+      if (res.data.success) {
+        showToast(`📧 Critical deadline alert email sent to ${res.data.recipientName || 'PI'} (${res.data.recipientEmail})`)
+      }
+    } catch (err) {
+      console.error('Failed to send deadline email alert:', err)
+      alert(err.response?.data?.message || 'Failed to dispatch email alert')
+    } finally {
+      setSendingEmailAlertId(null)
     }
   }
 
@@ -489,6 +953,742 @@ export default function OrgAdminDashboard() {
     }
   }
 
+  // ─── Proposal Tracking Helper Handlers (GUI 4) ───
+  const handleOpenStatusChange = (proposal, targetStatus) => {
+    if (targetStatus === 'Awarded') {
+      setAwardForm({
+        sanctionOrderNumber: proposal.awardDetails?.sanctionOrderNumber || `SAN/${new Date().getFullYear()}/${Math.floor(1000 + Math.random() * 9000)}`,
+        sanctionedAmount: proposal.awardDetails?.sanctionedAmount || proposal.fundingAmount || '',
+        startDate: proposal.awardDetails?.startDate ? new Date(proposal.awardDetails.startDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        durationMonths: proposal.awardDetails?.durationMonths || 24,
+        sanctionNotes: proposal.awardDetails?.sanctionNotes || '',
+      })
+      setAwardModal(proposal)
+      return
+    }
+    setStatusChangeModal({
+      proposal,
+      newStatus: targetStatus || proposal.status,
+      notes: '',
+    })
+  }
+
+  const handleConfirmStatusChange = async () => {
+    if (!statusChangeModal) return
+    const { proposal, newStatus, notes } = statusChangeModal
+    try {
+      setUpdatingTrackingStatus(true)
+      const res = await api.put(`/proposals/${proposal._id}/tracking-status`, {
+        status: newStatus,
+        notes,
+      })
+      if (res.data.success) {
+        setOrgProposals((prev) =>
+          prev.map((p) => (p._id === proposal._id ? res.data.proposal : p))
+        )
+        setStatusChangeModal(null)
+      }
+    } catch (err) {
+      console.error('Failed to update tracking status:', err)
+      alert(err.response?.data?.message || 'Failed to update tracking status')
+    } finally {
+      setUpdatingTrackingStatus(false)
+    }
+  }
+
+  const handleConfirmAward = async (e) => {
+    e.preventDefault()
+    if (!awardModal) return
+    try {
+      setUpdatingTrackingStatus(true)
+      const res = await api.put(`/proposals/${awardModal._id}/tracking-status`, {
+        status: 'Awarded',
+        notes: `Sanction Order #${awardForm.sanctionOrderNumber} granted for ${awardForm.sanctionedAmount}`,
+        awardDetails: awardForm,
+      })
+      if (res.data.success) {
+        setOrgProposals((prev) =>
+          prev.map((p) => (p._id === awardModal._id ? res.data.proposal : p))
+        )
+        setAwardModal(null)
+        alert(`🏆 Congratulations! Proposal officially marked as Awarded under Sanction Order #${awardForm.sanctionOrderNumber}!`)
+      }
+    } catch (err) {
+      console.error('Failed to record award:', err)
+      alert(err.response?.data?.message || 'Failed to record award')
+    } finally {
+      setUpdatingTrackingStatus(false)
+    }
+  }
+
+  const handleSendPingPi = async (e) => {
+    e.preventDefault()
+    if (!pingPiModal || !pingPiMessage.trim()) return
+    try {
+      setUpdatingTrackingStatus(true)
+      const res = await api.post(`/proposals/${pingPiModal._id}/comments`, {
+        text: `📢 Note from Org Admin: ${pingPiMessage.trim()}`,
+      })
+      if (res.data.success) {
+        setPingPiModal(null)
+        setPingPiMessage('')
+        alert('💬 Note sent to PI and team chat successfully!')
+      }
+    } catch (err) {
+      console.error('Failed to send note to PI:', err)
+      alert(err.response?.data?.message || 'Failed to send note')
+    } finally {
+      setUpdatingTrackingStatus(false)
+    }
+  }
+
+  // Currency parser
+  const parseAmountToNumber = (amtStr) => {
+    if (!amtStr) return 0
+    const str = amtStr.toString().toLowerCase()
+    const clean = str.replace(/[₹$,]/g, '').trim()
+    const num = parseFloat(clean)
+    if (isNaN(num)) return 0
+    if (str.includes('cr') || str.includes('crore')) return num * 10000000
+    if (str.includes('lakh') || str.includes('lac') || str.includes('l')) return num * 100000
+    return num
+  }
+
+  const formatCurrency = (val) => {
+    if (!val || val === 0) return '₹0'
+    if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`
+    if (val >= 100000) return `₹${(val / 100000).toFixed(2)} Lakhs`
+    return `₹${val.toLocaleString('en-IN')}`
+  }
+
+  const getProposalReviewTimeline = (proposal) => {
+    const subDate = proposal.agencySubmission?.submittedAt || proposal.updatedAt
+    const daysElapsed = subDate ? Math.max(0, Math.floor((Date.now() - new Date(subDate).getTime()) / (1000 * 60 * 60 * 24))) : 0
+
+    if (['Awarded', 'Accepted'].includes(proposal.status)) {
+      return { daysElapsed, flag: 'awarded', label: '🏆 Awarded', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
+    }
+    if (proposal.status === 'Rejected') {
+      return { daysElapsed, flag: 'closed', label: '❌ Decided', color: 'bg-warm-gray-100 text-warm-gray-600 border-warm-gray-200' }
+    }
+    if (proposal.status === 'Revisions Requested') {
+      return { daysElapsed, flag: 'action_required', label: '⚠️ Query / Revision Pending', color: 'bg-amber-100 text-amber-900 border-amber-300 font-bold animate-pulse' }
+    }
+    if (['Draft', 'In Progress', 'Under Review'].includes(proposal.status)) {
+      return { daysElapsed, flag: 'draft', label: '📝 In Preparation', color: 'bg-slate-100 text-slate-700 border-slate-200' }
+    }
+    if (proposal.status === 'Submitted to Admin') {
+      return { daysElapsed, flag: 'admin_review', label: '⏳ Admin Review', color: 'bg-blue-50 text-blue-700 border-blue-200' }
+    }
+    if (daysElapsed > 90) {
+      return { daysElapsed, flag: 'overdue', label: `🔴 Overdue (${daysElapsed}d) — Follow Up`, color: 'bg-rose-100 text-rose-800 border-rose-300 font-bold' }
+    }
+    if (daysElapsed >= 60) {
+      return { daysElapsed, flag: 'expected', label: `🟡 Decision Expected (${daysElapsed}d)`, color: 'bg-amber-50 text-amber-800 border-amber-200 font-semibold' }
+    }
+    return { daysElapsed, flag: 'normal', label: `🟢 In Review (${daysElapsed}d)`, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
+  }
+
+  // Filtered tracked proposals (Searches Title, PI, Agency, Ref ID, Sanction #, Status)
+  const trackedProposals = useMemo(() => {
+    const allTrackingAliases = TRACKING_STAGES.flatMap((s) => s.aliases)
+    return orgProposals.filter((p) => {
+      // Only include post-submission tracked proposals (Submitted, Under Evaluation, Revisions, Awarded, Rejected)
+      if (!allTrackingAliases.includes(p.status)) return false
+
+      if (trackingStageFilter !== 'all') {
+        const stageObj = TRACKING_STAGES.find((s) => s.key === trackingStageFilter)
+        if (stageObj) {
+          if (!stageObj.aliases.includes(p.status)) return false
+        }
+      }
+
+      if (trackingAgencyFilter !== 'all') {
+        const ag = (p.grantAgency || '').toLowerCase()
+        if (!ag.includes(trackingAgencyFilter.toLowerCase())) return false
+      }
+
+      if (trackingSearch.trim()) {
+        const q = trackingSearch.toLowerCase().trim()
+        const titleMatch = (p.title || '').toLowerCase().includes(q)
+        const grantMatch = (p.grantTitle || '').toLowerCase().includes(q)
+        const agencyMatch = (p.grantAgency || '').toLowerCase().includes(q)
+        const refMatch = (p.agencySubmission?.agencySubmissionId || '').toLowerCase().includes(q)
+        const sanctionMatch = (p.awardDetails?.sanctionOrderNumber || '').toLowerCase().includes(q)
+        const statusMatch = (p.status || '').toLowerCase().includes(q)
+        const piMatch =
+          (p.leadPIName || '').toLowerCase().includes(q) ||
+          (p.createdByName || '').toLowerCase().includes(q) ||
+          (p.createdBy?.fullName || '').toLowerCase().includes(q) ||
+          (p.sections || []).some((s) => (s.assignedToName || '').toLowerCase().includes(q))
+
+        if (!titleMatch && !grantMatch && !agencyMatch && !refMatch && !sanctionMatch && !statusMatch && !piMatch) {
+          return false
+        }
+      }
+
+      return true
+    })
+  }, [orgProposals, trackingStageFilter, trackingAgencyFilter, trackingSearch])
+
+  // Filtered grants for Grant Discovery tab
+  const filteredMockGrants = useMemo(() => {
+    return MOCK_GRANTS.filter((grant) => {
+      if (grantCategory !== 'All Categories' && grant.category !== grantCategory) return false
+      if (grantStatus !== 'All Status' && grant.status !== grantStatus) return false
+      if (grantSearch.trim()) {
+        const q = grantSearch.toLowerCase().trim()
+        const titleMatch = grant.title.toLowerCase().includes(q)
+        const agencyMatch = grant.agency.toLowerCase().includes(q)
+        const catMatch = grant.category.toLowerCase().includes(q)
+        if (!titleMatch && !agencyMatch && !catMatch) return false
+      }
+      return true
+    })
+  }, [grantSearch, grantCategory, grantStatus])
+
+  // Analytics Metrics
+  const trackingMetrics = useMemo(() => {
+    const list = orgProposals.filter((p) =>
+      ['Submitted to Admin', 'Submitted to Agency', 'Submitted', 'Under Evaluation', 'Revisions Requested', 'Awarded', 'Accepted', 'Rejected'].includes(p.status)
+    )
+    const totalDispatched = list.length
+    let totalRequestedVal = 0
+    let totalAwardedVal = 0
+    let underReviewCount = 0
+    let awardedCount = 0
+    let rejectedCount = 0
+    let overdueCount = 0
+    let revisionsCount = 0
+
+    list.forEach((p) => {
+      const reqNum = parseAmountToNumber(p.fundingAmount)
+      totalRequestedVal += reqNum
+
+      if (p.status === 'Awarded' || p.status === 'Accepted') {
+        awardedCount++
+        const awNum = parseAmountToNumber(p.awardDetails?.sanctionedAmount) || reqNum
+        totalAwardedVal += awNum
+      } else if (p.status === 'Rejected') {
+        rejectedCount++
+      } else {
+        underReviewCount++
+      }
+
+      if (p.status === 'Revisions Requested') {
+        revisionsCount++
+      }
+
+      const subDate = p.agencySubmission?.submittedAt || p.updatedAt
+      if (subDate && !['Awarded', 'Accepted', 'Rejected'].includes(p.status)) {
+        const days = Math.floor((Date.now() - new Date(subDate).getTime()) / (1000 * 60 * 60 * 24))
+        if (days > 90) overdueCount++
+      }
+    })
+
+    const decided = awardedCount + rejectedCount
+    const winRate = decided > 0 ? Math.round((awardedCount / decided) * 100) : (totalDispatched > 0 ? 33 : 0)
+
+    return {
+      totalDispatched,
+      totalRequestedVal,
+      totalAwardedVal,
+      underReviewCount,
+      awardedCount,
+      rejectedCount,
+      overdueCount,
+      revisionsCount,
+      winRate,
+    }
+  }, [orgProposals])
+
+  // ─── Fully Dynamic Institutional Analytics Engine ───
+  const [analyticsTimeframe, setAnalyticsTimeframe] = useState('all') // 'all' | 'fy26' | 'past12m'
+
+  const analyticsData = useMemo(() => {
+    // Filter proposals based on timeframe
+    const filteredProps = orgProposals.filter((p) => {
+      if (analyticsTimeframe === 'all') return true
+      const date = new Date(p.createdAt || p.updatedAt)
+      if (isNaN(date.getTime())) return true
+      if (analyticsTimeframe === 'fy26') {
+        const fyStart = new Date(2026, 3, 1)
+        const fyEnd = new Date(2027, 2, 31, 23, 59, 59)
+        return date >= fyStart && date <= fyEnd
+      }
+      if (analyticsTimeframe === 'past12m') {
+        const past12 = new Date()
+        past12.setMonth(past12.getMonth() - 12)
+        return date >= past12
+      }
+      return true
+    })
+
+    let totalPipelineValue = 0
+    let totalAwardedValue = 0
+    let totalUnderReviewValue = 0
+    let totalDraftingValue = 0
+
+    let countDrafting = 0
+    let countUnderReview = 0
+    let countRevisions = 0
+    let countAwarded = 0
+    let countRejected = 0
+
+    const agencyMap = {}
+    let totalSections = 0
+    let approvedSections = 0
+    let reviewSections = 0
+    let inProgressSections = 0
+    let notStartedSections = 0
+
+    filteredProps.forEach((p) => {
+      const reqVal = parseAmountToNumber(p.fundingAmount)
+      totalPipelineValue += reqVal
+
+      if (['Draft', 'In Progress', 'Under Review', 'Submitted to Admin'].includes(p.status)) {
+        countDrafting++
+        totalDraftingValue += reqVal
+      } else if (p.status === 'Revisions Requested') {
+        countRevisions++
+        totalUnderReviewValue += reqVal
+      } else if (['Submitted to Agency', 'Submitted', 'Under Evaluation'].includes(p.status)) {
+        countUnderReview++
+        totalUnderReviewValue += reqVal
+      } else if (['Awarded', 'Accepted'].includes(p.status)) {
+        countAwarded++
+        const awVal = parseAmountToNumber(p.awardDetails?.sanctionedAmount) || reqVal
+        totalAwardedValue += awVal
+      } else if (p.status === 'Rejected') {
+        countRejected++
+      }
+
+      // Agency aggregation
+      const agencyName = (p.grantAgency || 'Independent Funding Body').trim()
+      if (!agencyMap[agencyName]) {
+        agencyMap[agencyName] = {
+          name: agencyName,
+          count: 0,
+          totalRequested: 0,
+          totalAwarded: 0,
+          proposals: [],
+        }
+      }
+      agencyMap[agencyName].count++
+      agencyMap[agencyName].totalRequested += reqVal
+      if (['Awarded', 'Accepted'].includes(p.status)) {
+        agencyMap[agencyName].totalAwarded += parseAmountToNumber(p.awardDetails?.sanctionedAmount) || reqVal
+      }
+      agencyMap[agencyName].proposals.push(p)
+
+      // Section counts
+      if (Array.isArray(p.sections)) {
+        p.sections.forEach((sec) => {
+          totalSections++
+          if (sec.status === 'Approved') approvedSections++
+          else if (sec.status === 'Ready for Review') reviewSections++
+          else if (sec.status === 'In Progress') inProgressSections++
+          else notStartedSections++
+        })
+      }
+    })
+
+    const decidedCount = countAwarded + countRejected
+    const winRate = decidedCount > 0 ? Math.round((countAwarded / decidedCount) * 100) : (countAwarded > 0 ? 100 : 0)
+    const overallWritingProgress = totalSections > 0 ? Math.round((approvedSections / totalSections) * 100) : 0
+
+    // Agencies sorted by requested value
+    const sortedAgencies = Object.values(agencyMap).sort((a, b) => b.totalRequested - a.totalRequested)
+
+    // Investigator / Faculty contribution
+    const facultyMap = {}
+    members.forEach((m) => {
+      facultyMap[m._id] = {
+        id: m._id,
+        name: m.fullName,
+        jobTitle: m.jobTitle || 'Faculty Investigator',
+        email: m.email,
+        assignedSectionsCount: 0,
+        approvedSectionsCount: 0,
+        proposalsCount: 0,
+        pipelineCapital: 0,
+        awardsWon: 0,
+      }
+    })
+
+    filteredProps.forEach((p) => {
+      const reqVal = parseAmountToNumber(p.fundingAmount)
+      const isAwarded = ['Awarded', 'Accepted'].includes(p.status)
+
+      let foundMember = members.find(
+        (m) =>
+          m._id === p.createdBy?._id ||
+          m._id === p.createdBy ||
+          (p.createdByName && m.fullName.toLowerCase() === p.createdByName.toLowerCase())
+      )
+      if (foundMember && facultyMap[foundMember._id]) {
+        facultyMap[foundMember._id].proposalsCount++
+        facultyMap[foundMember._id].pipelineCapital += reqVal
+        if (isAwarded) facultyMap[foundMember._id].awardsWon++
+      }
+
+      if (Array.isArray(p.sections)) {
+        p.sections.forEach((sec) => {
+          if (sec.assignedTo && facultyMap[sec.assignedTo]) {
+            facultyMap[sec.assignedTo].assignedSectionsCount++
+            if (sec.status === 'Approved') facultyMap[sec.assignedTo].approvedSectionsCount++
+          } else if (sec.assignedToName) {
+            const m = members.find((mem) => mem.fullName.toLowerCase() === sec.assignedToName.toLowerCase())
+            if (m && facultyMap[m._id]) {
+              facultyMap[m._id].assignedSectionsCount++
+              if (sec.status === 'Approved') facultyMap[m._id].approvedSectionsCount++
+            }
+          }
+        })
+      }
+    })
+
+    const facultyLeaderboard = Object.values(facultyMap)
+      .filter((f) => f.proposalsCount > 0 || f.assignedSectionsCount > 0)
+      .sort((a, b) => b.pipelineCapital - a.pipelineCapital || b.assignedSectionsCount - a.assignedSectionsCount)
+
+    // Smart executive insights
+    const insights = []
+    if (sortedAgencies.length > 0) {
+      const topAg = sortedAgencies[0]
+      const topPct = totalPipelineValue > 0 ? Math.round((topAg.totalRequested / totalPipelineValue) * 100) : 0
+      insights.push({
+        type: 'primary',
+        icon: '🏛️',
+        title: `Primary Funding Partner: ${topAg.name}`,
+        desc: `Accounts for ${topPct}% (${formatCurrency(topAg.totalRequested)}) of your total institution's grant pipeline across ${topAg.count} active proposals.`,
+      })
+    }
+    if (countAwarded > 0) {
+      insights.push({
+        type: 'success',
+        icon: '🏆',
+        title: `${formatCurrency(totalAwardedValue)} Sanctioned to Date`,
+        desc: `Your institution has successfully secured ${countAwarded} sanctioned grant award${countAwarded > 1 ? 's' : ''} with a ${winRate}% conversion success rate.`,
+      })
+    } else {
+      insights.push({
+        type: 'info',
+        icon: '📈',
+        title: `${formatCurrency(totalPipelineValue)} Active Capital in Motion`,
+        desc: `${filteredProps.length} proposals currently underway across drafting, compliance verification, and peer evaluation stages.`,
+      })
+    }
+    if (countUnderReview > 0 || countRevisions > 0) {
+      insights.push({
+        type: 'warning',
+        icon: '🔍',
+        title: `${countUnderReview + countRevisions} Proposals in Agency Evaluation`,
+        desc: `${formatCurrency(totalUnderReviewValue)} currently undergoing technical peer evaluations or agency query responses.`,
+      })
+    }
+    insights.push({
+      type: 'purple',
+      icon: '⚡',
+      title: `${overallWritingProgress}% Overall Template Clearance`,
+      desc: `${approvedSections} of ${totalSections} total 17-section template blocks have received formal PI and Admin approval.`,
+    })
+
+    return {
+      totalProposals: filteredProps.length,
+      totalPipelineValue,
+      totalAwardedValue,
+      totalUnderReviewValue,
+      totalDraftingValue,
+      countDrafting,
+      countUnderReview,
+      countRevisions,
+      countAwarded,
+      countRejected,
+      winRate,
+      overallWritingProgress,
+      totalSections,
+      approvedSections,
+      reviewSections,
+      inProgressSections,
+      notStartedSections,
+      sortedAgencies,
+      facultyLeaderboard,
+      insights,
+    }
+  }, [orgProposals, members, analyticsTimeframe])
+
+  // ─── Computed Deadline & Follow-up Alerts Engine ───
+  const { allAlerts, deadlineMetrics } = useMemo(() => {
+    const alerts = []
+    let criticalCount = 0
+    let upcomingCount = 0
+    let overdueFollowupCount = 0
+
+    // 1. Pre-Submission Proposal Deadlines
+    orgProposals.forEach((p) => {
+      if (!p.deadline) return
+      const target = new Date(p.deadline)
+      if (isNaN(target.getTime())) return
+
+      const diffMs = target.getTime() - Date.now()
+      const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+      const isPostSubmission = ['Submitted to Agency', 'Submitted', 'Under Evaluation', 'Revisions Requested', 'Awarded', 'Accepted', 'Rejected'].includes(p.status)
+
+      // Active drafting proposals with a deadline
+      if (!isPostSubmission) {
+        let urgency = 'normal'
+        let urgencyLabel = `🟢 ${daysLeft}d left`
+        let badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200'
+
+        if (daysLeft < 0) {
+          urgency = 'passed'
+          urgencyLabel = `⌛ Closed (${Math.abs(daysLeft)}d ago)`
+          badgeColor = 'bg-warm-gray-100 text-warm-gray-600 border-warm-gray-200'
+        } else if (daysLeft <= 7) {
+          urgency = 'critical'
+          urgencyLabel = `🚨 Critical: ${daysLeft}d left`
+          badgeColor = 'bg-rose-100 text-rose-800 border-rose-300 font-bold animate-pulse'
+          criticalCount++
+        } else if (daysLeft <= 30) {
+          urgency = 'upcoming'
+          urgencyLabel = `⚠️ Upcoming: ${daysLeft}d left`
+          badgeColor = 'bg-amber-50 text-amber-800 border-amber-200 font-semibold'
+          upcomingCount++
+        }
+
+        alerts.push({
+          id: `prop_deadline_${p._id}`,
+          type: 'grant_deadline',
+          title: p.title,
+          grantTitle: p.grantTitle || 'Official Grant Call',
+          agency: p.grantAgency || 'Funding Agency',
+          proposalId: p._id,
+          proposalStatus: p.status,
+          targetDate: p.deadline,
+          daysLeft,
+          urgency,
+          urgencyLabel,
+          badgeColor,
+          piName: p.sections?.[0]?.assignedToName || p.leadPIName || 'Lead Investigator',
+          progress: p.progress || 0,
+          approvedSections: p.sections?.filter((s) => s.status === 'Approved').length || 0,
+          totalSections: p.sections?.length || 17,
+          proposal: p,
+        })
+      }
+    })
+
+    // 2. Post-Submission Agency Review Follow-Up Triggers
+    orgProposals.forEach((p) => {
+      const isTracked = ['Submitted to Agency', 'Submitted', 'Under Evaluation', 'Revisions Requested'].includes(p.status)
+      if (!isTracked) return
+
+      const subDate = p.agencySubmission?.submittedAt || p.updatedAt
+      const daysElapsed = subDate ? Math.max(0, Math.floor((Date.now() - new Date(subDate).getTime()) / (1000 * 60 * 60 * 24))) : 0
+
+      if (p.status === 'Revisions Requested') {
+        criticalCount++
+        alerts.push({
+          id: `prop_query_${p._id}`,
+          type: 'agency_followup',
+          title: p.title,
+          grantTitle: p.grantTitle || 'Grant Review',
+          agency: p.grantAgency || 'Funding Agency',
+          proposalId: p._id,
+          proposalStatus: p.status,
+          targetDate: subDate,
+          daysElapsed,
+          urgency: 'critical',
+          urgencyLabel: '⚠️ Revisions / Queries Pending',
+          badgeColor: 'bg-amber-100 text-amber-900 border-amber-300 font-bold animate-pulse',
+          piName: p.sections?.[0]?.assignedToName || p.leadPIName || 'Lead Investigator',
+          refId: p.agencySubmission?.agencySubmissionId || 'Official Reference',
+          needsFollowupLetter: true,
+          proposal: p,
+        })
+      } else if (daysElapsed > 90) {
+        criticalCount++
+        overdueFollowupCount++
+        alerts.push({
+          id: `prop_overdue_${p._id}`,
+          type: 'agency_followup',
+          title: p.title,
+          grantTitle: p.grantTitle || 'Technical Evaluation',
+          agency: p.grantAgency || 'Funding Agency',
+          proposalId: p._id,
+          proposalStatus: p.status,
+          targetDate: subDate,
+          daysElapsed,
+          urgency: 'critical',
+          urgencyLabel: `🔴 Overdue (${daysElapsed}d) — Follow Up Due`,
+          badgeColor: 'bg-rose-100 text-rose-800 border-rose-300 font-bold',
+          piName: p.sections?.[0]?.assignedToName || p.leadPIName || 'Lead Investigator',
+          refId: p.agencySubmission?.agencySubmissionId || 'Official Reference',
+          needsFollowupLetter: true,
+          proposal: p,
+        })
+      } else if (daysElapsed >= 60) {
+        upcomingCount++
+        alerts.push({
+          id: `prop_expected_${p._id}`,
+          type: 'agency_followup',
+          title: p.title,
+          grantTitle: p.grantTitle || 'Desk Assessment',
+          agency: p.grantAgency || 'Funding Agency',
+          proposalId: p._id,
+          proposalStatus: p.status,
+          targetDate: subDate,
+          daysElapsed,
+          urgency: 'upcoming',
+          urgencyLabel: `🟡 Decision Expected (${daysElapsed}d)`,
+          badgeColor: 'bg-amber-50 text-amber-800 border-amber-200 font-semibold',
+          piName: p.sections?.[0]?.assignedToName || p.leadPIName || 'Lead Investigator',
+          refId: p.agencySubmission?.agencySubmissionId || 'Official Reference',
+          needsFollowupLetter: false,
+          proposal: p,
+        })
+      }
+    })
+
+    // 3. Custom Scheduled Reminders
+    reminders.forEach((r) => {
+      const target = new Date(r.targetDate)
+      const diffMs = target.getTime() - Date.now()
+      const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+
+      let urgency = 'normal'
+      let urgencyLabel = `${daysLeft >= 0 ? `${daysLeft}d left` : `${Math.abs(daysLeft)}d overdue`}`
+      let badgeColor = 'bg-purple-50 text-purple-700 border-purple-200'
+
+      if (r.isCompleted) {
+        urgency = 'completed'
+        urgencyLabel = '✓ Done'
+        badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      } else if (daysLeft < 0) {
+        urgency = 'critical'
+        urgencyLabel = `🔴 Overdue (${Math.abs(daysLeft)}d)`
+        badgeColor = 'bg-rose-100 text-rose-800 border-rose-300 font-bold'
+        criticalCount++
+      } else if (daysLeft <= 3) {
+        urgency = 'critical'
+        urgencyLabel = `🚨 Due ${daysLeft === 0 ? 'Today' : `in ${daysLeft}d`}`
+        badgeColor = 'bg-rose-100 text-rose-800 border-rose-300 font-bold animate-pulse'
+        criticalCount++
+      } else if (daysLeft <= 14) {
+        urgency = 'upcoming'
+        urgencyLabel = `⚠️ Due in ${daysLeft}d`
+        badgeColor = 'bg-amber-50 text-amber-800 border-amber-200 font-semibold'
+        upcomingCount++
+      }
+
+      alerts.push({
+        id: `custom_${r._id}`,
+        type: 'custom_reminder',
+        reminderObj: r,
+        title: r.title,
+        notes: r.notes,
+        agency: r.proposal?.grantAgency || 'Institutional Reminder',
+        grantTitle: r.proposal?.title || 'Action Required',
+        proposalId: r.proposal?._id,
+        targetDate: r.targetDate,
+        reminderType: r.reminderType,
+        priority: r.priority,
+        isCompleted: r.isCompleted,
+        daysLeft,
+        urgency,
+        urgencyLabel,
+        badgeColor,
+        recipientName: r.recipientName,
+        createdByName: r.createdByName,
+      })
+    })
+
+    // Sort by priority/urgency: critical first, then upcoming, then normal, then completed/passed
+    const urgencyOrder = { critical: 1, upcoming: 2, normal: 3, completed: 4, passed: 5 }
+    alerts.sort((a, b) => (urgencyOrder[a.urgency] || 99) - (urgencyOrder[b.urgency] || 99))
+
+    return {
+      allAlerts: alerts,
+      deadlineMetrics: {
+        criticalAlertsCount: criticalCount,
+        upcomingCount,
+        overdueFollowupCount,
+        activeRemindersCount: reminders.filter((r) => !r.isCompleted).length,
+        totalAlerts: alerts.length,
+      },
+    }
+  }, [orgProposals, reminders])
+
+  // Filtered Alerts based on Tab & Search
+  const filteredAlerts = useMemo(() => {
+    return allAlerts.filter((alert) => {
+      // Tab filter
+      if (deadlineTab === 'critical' && alert.urgency !== 'critical') return false
+      if (deadlineTab === 'deadlines' && alert.type !== 'grant_deadline') return false
+      if (deadlineTab === 'followups' && alert.type !== 'agency_followup') return false
+      if (deadlineTab === 'custom' && (alert.type !== 'custom_reminder' || alert.isCompleted)) return false
+      if (deadlineTab === 'completed' && !alert.isCompleted) return false
+
+      // Search filter
+      if (deadlineSearch.trim()) {
+        const q = deadlineSearch.toLowerCase().trim()
+        const matchTitle = (alert.title || '').toLowerCase().includes(q)
+        const matchGrant = (alert.grantTitle || '').toLowerCase().includes(q)
+        const matchAgency = (alert.agency || '').toLowerCase().includes(q)
+        const matchPi = (alert.piName || alert.recipientName || '').toLowerCase().includes(q)
+        const matchNotes = (alert.notes || '').toLowerCase().includes(q)
+        if (!matchTitle && !matchGrant && !matchAgency && !matchPi && !matchNotes) return false
+      }
+      return true
+    })
+  }, [allAlerts, deadlineTab, deadlineSearch])
+
+  // Generate Institutional Enquiry Representation Letter
+  const getFollowupLetterContent = (proposal) => {
+    const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+    const subDate = proposal?.agencySubmission?.submittedAt
+      ? new Date(proposal.agencySubmission.submittedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+      : 'Recorded Date'
+    const daysElapsed = proposal?.agencySubmission?.submittedAt
+      ? Math.max(0, Math.floor((Date.now() - new Date(proposal.agencySubmission.submittedAt).getTime()) / (1000 * 60 * 60 * 24)))
+      : 90
+
+    return `REF: ${orgName || 'INSTITUTION'}/R&D/INQ/${new Date().getFullYear()}/${proposal?.agencySubmission?.agencySubmissionId || 'DST-SERB-01'}
+Date: ${today}
+
+To,
+The Member Secretary / Program Director,
+${proposal?.grantAgency || 'Funding Agency'},
+Government of India.
+
+SUBJECT: Official Status Enquiry on Technical Peer Review for Research Proposal Ref #${proposal?.agencySubmission?.agencySubmissionId || 'N/A'}
+
+Respected Sir/Madam,
+
+Greetings from ${orgName || 'our Institution'}.
+
+This is with reference to the research project proposal titled:
+"${proposal?.title || 'N/A'}"
+Grant Call: ${proposal?.grantTitle || 'Core Research Project'}
+Lead Principal Investigator: ${proposal?.sections?.[0]?.assignedToName || 'Principal Investigator'}
+Total Requested Budget: ${proposal?.fundingAmount || '₹25,00,000'}
+
+The aforementioned research proposal was officially endorsed, cleared with institutional compliances, and submitted on ${subDate} (Confirmation Ref ID: ${proposal?.agencySubmission?.agencySubmissionId || 'Dispatched'}).
+
+As ${daysElapsed} days have elapsed since official submission, we respectfully request an update regarding the current status of the technical peer review, referee queries, or expert committee presentation schedule.
+
+Our institution and the research team remain available to provide any additional supplementary data, budget clarifications, or presentation files as required.
+
+Thanking you.
+
+Yours sincerely,
+
+Dean / Director (Research & Development)
+${orgName || 'Institution'}
+Official Seal & Endorsement`
+  }
+
   const handleLogout = () => {
     localStorage.removeItem('grantos_token')
     localStorage.removeItem('grantos_user')
@@ -549,6 +1749,11 @@ export default function OrgAdminDashboard() {
                 {item.key === 'team' && memberCounts.pending > 0 && (
                   <span className="ml-auto px-2 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold">
                     {memberCounts.pending}
+                  </span>
+                )}
+                {item.key === 'deadlines' && deadlineMetrics.criticalAlertsCount > 0 && (
+                  <span className="ml-auto px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-bold animate-pulse shadow-xs">
+                    {deadlineMetrics.criticalAlertsCount}
                   </span>
                 )}
               </button>
@@ -709,20 +1914,40 @@ export default function OrgAdminDashboard() {
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-warm-gray-400">🔍</span>
                     <input
                       type="text"
+                      value={grantSearch}
+                      onChange={(e) => setGrantSearch(e.target.value)}
                       placeholder="Search grants by name, agency, or keyword..."
                       className="w-full pl-11 pr-4 py-3 rounded-[12px] bg-cream border border-warm-gray-200 text-warm-gray-900 placeholder:text-warm-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
                       id="grant-search-input"
                     />
+                    {grantSearch && (
+                      <button
+                        onClick={() => setGrantSearch('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-gray-400 hover:text-warm-gray-700 text-xs font-bold"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
                   <div className="flex gap-2">
-                    <select className="px-4 py-3 rounded-[12px] bg-cream border border-warm-gray-200 text-warm-gray-600 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer" id="grant-category-filter">
+                    <select
+                      value={grantCategory}
+                      onChange={(e) => setGrantCategory(e.target.value)}
+                      className="px-4 py-3 rounded-[12px] bg-cream border border-warm-gray-200 text-warm-gray-600 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
+                      id="grant-category-filter"
+                    >
                       <option>All Categories</option>
                       <option>Research</option>
                       <option>Fellowship</option>
                       <option>Infrastructure</option>
                       <option>Science</option>
                     </select>
-                    <select className="px-4 py-3 rounded-[12px] bg-cream border border-warm-gray-200 text-warm-gray-600 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer" id="grant-status-filter">
+                    <select
+                      value={grantStatus}
+                      onChange={(e) => setGrantStatus(e.target.value)}
+                      className="px-4 py-3 rounded-[12px] bg-cream border border-warm-gray-200 text-warm-gray-600 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
+                      id="grant-status-filter"
+                    >
                       <option>All Status</option>
                       <option>Open</option>
                       <option>Closing Soon</option>
@@ -733,7 +1958,14 @@ export default function OrgAdminDashboard() {
 
               {/* Grants Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                {MOCK_GRANTS.map((grant, i) => (
+                {filteredMockGrants.length === 0 ? (
+                  <div className="col-span-full py-12 text-center text-warm-gray-400 bg-surface-elevated rounded-[16px] border border-warm-gray-200/60">
+                    <span className="text-3xl block mb-2">🔍</span>
+                    <p className="font-semibold text-sm text-warm-gray-600">No grants match your search criteria.</p>
+                    <p className="text-xs text-warm-gray-400 mt-1">Try clearing your search terms or filters.</p>
+                  </div>
+                ) : (
+                  filteredMockGrants.map((grant, i) => (
                   <div
                     key={grant.id}
                     className="group bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-6 hover:shadow-medium hover:-translate-y-0.5 transition-all duration-300 animate-fade-up"
@@ -768,62 +2000,441 @@ export default function OrgAdminDashboard() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           )}
 
-          {/* ═══════════════════════════════════ APPLICATIONS ═══════════════════════════════════ */}
-          {activeSection === 'applications' && (
-            <div className="animate-fade-up">
-              <div className="mb-8">
-                <h1 className="font-heading text-3xl font-bold text-warm-gray-900 mb-2">Applications</h1>
-                <p className="text-warm-gray-500">Track all your grant applications in one place</p>
-              </div>
-
-              {/* Status summary */}
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                {[
-                  { label: 'Submitted', count: 1, color: 'bg-blue-50 text-blue-600 border-blue-200' },
-                  { label: 'Under Review', count: 1, color: 'bg-amber-50 text-amber border-amber/15' },
-                  { label: 'Approved', count: 1, color: 'bg-green-50 text-green-600 border-green-200' },
-                ].map((s) => (
-                  <div key={s.label} className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 text-center">
-                    <p className="font-heading text-2xl font-bold text-warm-gray-900">{s.count}</p>
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold border mt-2 ${s.color}`}>
-                      {s.label}
+          {/* ═══════════════════════════════════ PROPOSAL TRACKING DASHBOARD (GUI 4) ═══════════════════════════════════ */}
+          {(activeSection === 'tracking' || activeSection === 'applications') && (
+            <div className="animate-fade-up space-y-6">
+              {/* Header & View Switcher */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
+                      Lifecycle Monitor 
                     </span>
+                    <span className="text-xs text-warm-gray-400">•</span>
+                    <span className="text-xs text-warm-gray-500 font-medium">Post-Submission Command Center</span>
                   </div>
-                ))}
-              </div>
+                  <h1 className="font-heading text-2xl sm:text-3xl font-bold text-warm-gray-900">
+                    Proposal Tracking Dashboard
+                  </h1>
+                  <p className="text-xs text-warm-gray-500 mt-1 max-w-2xl leading-relaxed">
+                    Track the progress of all grant proposals dispatched to funding agencies. Monitor peer review stages, manage referee queries, follow up on decision deadlines, and log official sanction awards.
+                  </p>
+                </div>
 
-              {/* Applications list */}
-              <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft overflow-hidden">
-                <div className="divide-y divide-warm-gray-200/60">
-                  {MOCK_APPLICATIONS.map((app, i) => (
-                    <div key={app.id} className="p-5 hover:bg-cream/50 transition-colors animate-fade-up" style={{ animationDelay: `${0.1 * (i + 1)}s` }}>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-heading font-bold text-warm-gray-900 mb-1">{app.title}</h3>
-                          <div className="flex items-center gap-3 text-xs text-warm-gray-500">
-                            <span>Submitted: {app.date}</span>
-                            <span>•</span>
-                            <span>Amount: {app.amount}</span>
-                          </div>
-                        </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold border ${app.status === 'Approved'
-                          ? 'bg-green-50 text-green-600 border-green-200'
-                          : app.status === 'Under Review'
-                            ? 'bg-amber-50 text-amber border-amber/15'
-                            : 'bg-blue-50 text-blue-600 border-blue-200'
-                          }`}>
-                          {app.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                <div className="flex items-center gap-2.5 self-start md:self-auto shrink-0">
+                  <div className="bg-warm-gray-200/80 p-1 rounded-[12px] flex items-center shadow-inner">
+                    <button
+                      type="button"
+                      onClick={() => setTrackingView('kanban')}
+                      className={`px-3.5 py-2 rounded-[9px] text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        trackingView === 'kanban'
+                          ? 'bg-white text-purple-900 shadow-soft'
+                          : 'text-warm-gray-600 hover:text-warm-gray-900'
+                      }`}
+                    >
+                      <span>☷</span> Kanban Board
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTrackingView('table')}
+                      className={`px-3.5 py-2 rounded-[9px] text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        trackingView === 'table'
+                          ? 'bg-white text-purple-900 shadow-soft'
+                          : 'text-warm-gray-600 hover:text-warm-gray-900'
+                      }`}
+                    >
+                      <span>☰</span> Dense Table
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => fetchOrgProposals()}
+                    className="p-2.5 rounded-[12px] bg-white hover:bg-warm-gray-50 border border-warm-gray-200 text-warm-gray-700 shadow-xs cursor-pointer transition-colors"
+                    title="Refresh Proposals"
+                  >
+                    <span>🔄</span>
+                  </button>
                 </div>
               </div>
+
+              {/* ── 1. Top Executive Analytics Bar (Improvement 5) ── */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-warm-gray-600 uppercase tracking-wider">Active Pipeline</span>
+                    <span className="w-8 h-8 rounded-[8px] bg-blue-50 text-blue-700 flex items-center justify-center text-sm font-bold">🏛️</span>
+                  </div>
+                  <p className="font-heading text-2xl font-bold text-warm-gray-900">{trackingMetrics.totalDispatched}</p>
+                  <p className="text-[11px] text-warm-gray-500 mt-1">Dispatched to Funding Agencies</p>
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 to-indigo-500" />
+                </div>
+
+                <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-warm-gray-600 uppercase tracking-wider">Requested Pipeline</span>
+                    <span className="w-8 h-8 rounded-[8px] bg-purple-50 text-purple-700 flex items-center justify-center text-sm font-bold">💰</span>
+                  </div>
+                  <p className="font-heading text-2xl font-bold text-purple-950">{formatCurrency(trackingMetrics.totalRequestedVal)}</p>
+                  <p className="text-[11px] text-warm-gray-500 mt-1">Total grant funds requested</p>
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 to-fuchsia-500" />
+                </div>
+
+                <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-warm-gray-600 uppercase tracking-wider">Sanctioned & Won</span>
+                    <span className="w-8 h-8 rounded-[8px] bg-emerald-50 text-emerald-700 flex items-center justify-center text-sm font-bold">🏆</span>
+                  </div>
+                  <p className="font-heading text-2xl font-bold text-emerald-900">{formatCurrency(trackingMetrics.totalAwardedVal)}</p>
+                  <p className="text-[11px] text-emerald-700 font-semibold mt-1">
+                    {trackingMetrics.awardedCount} Grants Won &nbsp;•&nbsp; {trackingMetrics.winRate}% Success Rate
+                  </p>
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-500" />
+                </div>
+
+                <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-warm-gray-600 uppercase tracking-wider">Under Evaluation</span>
+                    <span className="w-8 h-8 rounded-[8px] bg-amber-50 text-amber-700 flex items-center justify-center text-sm font-bold">🔍</span>
+                  </div>
+                  <p className="font-heading text-2xl font-bold text-warm-gray-900">{trackingMetrics.underReviewCount}</p>
+                  <p className="text-[11px] text-warm-gray-500 mt-1 flex items-center gap-1.5">
+                    {trackingMetrics.revisionsCount > 0 && (
+                      <span className="text-amber-800 font-bold">⚠️ {trackingMetrics.revisionsCount} Query</span>
+                    )}
+                    {trackingMetrics.overdueCount > 0 && (
+                      <span className="text-red-700 font-bold">• 🔴 {trackingMetrics.overdueCount} Overdue</span>
+                    )}
+                    {trackingMetrics.revisionsCount === 0 && trackingMetrics.overdueCount === 0 && (
+                      <span>Active peer review scoring</span>
+                    )}
+                  </p>
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-orange-500" />
+                </div>
+              </div>
+
+              {/* ── Search & Filter Controls ── */}
+              <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-4 flex flex-col md:flex-row items-center justify-between gap-3">
+                <div className="flex-1 w-full relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-warm-gray-400 text-sm">🔍</span>
+                  <input
+                    type="text"
+                    value={trackingSearch}
+                    onChange={(e) => setTrackingSearch(e.target.value)}
+                    placeholder="Search by Proposal Title, Principal Investigator, Agency, or Agency Ref ID..."
+                    className="w-full pl-10 pr-4 py-2 rounded-[10px] border border-warm-gray-200 bg-cream/40 text-xs font-medium text-warm-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all placeholder:text-warm-gray-400"
+                  />
+                  {trackingSearch && (
+                    <button
+                      onClick={() => setTrackingSearch('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-gray-400 hover:text-warm-gray-700 text-xs cursor-pointer font-bold"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 w-full md:w-auto shrink-0">
+                  <select
+                    value={trackingAgencyFilter}
+                    onChange={(e) => setTrackingAgencyFilter(e.target.value)}
+                    className="flex-1 md:flex-none px-3 py-2 rounded-[10px] border border-warm-gray-200 bg-white text-xs font-semibold text-warm-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500/20 cursor-pointer"
+                  >
+                    <option value="all">All Agencies</option>
+                    <option value="DST">DST / SERB</option>
+                    <option value="UGC">UGC</option>
+                    <option value="ICSSR">ICSSR</option>
+                    <option value="CSIR">CSIR</option>
+                    <option value="DBT">DBT</option>
+                    <option value="AICTE">AICTE</option>
+                    <option value="NIH">NIH</option>
+                  </select>
+
+                  <select
+                    value={trackingStageFilter}
+                    onChange={(e) => setTrackingStageFilter(e.target.value)}
+                    className="flex-1 md:flex-none px-3 py-2 rounded-[10px] border border-warm-gray-200 bg-white text-xs font-semibold text-warm-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500/20 cursor-pointer"
+                  >
+                    <option value="all">All Stages ({trackedProposals.length})</option>
+                    {TRACKING_STAGES.map((s) => (
+                      <option key={s.key} value={s.key}>{s.icon} {s.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* ── 2. Kanban Board View ── */}
+              {trackingView === 'kanban' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4.5 items-start">
+                  {TRACKING_STAGES.map((stage) => {
+                    const stageProposals = trackedProposals.filter((p) => stage.aliases.includes(p.status))
+                    return (
+                      <div
+                        key={stage.key}
+                        className="bg-surface-elevated rounded-[18px] border border-warm-gray-200/80 shadow-soft flex flex-col min-h-[580px]"
+                      >
+                        {/* Column Header */}
+                        <div className={`p-3.5 border-b rounded-t-[18px] ${stage.color} flex items-center justify-between`}>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-base">{stage.icon}</span>
+                            <h3 className="font-heading font-bold text-xs truncate">{stage.label}</h3>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shadow-xs ${stage.headerBadge}`}>
+                            {stageProposals.length}
+                          </span>
+                        </div>
+                        <p className="px-3.5 py-2 text-[10px] text-warm-gray-500 border-b border-warm-gray-100 bg-cream/20 leading-tight">
+                          {stage.description}
+                        </p>
+
+                        {/* Cards Container */}
+                        <div className="p-3 space-y-3 flex-1 overflow-y-auto max-h-[750px]">
+                          {stageProposals.length === 0 ? (
+                            <div className="py-12 px-4 text-center text-warm-gray-400">
+                              <span className="text-2xl block mb-1 opacity-50">{stage.icon}</span>
+                              <p className="text-xs font-medium">No proposals in this stage</p>
+                            </div>
+                          ) : (
+                            stageProposals.map((prop) => {
+                              const timeline = getProposalReviewTimeline(prop)
+                              const checklist = prop.preSubmissionChecklist || {}
+                              const checklistCleared = Object.values(checklist).filter(v => v === true).length
+                              return (
+                                <div
+                                  key={prop._id}
+                                  className="bg-white rounded-[14px] border border-warm-gray-200/90 shadow-soft p-3.5 hover:shadow-medium hover:border-purple-300 transition-all duration-200 group"
+                                >
+                                  {/* Top Pill Row: Ref ID + Overdue Flag (Improvement 4) */}
+                                  <div className="flex items-center justify-between gap-1.5 mb-2">
+                                    <span className="px-2 py-0.5 rounded-[6px] font-mono text-[9px] font-bold bg-slate-100 text-slate-800 border border-slate-200 truncate max-w-[130px]" title={prop.agencySubmission?.agencySubmissionId || 'No Ref ID'}>
+                                      {prop.agencySubmission?.agencySubmissionId || 'Ref: Recorded'}
+                                    </span>
+                                    <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold border shrink-0 ${timeline.color}`}>
+                                      {timeline.label}
+                                    </span>
+                                  </div>
+
+                                  {/* Title & Agency */}
+                                  <h4 className="font-heading font-bold text-xs text-warm-gray-900 group-hover:text-purple-900 transition-colors line-clamp-2 leading-snug mb-1">
+                                    {prop.title}
+                                  </h4>
+                                  <p className="text-[11px] text-warm-gray-500 truncate mb-2">
+                                    {prop.grantAgency || 'Funding Agency'}{prop.grantTitle ? ` • ${prop.grantTitle}` : ''}
+                                  </p>
+
+                                  {/* PI & Funding */}
+                                  <div className="p-2 rounded-[8px] bg-cream/40 border border-warm-gray-200/50 space-y-1 mb-2.5 text-[11px]">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-warm-gray-500">Requested:</span>
+                                      <strong className="text-warm-gray-900">{prop.fundingAmount || '₹25,00,000'}</strong>
+                                    </div>
+                                    {prop.status === 'Awarded' && prop.awardDetails?.sanctionedAmount && (
+                                      <div className="flex items-center justify-between text-emerald-800 font-bold border-t border-emerald-100 pt-1">
+                                        <span>Sanctioned:</span>
+                                        <span>🏆 {prop.awardDetails.sanctionedAmount}</span>
+                                      </div>
+                                    )}
+                                    <div className="flex items-center justify-between pt-0.5">
+                                      <span className="text-warm-gray-500 truncate">Lead PI:</span>
+                                      <span className="font-semibold text-warm-gray-800 truncate max-w-[110px]">
+                                        {prop.sections?.[0]?.assignedToName || 'PI Thorne'}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Compliance & Progress */}
+                                  <div className="flex items-center justify-between text-[10px] text-warm-gray-500 mb-3 pt-1 border-t border-warm-gray-100">
+                                    <span className="flex items-center gap-1 font-semibold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                                      ✓ {checklistCleared}/6 Pre-submission
+                                    </span>
+                                    <span className="text-warm-gray-400">
+                                      {prop.agencySubmission?.submittedAt ? new Date(prop.agencySubmission.submittedAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'Dispatched'}
+                                    </span>
+                                  </div>
+
+                                  {/* Quick Actions Row (Improvements 3 & 6) */}
+                                  <div className="flex items-center justify-between gap-1.5 pt-2 border-t border-warm-gray-100">
+                                    <select
+                                      value={stage.aliases.includes(prop.status) ? stage.key : prop.status}
+                                      onChange={(e) => handleOpenStatusChange(prop, e.target.value)}
+                                      className="px-2 py-1 rounded-[6px] border border-warm-gray-200 bg-warm-gray-50 text-[10px] font-bold text-warm-gray-700 focus:outline-none cursor-pointer"
+                                      title="Update Tracking Stage"
+                                    >
+                                      <option value="Submitted to Agency">Submitted</option>
+                                      <option value="Under Evaluation">Evaluation</option>
+                                      <option value="Revisions Requested">Revisions</option>
+                                      <option value="Awarded">Awarded 🏆</option>
+                                      <option value="Rejected">Rejected</option>
+                                    </select>
+
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setPingPiModal(prop)
+                                          setPingPiMessage('')
+                                        }}
+                                        className="p-1.5 rounded-[6px] bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-[11px] font-bold cursor-pointer transition-colors"
+                                        title="Ping PI with status update or referee feedback"
+                                      >
+                                        💬
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleExportPDF(prop)}
+                                        className="p-1.5 rounded-[6px] bg-warm-gray-50 hover:bg-warm-gray-100 text-warm-gray-700 border border-warm-gray-200 text-[11px] font-bold cursor-pointer transition-colors"
+                                        title="Download Dossier PDF"
+                                      >
+                                        📄
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setTimelineModal(prop)}
+                                        className="p-1.5 rounded-[6px] bg-warm-gray-50 hover:bg-warm-gray-100 text-warm-gray-700 border border-warm-gray-200 text-[11px] font-bold cursor-pointer transition-colors"
+                                        title="View Stage Progression Audit"
+                                      >
+                                        🕒
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                /* ── 3. Dense Table View (Improvement 2) ── */
+                <div className="bg-surface-elevated rounded-[18px] border border-warm-gray-200/80 shadow-soft overflow-hidden animate-fade-in">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-cream/60 border-b border-warm-gray-200/80 text-[11px] font-bold text-warm-gray-600 uppercase tracking-wider">
+                          <th className="py-3.5 px-4">Proposal & Agency Ref ID</th>
+                          <th className="py-3.5 px-4">Agency & Grant Call</th>
+                          <th className="py-3.5 px-4">Principal Investigator</th>
+                          <th className="py-3.5 px-4">Requested</th>
+                          <th className="py-3.5 px-4">Sanctioned</th>
+                          <th className="py-3.5 px-4">Timeline / Flag</th>
+                          <th className="py-3.5 px-4">Compliance</th>
+                          <th className="py-3.5 px-4">Current Status</th>
+                          <th className="py-3.5 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-warm-gray-200/60 font-sans">
+                        {trackedProposals.length === 0 ? (
+                          <tr>
+                            <td colSpan="9" className="py-12 text-center text-warm-gray-500 font-medium">
+                              No proposals match your search or filter criteria.
+                            </td>
+                          </tr>
+                        ) : (
+                          trackedProposals.map((prop) => {
+                            const timeline = getProposalReviewTimeline(prop)
+                            const checklist = prop.preSubmissionChecklist || {}
+                            const checklistCleared = Object.values(checklist).filter(v => v === true).length
+                            return (
+                              <tr key={prop._id} className="hover:bg-cream/30 transition-colors">
+                                <td className="py-3.5 px-4">
+                                  <p className="font-heading font-bold text-warm-gray-900 line-clamp-1 max-w-[220px]" title={prop.title}>
+                                    {prop.title}
+                                  </p>
+                                  <span className="font-mono text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                                    {prop.agencySubmission?.agencySubmissionId || 'Ref: Dispatched'}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 text-warm-gray-700 font-medium">
+                                  <p className="font-bold text-warm-gray-900">{prop.grantAgency || 'Funding Agency'}</p>
+                                  <p className="text-[11px] text-warm-gray-500 truncate max-w-[150px]">{prop.grantTitle}</p>
+                                </td>
+                                <td className="py-3.5 px-4 text-warm-gray-800">
+                                  <p className="font-semibold">{prop.sections?.[0]?.assignedToName || 'PI Thorne'}</p>
+                                  <p className="text-[10px] text-warm-gray-400">Lead Investigator</p>
+                                </td>
+                                <td className="py-3.5 px-4 font-bold text-warm-gray-900">
+                                  {prop.fundingAmount || '₹25,00,000'}
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  {prop.awardDetails?.sanctionedAmount ? (
+                                    <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                      🏆 {prop.awardDetails.sanctionedAmount}
+                                    </span>
+                                  ) : (
+                                    <span className="text-warm-gray-400 italic">Pending</span>
+                                  )}
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${timeline.color}`}>
+                                    {timeline.label}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
+                                    ✓ {checklistCleared}/6 Pre-submission
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <select
+                                    value={prop.status}
+                                    onChange={(e) => handleOpenStatusChange(prop, e.target.value)}
+                                    className="px-2.5 py-1 rounded-[8px] border border-warm-gray-200 bg-white text-xs font-bold text-warm-gray-800 focus:outline-none cursor-pointer shadow-xs"
+                                  >
+                                    <option value="Submitted to Agency">Submitted to Agency</option>
+                                    <option value="Under Evaluation">Under Evaluation</option>
+                                    <option value="Revisions Requested">Revisions Requested</option>
+                                    <option value="Awarded">Awarded 🏆</option>
+                                    <option value="Rejected">Rejected</option>
+                                  </select>
+                                </td>
+                                <td className="py-3.5 px-4 text-right">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setPingPiModal(prop)
+                                        setPingPiMessage('')
+                                      }}
+                                      className="p-1.5 rounded-[8px] bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold cursor-pointer transition-colors"
+                                      title="Ping PI with message"
+                                    >
+                                      💬 Ping
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleExportPDF(prop)}
+                                      className="p-1.5 rounded-[8px] bg-warm-gray-100 hover:bg-warm-gray-200 text-warm-gray-700 border border-warm-gray-200 text-xs font-bold cursor-pointer transition-colors"
+                                      title="Export Dossier PDF"
+                                    >
+                                      📄 PDF
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setTimelineModal(prop)}
+                                      className="p-1.5 rounded-[8px] bg-warm-gray-100 hover:bg-warm-gray-200 text-warm-gray-700 border border-warm-gray-200 text-xs font-bold cursor-pointer transition-colors"
+                                      title="Audit Timeline"
+                                    >
+                                      🕒
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -962,117 +2573,897 @@ export default function OrgAdminDashboard() {
             </div>
           )}
 
-          {/* ═══════════════════════════════════ DEADLINES ═══════════════════════════════════ */}
+          {/* ═══════════════════════════════════ DEADLINES & FOLLOW-UP SCHEDULER ═══════════════════════════════════ */}
           {activeSection === 'deadlines' && (
-            <div className="animate-fade-up">
-              <div className="mb-8">
-                <h1 className="font-heading text-3xl font-bold text-warm-gray-900 mb-2">Deadline Alerts</h1>
-                <p className="text-warm-gray-500">Never miss a grant deadline</p>
+            <div className="space-y-6 animate-fade-up">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                      Real-Time Alert Engine
+                    </span>
+                    <span className="text-xs text-warm-gray-400">•</span>
+                    <span className="text-xs text-warm-gray-500 font-medium">Automatic Follow-up Scheduler</span>
+                  </div>
+                  <h1 className="font-heading text-2xl sm:text-3xl font-bold text-warm-gray-900">
+                    Deadline Alerts & Follow-up Scheduler
+                  </h1>
+                  <p className="text-xs text-warm-gray-500 mt-1 max-w-2xl leading-relaxed">
+                    Monitor live grant submission deadlines, track post-submission review overdue triggers (&gt;60d / &gt;90d), and schedule custom institutional reminders with real-time alerts.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setCreateReminderModal(true)}
+                  className="px-4 py-2.5 rounded-[12px] bg-gradient-to-r from-primary to-primary-light hover:opacity-95 text-white text-xs font-bold shadow-soft transition-all cursor-pointer flex items-center gap-2 shrink-0 self-start sm:self-auto"
+                >
+                  <span>📅</span> + Schedule Custom Reminder
+                </button>
               </div>
 
-              <div className="space-y-4">
-                {MOCK_DEADLINES.map((d, i) => (
-                  <div
-                    key={d.id}
-                    className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-6 flex items-center justify-between hover:shadow-medium hover:-translate-y-0.5 transition-all duration-300 animate-fade-up"
-                    style={{ animationDelay: `${0.1 * (i + 1)}s` }}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-[12px] flex items-center justify-center text-lg ${d.priority === 'high' ? 'bg-red-50' : d.priority === 'medium' ? 'bg-amber-50' : 'bg-green-50'
-                        }`}>
-                        {d.priority === 'high' ? '🔴' : d.priority === 'medium' ? '🟡' : '🟢'}
-                      </div>
-                      <div>
-                        <h3 className="font-heading font-bold text-warm-gray-900">{d.title}</h3>
-                        <p className="text-sm text-warm-gray-500">Deadline: {d.date}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className={`font-heading text-xl font-bold ${d.daysLeft <= 20 ? 'text-red-600' : d.daysLeft <= 45 ? 'text-amber' : 'text-green-600'
-                        }`}>{d.daysLeft}</p>
-                      <p className="text-xs text-warm-gray-500">days left</p>
-                    </div>
+              {/* ── 1. Executive Summary KPI Strip ── */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-warm-gray-600 uppercase tracking-wider">Critical Deadlines</span>
+                    <span className="w-8 h-8 rounded-[8px] bg-rose-50 text-rose-700 flex items-center justify-center text-sm font-bold">🚨</span>
                   </div>
-                ))}
+                  <p className="font-heading text-2xl font-bold text-rose-700">{deadlineMetrics.criticalAlertsCount}</p>
+                  <p className="text-[11px] text-warm-gray-500 mt-1">
+                    &lt;7 days to deadline or query pending
+                  </p>
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 to-red-600" />
+                </div>
+
+                <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-warm-gray-600 uppercase tracking-wider">Upcoming Deadlines</span>
+                    <span className="w-8 h-8 rounded-[8px] bg-amber-50 text-amber-800 flex items-center justify-center text-sm font-bold">⚠️</span>
+                  </div>
+                  <p className="font-heading text-2xl font-bold text-amber-800">{deadlineMetrics.upcomingCount}</p>
+                  <p className="text-[11px] text-warm-gray-500 mt-1">
+                    Due in 7 to 30 days (Active drafting)
+                  </p>
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-amber-500" />
+                </div>
+
+                <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-warm-gray-600 uppercase tracking-wider">Agency Follow-ups</span>
+                    <span className="w-8 h-8 rounded-[8px] bg-purple-50 text-purple-700 flex items-center justify-center text-sm font-bold">🔴</span>
+                  </div>
+                  <p className="font-heading text-2xl font-bold text-purple-900">{deadlineMetrics.overdueFollowupCount}</p>
+                  <p className="text-[11px] text-warm-gray-500 mt-1">
+                    &gt;90d in agency review (Enquiry due)
+                  </p>
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-indigo-600" />
+                </div>
+
+                <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-warm-gray-600 uppercase tracking-wider">Scheduled Tasks</span>
+                    <span className="w-8 h-8 rounded-[8px] bg-emerald-50 text-emerald-700 flex items-center justify-center text-sm font-bold">📅</span>
+                  </div>
+                  <p className="font-heading text-2xl font-bold text-emerald-800">{deadlineMetrics.activeRemindersCount}</p>
+                  <p className="text-[11px] text-warm-gray-500 mt-1">
+                    Active team reminders & audits
+                  </p>
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
+                </div>
+              </div>
+
+              {/* ── 2. Search & Segmented Filter Bar ── */}
+              <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-4 flex flex-col md:flex-row items-center justify-between gap-3">
+                <div className="flex-1 w-full relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-warm-gray-400 text-sm">🔍</span>
+                  <input
+                    type="text"
+                    value={deadlineSearch}
+                    onChange={(e) => setDeadlineSearch(e.target.value)}
+                    placeholder="Search alerts by proposal title, funding agency, investigator, or note..."
+                    className="w-full pl-10 pr-4 py-2 rounded-[10px] border border-warm-gray-200 bg-cream/40 text-xs font-medium text-warm-gray-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-400 transition-all placeholder:text-warm-gray-400"
+                  />
+                  {deadlineSearch && (
+                    <button
+                      onClick={() => setDeadlineSearch('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-gray-400 hover:text-warm-gray-700 text-xs cursor-pointer font-bold"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Filter Tabs */}
+                <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+                  {[
+                    { key: 'all', label: `All Alerts (${allAlerts.length})` },
+                    { key: 'critical', label: `🚨 Critical (${deadlineMetrics.criticalAlertsCount})` },
+                    { key: 'deadlines', label: '🏛️ Call Deadlines' },
+                    { key: 'followups', label: '🔍 Agency Follow-Ups' },
+                    { key: 'custom', label: `📅 Scheduled (${deadlineMetrics.activeRemindersCount})` },
+                    { key: 'completed', label: '✓ Completed' },
+                  ].map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setDeadlineTab(tab.key)}
+                      className={`px-3 py-1.5 rounded-[10px] text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                        deadlineTab === tab.key
+                          ? 'bg-warm-gray-900 text-white shadow-xs'
+                          : 'bg-cream/70 text-warm-gray-600 hover:bg-cream hover:text-warm-gray-900 border border-warm-gray-200/50'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── 3. Alerts Stream Container ── */}
+              <div className="space-y-3.5">
+                {filteredAlerts.length === 0 ? (
+                  <div className="bg-surface-elevated rounded-[18px] border border-warm-gray-200/70 shadow-soft py-16 px-6 text-center animate-fade-in">
+                    <span className="text-4xl block mb-2">🎉</span>
+                    <h3 className="font-heading font-bold text-base text-warm-gray-800">All Clear — No Alerts Found!</h3>
+                    <p className="text-xs text-warm-gray-400 mt-1 max-w-md mx-auto">
+                      There are no active deadlines, overdue agency follow-ups, or scheduled reminders matching this filter.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setCreateReminderModal(true)}
+                      className="mt-4 px-4 py-2 rounded-[10px] bg-primary text-white font-bold text-xs hover:bg-primary-dark transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-soft"
+                    >
+                      <span>📅</span> Schedule a New Reminder
+                    </button>
+                  </div>
+                ) : (
+                  filteredAlerts.map((alert) => (
+                    <div
+                      key={alert.id}
+                      className={`bg-surface-elevated rounded-[16px] border border-warm-gray-200/80 shadow-soft p-5 hover:shadow-medium hover:border-warm-gray-300 transition-all duration-200 flex flex-col md:flex-row md:items-center justify-between gap-4 relative overflow-hidden ${
+                        alert.isCompleted ? 'opacity-60 bg-cream/20' : ''
+                      }`}
+                    >
+                      {/* Left Urgency Color Stripe */}
+                      <div
+                        className={`absolute left-0 top-0 bottom-0 w-1.5 ${
+                          alert.urgency === 'critical'
+                            ? 'bg-rose-500'
+                            : alert.urgency === 'upcoming'
+                            ? 'bg-amber-400'
+                            : alert.isCompleted
+                            ? 'bg-emerald-500'
+                            : 'bg-purple-500'
+                        }`}
+                      />
+
+                      <div className="flex items-start gap-4 flex-1 min-w-0 pl-1">
+                        {/* Type Icon Badge */}
+                        <div
+                          className={`w-11 h-11 rounded-[12px] flex items-center justify-center text-lg shrink-0 border ${
+                            alert.type === 'grant_deadline'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : alert.type === 'agency_followup'
+                              ? 'bg-purple-50 text-purple-700 border-purple-200'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          }`}
+                        >
+                          {alert.type === 'grant_deadline' ? '🏛️' : alert.type === 'agency_followup' ? '🔍' : '⏰'}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          {/* Tags row */}
+                          <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${alert.badgeColor}`}>
+                              {alert.urgencyLabel}
+                            </span>
+
+                            <span className="px-2 py-0.5 rounded-[6px] text-[10px] font-semibold bg-cream border border-warm-gray-200 text-warm-gray-600">
+                              {alert.type === 'grant_deadline'
+                                ? 'Grant Call Deadline'
+                                : alert.type === 'agency_followup'
+                                ? 'Agency Review Trigger'
+                                : `Custom: ${alert.reminderType.replace('_', ' ')}`}
+                            </span>
+
+                            {alert.agency && (
+                              <span className="text-[11px] font-bold text-warm-gray-700">
+                                {alert.agency}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Title */}
+                          <h4 className="font-heading font-bold text-sm text-warm-gray-900 leading-snug line-clamp-1 mb-1">
+                            {alert.title}
+                          </h4>
+
+                          {/* Details & Subtext */}
+                          <div className="flex flex-wrap items-center gap-y-1 gap-x-3 text-xs text-warm-gray-500">
+                            {alert.grantTitle && (
+                              <span className="truncate max-w-[240px]">
+                                Call: <strong className="text-warm-gray-700">{alert.grantTitle}</strong>
+                              </span>
+                            )}
+                            {alert.piName && (
+                              <span>
+                                PI: <strong className="text-warm-gray-700">{alert.piName}</strong>
+                              </span>
+                            )}
+                            {alert.recipientName && (
+                              <span>
+                                For: <strong className="text-warm-gray-700">{alert.recipientName}</strong>
+                              </span>
+                            )}
+                            {alert.refId && (
+                              <span className="font-mono text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">
+                                Ref #{alert.refId}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Progress bar if proposal */}
+                          {alert.type === 'grant_deadline' && (
+                            <div className="mt-2.5 max-w-xs flex items-center gap-2">
+                              <div className="flex-1 h-1.5 rounded-full bg-warm-gray-100 overflow-hidden">
+                                <div
+                                  className="h-full bg-purple-500 rounded-full"
+                                  style={{ width: `${alert.progress}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] text-warm-gray-400 font-bold shrink-0">
+                                {alert.approvedSections}/{alert.totalSections} sections approved
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Notes if custom reminder */}
+                          {alert.notes && (
+                            <p className="mt-1.5 text-xs text-warm-gray-600 bg-cream/40 p-2 rounded-[8px] border border-warm-gray-200/50 italic leading-relaxed">
+                              "{alert.notes}"
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Right Action Buttons */}
+                      <div className="flex items-center gap-2 shrink-0 self-end md:self-center border-t md:border-t-0 pt-3 md:pt-0 w-full md:w-auto justify-end">
+                        {alert.type === 'grant_deadline' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedProposalId(alert.proposalId)
+                                setActiveSection('proposals')
+                              }}
+                              className="px-3 py-1.5 rounded-[10px] bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 font-bold text-xs transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                            >
+                              <span>📝</span> Open Workspace
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPingPiModal(alert.proposal)}
+                              className="px-3 py-1.5 rounded-[10px] bg-white hover:bg-cream text-warm-gray-700 border border-warm-gray-300 font-bold text-xs transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                            >
+                              <span>💬</span> Ping PI
+                            </button>
+                            <button
+                              type="button"
+                              disabled={sendingEmailAlertId === alert.proposalId}
+                              onClick={() => handleSendDeadlineEmailAlert(alert.proposalId, alert.title)}
+                              className={`px-3 py-1.5 rounded-[10px] font-bold text-xs transition-all cursor-pointer flex items-center gap-1 shadow-xs disabled:opacity-50 ${
+                                alert.urgency === 'critical'
+                                  ? 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 animate-pulse'
+                                  : 'bg-white hover:bg-purple-50 text-warm-gray-700 border border-warm-gray-300 hover:border-purple-300'
+                              }`}
+                              title={
+                                alert.urgency === 'critical'
+                                  ? 'Send Urgent Critical Deadline Email (<7 days left)'
+                                  : 'Send Deadline Reminder Email to Lead PI & Assigned Team'
+                              }
+                            >
+                              <span>{alert.urgency === 'critical' ? '🚨' : '📧'}</span>
+                              {sendingEmailAlertId === alert.proposalId
+                                ? 'Sending...'
+                                : alert.urgency === 'critical'
+                                  ? 'Email PI (Urgent)'
+                                  : 'Email PI'}
+                            </button>
+                          </>
+                        )}
+
+                        {alert.type === 'agency_followup' && (
+                          <>
+                            {alert.needsFollowupLetter && (
+                              <button
+                                type="button"
+                                onClick={() => setFollowupLetterModal(alert.proposal)}
+                                className="px-3 py-1.5 rounded-[10px] bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-90 text-white font-bold text-xs shadow-soft transition-all cursor-pointer flex items-center gap-1"
+                              >
+                                <span>📄</span> Generate Follow-up Letter
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setActiveSection('tracking')}
+                              className="px-3 py-1.5 rounded-[10px] bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-bold text-xs transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                            >
+                              <span>📊</span> Tracking Board
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPingPiModal(alert.proposal)}
+                              className="px-3 py-1.5 rounded-[10px] bg-white hover:bg-cream text-warm-gray-700 border border-warm-gray-300 font-bold text-xs transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                            >
+                              <span>💬</span> Ping PI
+                            </button>
+                          </>
+                        )}
+
+                        {alert.type === 'custom_reminder' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleReminder(alert.reminderObj._id)}
+                              className={`px-3 py-1.5 rounded-[10px] font-bold text-xs transition-all cursor-pointer flex items-center gap-1 shadow-xs border ${
+                                alert.isCompleted
+                                  ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                                  : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                              }`}
+                            >
+                              <span>{alert.isCompleted ? '↩️ Reopen' : '✓ Mark Complete'}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteReminder(alert.reminderObj._id)}
+                              className="px-2.5 py-1.5 rounded-[10px] bg-white hover:bg-rose-50 text-warm-gray-500 hover:text-rose-600 border border-warm-gray-200 text-xs transition-all cursor-pointer shadow-xs"
+                              title="Delete Reminder"
+                            >
+                              🗑️
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
 
-          {/* ═══════════════════════════════════ ANALYTICS ═══════════════════════════════════ */}
+          {/* ═══════════════════════════════════ DYNAMIC INSTITUTIONAL ANALYTICS ═══════════════════════════════════ */}
           {activeSection === 'analytics' && (
-            <div className="animate-fade-up">
-              <div className="mb-8">
-                <h1 className="font-heading text-3xl font-bold text-warm-gray-900 mb-2">Analytics & Reports</h1>
-                <p className="text-warm-gray-500">Track your organization's grant performance</p>
-              </div>
+            <div className="space-y-6 animate-fade-up">
+              {/* ── Header & Timeframe Selector ── */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                      Institutional Intelligence Suite
+                    </span>
+                    <span className="text-xs text-warm-gray-400">•</span>
+                    <span className="text-xs text-warm-gray-500 font-medium">Real-Time Data Engine</span>
+                  </div>
+                  <h1 className="font-heading text-2xl sm:text-3xl font-bold text-warm-gray-900">
+                    Grant Analytics & Institutional Portfolio
+                  </h1>
+                  <p className="text-xs text-warm-gray-500 mt-1 max-w-2xl leading-relaxed">
+                    Real-time capital tracking, agency funding allocation, faculty contribution velocity, and grant award outcomes.
+                  </p>
+                </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                {/* Funding Chart placeholder */}
-                <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-6">
-                  <h3 className="font-heading font-bold text-warm-gray-900 mb-4">Funding Received</h3>
-                  <div className="space-y-4">
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  {/* Timeframe Buttons */}
+                  <div className="flex items-center p-1 bg-white rounded-[12px] border border-warm-gray-200/80 shadow-xs">
                     {[
-                      { label: 'Q1 2026', value: 45 },
-                      { label: 'Q2 2026', value: 72 },
-                      { label: 'Q3 2026', value: 38 },
-                    ].map((q) => (
-                      <div key={q.label}>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="text-warm-gray-600">{q.label}</span>
-                          <span className="font-bold text-warm-gray-900">₹{q.value}L</span>
-                        </div>
-                        <div className="w-full h-3 rounded-full bg-warm-gray-100 overflow-hidden">
-                          <div
-                            className="h-full rounded-full bg-gradient-to-r from-primary to-primary-light transition-all duration-700"
-                            style={{ width: `${q.value}%` }}
-                          />
-                        </div>
-                      </div>
+                      { key: 'all', label: 'All Time' },
+                      { key: 'fy26', label: 'FY 2026–27' },
+                      { key: 'past12m', label: 'Past 12M' },
+                    ].map((tf) => (
+                      <button
+                        key={tf.key}
+                        type="button"
+                        onClick={() => setAnalyticsTimeframe(tf.key)}
+                        className={`px-3 py-1.5 rounded-[8px] text-xs font-bold transition-all cursor-pointer ${
+                          analyticsTimeframe === tf.key
+                            ? 'bg-primary text-white shadow-soft'
+                            : 'text-warm-gray-600 hover:text-warm-gray-900 hover:bg-cream/60'
+                        }`}
+                      >
+                        {tf.label}
+                      </button>
                     ))}
                   </div>
-                </div>
 
-                {/* Success Rate */}
-                <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-6">
-                  <h3 className="font-heading font-bold text-warm-gray-900 mb-4">Application Success Rate</h3>
-                  <div className="flex items-center justify-center py-6">
-                    <div className="relative w-32 h-32">
-                      <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-                        <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e2ddd4" strokeWidth="3" />
-                        <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#4a7c59" strokeWidth="3" strokeDasharray="67, 100" strokeLinecap="round" />
-                      </svg>
-                      <div className="absolute inset-0 flex items-center justify-center flex-col">
-                        <span className="font-heading text-2xl font-bold text-primary">67%</span>
-                        <span className="text-[10px] text-warm-gray-500">Success Rate</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-center mt-4">
-                    <div><p className="font-bold text-warm-gray-900">6</p><p className="text-[10px] text-warm-gray-500">Applied</p></div>
-                    <div><p className="font-bold text-green-600">4</p><p className="text-[10px] text-warm-gray-500">Won</p></div>
-                    <div><p className="font-bold text-red-500">2</p><p className="text-[10px] text-warm-gray-500">Rejected</p></div>
-                  </div>
+                  {/* Print Button */}
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="px-3.5 py-2 rounded-[12px] bg-white border border-warm-gray-200 text-warm-gray-700 hover:bg-cream text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                    title="Export / Print Institutional Portfolio Dossier"
+                  >
+                    <span>🖨️</span> Print Dossier
+                  </button>
                 </div>
               </div>
 
-              <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-6">
-                <h3 className="font-heading font-bold text-warm-gray-900 mb-4">Grant Distribution by Category</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  {[
-                    { label: 'Research', pct: 45, color: 'bg-blue-500' },
-                    { label: 'Fellowship', pct: 25, color: 'bg-purple-500' },
-                    { label: 'Infrastructure', pct: 20, color: 'bg-green-500' },
-                    { label: 'Other', pct: 10, color: 'bg-amber' },
-                  ].map((cat) => (
-                    <div key={cat.label} className="text-center">
-                      <div className="w-full h-24 bg-warm-gray-100 rounded-[10px] relative overflow-hidden mb-2">
-                        <div className={`absolute bottom-0 left-0 right-0 ${cat.color} rounded-b-[10px] transition-all duration-700`} style={{ height: `${cat.pct}%` }} />
-                      </div>
-                      <p className="text-sm font-semibold text-warm-gray-900">{cat.pct}%</p>
-                      <p className="text-xs text-warm-gray-500">{cat.label}</p>
-                    </div>
-                  ))}
+              {/* ── 1. Top Executive KPI Bar (5 Cards) ── */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                {/* 1: Total Pipeline Capital */}
+                <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-warm-gray-600 uppercase tracking-wider">Pipeline Capital</span>
+                    <span className="w-8 h-8 rounded-[8px] bg-emerald-50 text-emerald-700 flex items-center justify-center text-sm font-bold">💰</span>
+                  </div>
+                  <p className="font-heading text-2xl font-bold text-warm-gray-900">
+                    {formatCurrency(analyticsData.totalPipelineValue)}
+                  </p>
+                  <p className="text-[11px] text-warm-gray-500 mt-1">
+                    {analyticsData.totalProposals} Active Grant Proposals
+                  </p>
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
                 </div>
+
+                {/* 2: Sanctioned Award Capital */}
+                <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-warm-gray-600 uppercase tracking-wider">Awarded Capital</span>
+                    <span className="w-8 h-8 rounded-[8px] bg-amber-50 text-amber-800 flex items-center justify-center text-sm font-bold">🏆</span>
+                  </div>
+                  <p className="font-heading text-2xl font-bold text-amber-700">
+                    {formatCurrency(analyticsData.totalAwardedValue)}
+                  </p>
+                  <p className="text-[11px] text-warm-gray-500 mt-1">
+                    {analyticsData.countAwarded} Grants Sanctioned
+                  </p>
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-yellow-500" />
+                </div>
+
+                {/* 3: Institutional Win Rate */}
+                <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-warm-gray-600 uppercase tracking-wider">Win Rate</span>
+                    <span className="w-8 h-8 rounded-[8px] bg-purple-50 text-purple-700 flex items-center justify-center text-sm font-bold">🎯</span>
+                  </div>
+                  <p className="font-heading text-2xl font-bold text-purple-800">
+                    {analyticsData.winRate}%
+                  </p>
+                  <p className="text-[11px] text-warm-gray-500 mt-1">
+                    {analyticsData.countAwarded} Won • {analyticsData.countRejected} Declined
+                  </p>
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-indigo-600" />
+                </div>
+
+                {/* 4: Active Review Capital */}
+                <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-warm-gray-600 uppercase tracking-wider">In Peer Review</span>
+                    <span className="w-8 h-8 rounded-[8px] bg-blue-50 text-blue-700 flex items-center justify-center text-sm font-bold">🔍</span>
+                  </div>
+                  <p className="font-heading text-2xl font-bold text-blue-900">
+                    {formatCurrency(analyticsData.totalUnderReviewValue)}
+                  </p>
+                  <p className="text-[11px] text-warm-gray-500 mt-1">
+                    {analyticsData.countUnderReview + analyticsData.countRevisions} Proposals In Agency Evaluation
+                  </p>
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-cyan-500" />
+                </div>
+
+                {/* 5: Template Writing Clearance */}
+                <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-warm-gray-600 uppercase tracking-wider">Writing Clearance</span>
+                    <span className="w-8 h-8 rounded-[8px] bg-rose-50 text-rose-700 flex items-center justify-center text-sm font-bold">⚡</span>
+                  </div>
+                  <p className="font-heading text-2xl font-bold text-rose-700">
+                    {analyticsData.overallWritingProgress}%
+                  </p>
+                  <p className="text-[11px] text-warm-gray-500 mt-1">
+                    {analyticsData.approvedSections}/{analyticsData.totalSections} Sections Approved
+                  </p>
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 to-pink-500" />
+                </div>
+              </div>
+
+              {/* ── 2. Strategic Insights Callout Grid ── */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                {analyticsData.insights.map((ins, idx) => (
+                  <div
+                    key={idx}
+                    className="p-4 rounded-[14px] bg-white border border-warm-gray-200/70 shadow-xs flex items-start gap-3 hover:border-purple-200 transition-all"
+                  >
+                    <span className="text-xl shrink-0 p-2 rounded-[10px] bg-cream/70 border border-warm-gray-200/40">
+                      {ins.icon}
+                    </span>
+                    <div>
+                      <h4 className="font-heading font-bold text-xs text-warm-gray-900 leading-snug">
+                        {ins.title}
+                      </h4>
+                      <p className="text-[11px] text-warm-gray-500 mt-0.5 leading-relaxed">
+                        {ins.desc}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── 3. Proposal Lifecycle Pipeline & Funnel ── */}
+              <div className="bg-surface-elevated rounded-[18px] border border-warm-gray-200/70 shadow-soft p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-warm-gray-200/80 mb-5">
+                  <div>
+                    <h3 className="font-heading font-bold text-base text-warm-gray-900 flex items-center gap-2">
+                      <span>📊</span> Grant Proposal Lifecycle & Capital Realization Funnel
+                    </h3>
+                    <p className="text-xs text-warm-gray-500 mt-0.5">
+                      Visual progression of institutional proposals from formulation to agency sanction.
+                    </p>
+                  </div>
+                  <span className="text-xs font-mono font-bold text-warm-gray-600 bg-cream px-3 py-1 rounded-[8px] border border-warm-gray-200">
+                    Total Portfolio: {formatCurrency(analyticsData.totalPipelineValue)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                  {[
+                    {
+                      label: 'Formulation & Drafting',
+                      count: analyticsData.countDrafting,
+                      amount: analyticsData.totalDraftingValue,
+                      icon: '📝',
+                      badge: 'Internal Phase',
+                      color: 'border-slate-300 bg-slate-50/60 text-slate-800',
+                      barColor: 'bg-slate-400',
+                    },
+                    {
+                      label: 'Agency Peer Review',
+                      count: analyticsData.countUnderReview,
+                      amount: analyticsData.totalUnderReviewValue,
+                      icon: '🏛️',
+                      badge: 'Peer Review',
+                      color: 'border-blue-300 bg-blue-50/60 text-blue-900',
+                      barColor: 'bg-blue-500',
+                    },
+                    {
+                      label: 'Revisions Requested',
+                      count: analyticsData.countRevisions,
+                      amount: 0,
+                      icon: '⚠️',
+                      badge: 'Queries Active',
+                      color: 'border-amber-300 bg-amber-50/60 text-amber-900',
+                      barColor: 'bg-amber-500',
+                    },
+                    {
+                      label: 'Sanctioned & Awarded',
+                      count: analyticsData.countAwarded,
+                      amount: analyticsData.totalAwardedValue,
+                      icon: '🏆',
+                      badge: 'Sanctioned Funds',
+                      color: 'border-emerald-300 bg-emerald-50/60 text-emerald-900',
+                      barColor: 'bg-emerald-600',
+                    },
+                    {
+                      label: 'Closed / Not Shortlisted',
+                      count: analyticsData.countRejected,
+                      amount: 0,
+                      icon: '❌',
+                      badge: 'Archived',
+                      color: 'border-warm-gray-200 bg-warm-gray-50/60 text-warm-gray-700',
+                      barColor: 'bg-warm-gray-400',
+                    },
+                  ].map((stg) => {
+                    const pctOfTotal = analyticsData.totalProposals > 0
+                      ? Math.round((stg.count / analyticsData.totalProposals) * 100)
+                      : 0
+                    return (
+                      <div
+                        key={stg.label}
+                        className={`p-4 rounded-[14px] border ${stg.color} relative overflow-hidden flex flex-col justify-between`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-base">{stg.icon}</span>
+                            <span className="text-[10px] font-bold uppercase tracking-wider opacity-75">
+                              {stg.badge}
+                            </span>
+                          </div>
+                          <p className="font-heading font-bold text-xs text-warm-gray-900 line-clamp-1">
+                            {stg.label}
+                          </p>
+                          <div className="flex items-baseline gap-1.5 mt-2">
+                            <span className="font-heading text-2xl font-bold">
+                              {stg.count}
+                            </span>
+                            <span className="text-xs text-warm-gray-500 font-semibold">
+                              ({pctOfTotal}%)
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 pt-3 border-t border-black/5">
+                          <p className="text-[11px] font-mono font-bold text-warm-gray-800 truncate">
+                            {stg.amount > 0 ? formatCurrency(stg.amount) : `${stg.count} Projects`}
+                          </p>
+                          <div className="w-full h-1.5 rounded-full bg-black/10 overflow-hidden mt-1.5">
+                            <div
+                              className={`h-full rounded-full ${stg.barColor} transition-all duration-700`}
+                              style={{ width: `${pctOfTotal}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* ── 4. Two-Column Intelligence Grid ── */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Left (7 Cols): Funding Agency Allocation & Distribution */}
+                <div className="lg:col-span-7 bg-surface-elevated rounded-[18px] border border-warm-gray-200/70 shadow-soft p-6">
+                  <div className="flex items-center justify-between pb-3 border-b border-warm-gray-200/80 mb-4">
+                    <div>
+                      <h3 className="font-heading font-bold text-sm text-warm-gray-900 flex items-center gap-2">
+                        <span>🏛️</span> Funding Partner Capital Allocation
+                      </h3>
+                      <p className="text-[11px] text-warm-gray-500 mt-0.5">
+                        Portfolio capital requested and sanctioned broken down by funding agency.
+                      </p>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 text-[10px] font-bold border border-purple-200">
+                      {analyticsData.sortedAgencies.length} Partner Agencies
+                    </span>
+                  </div>
+
+                  {analyticsData.sortedAgencies.length === 0 ? (
+                    <div className="py-12 text-center text-xs text-warm-gray-400">
+                      No funding agency data available for this timeframe.
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {analyticsData.sortedAgencies.map((agency) => {
+                        const agencySharePct = analyticsData.totalPipelineValue > 0
+                          ? Math.round((agency.totalRequested / analyticsData.totalPipelineValue) * 100)
+                          : 0
+                        return (
+                          <div
+                            key={agency.name}
+                            className="p-3.5 rounded-[12px] bg-white border border-warm-gray-200/60 hover:border-purple-200 transition-all shadow-2xs"
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-xs text-warm-gray-900">
+                                  {agency.name}
+                                </span>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-cream text-warm-gray-600 border border-warm-gray-200">
+                                  {agency.count} {agency.count === 1 ? 'Proposal' : 'Proposals'}
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <span className="font-mono font-bold text-xs text-warm-gray-900">
+                                  {formatCurrency(agency.totalRequested)}
+                                </span>
+                                <span className="text-[10px] text-warm-gray-400 ml-1.5">
+                                  ({agencySharePct}%)
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Proportional Bar */}
+                            <div className="w-full h-2 rounded-full bg-warm-gray-100 overflow-hidden my-1.5">
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-primary to-purple-600 transition-all duration-700"
+                                style={{ width: `${Math.max(5, agencySharePct)}%` }}
+                              />
+                            </div>
+
+                            <div className="flex items-center justify-between text-[11px] text-warm-gray-500 pt-1">
+                              <span>
+                                Sanctioned Value: <strong className="text-emerald-700">{agency.totalAwarded > 0 ? formatCurrency(agency.totalAwarded) : '₹0'}</strong>
+                              </span>
+                              <span>
+                                {agency.proposals.some((p) => ['Awarded', 'Accepted'].includes(p.status)) ? (
+                                  <span className="text-emerald-700 font-bold flex items-center gap-1">
+                                    <span>🏆</span> Award Won
+                                  </span>
+                                ) : (
+                                  <span className="text-warm-gray-400">Under Review / Drafting</span>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right (5 Cols): 17-Section Writing Velocity & Health */}
+                <div className="lg:col-span-5 bg-surface-elevated rounded-[18px] border border-warm-gray-200/70 shadow-soft p-6 flex flex-col justify-between">
+                  <div>
+                    <div className="pb-3 border-b border-warm-gray-200/80 mb-4">
+                      <h3 className="font-heading font-bold text-sm text-warm-gray-900 flex items-center gap-2">
+                        <span>⚡</span> 17-Section Template Writing Velocity
+                      </h3>
+                      <p className="text-[11px] text-warm-gray-500 mt-0.5">
+                        Aggregate clearance status across all institutional proposal sections.
+                      </p>
+                    </div>
+
+                    {/* Ring Chart & Center Metric */}
+                    <div className="flex items-center justify-center py-4">
+                      <div className="relative w-36 h-36">
+                        <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                          <path
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none"
+                            stroke="#f1ede5"
+                            strokeWidth="3.2"
+                          />
+                          <path
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none"
+                            stroke="url(#gradient-analytics-ring)"
+                            strokeWidth="3.2"
+                            strokeDasharray={`${analyticsData.overallWritingProgress}, 100`}
+                            strokeLinecap="round"
+                          />
+                          <defs>
+                            <linearGradient id="gradient-analytics-ring" x1="0%" y1="0%" x2="100%" y2="100%">
+                              <stop offset="0%" stopColor="#4a7c59" />
+                              <stop offset="100%" stopColor="#7c3aed" />
+                            </linearGradient>
+                          </defs>
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center flex-col">
+                          <span className="font-heading text-3xl font-bold text-warm-gray-900">
+                            {analyticsData.overallWritingProgress}%
+                          </span>
+                          <span className="text-[10px] font-bold text-warm-gray-400 uppercase tracking-wider">
+                            Clearance
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section Status Breakdown 4-Grid */}
+                    <div className="grid grid-cols-2 gap-2.5 mt-2">
+                      <div className="p-2.5 rounded-[10px] bg-emerald-50/70 border border-emerald-200">
+                        <span className="text-[10px] font-bold text-emerald-800 uppercase block">Approved</span>
+                        <p className="font-heading font-bold text-lg text-emerald-950 mt-0.5">
+                          {analyticsData.approvedSections}
+                        </p>
+                        <span className="text-[10px] text-emerald-700">Signed off by Admin / PI</span>
+                      </div>
+
+                      <div className="p-2.5 rounded-[10px] bg-purple-50/70 border border-purple-200">
+                        <span className="text-[10px] font-bold text-purple-800 uppercase block">Ready for Review</span>
+                        <p className="font-heading font-bold text-lg text-purple-950 mt-0.5">
+                          {analyticsData.reviewSections}
+                        </p>
+                        <span className="text-[10px] text-purple-700">Awaiting internal sign-off</span>
+                      </div>
+
+                      <div className="p-2.5 rounded-[10px] bg-amber-50/70 border border-amber-200">
+                        <span className="text-[10px] font-bold text-amber-800 uppercase block">In Progress</span>
+                        <p className="font-heading font-bold text-lg text-amber-950 mt-0.5">
+                          {analyticsData.inProgressSections}
+                        </p>
+                        <span className="text-[10px] text-amber-700">Active faculty drafting</span>
+                      </div>
+
+                      <div className="p-2.5 rounded-[10px] bg-slate-50/70 border border-slate-200">
+                        <span className="text-[10px] font-bold text-slate-700 uppercase block">Not Started</span>
+                        <p className="font-heading font-bold text-lg text-slate-900 mt-0.5">
+                          {analyticsData.notStartedSections}
+                        </p>
+                        <span className="text-[10px] text-slate-500">Unallocated or blank</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-warm-gray-400 text-center mt-4 pt-3 border-t border-warm-gray-100">
+                    Proposals require 100% of statutory compliance checklists verified prior to agency dispatch.
+                  </p>
+                </div>
+              </div>
+
+              {/* ── 5. Faculty & Investigator Research Performance Leaderboard ── */}
+              <div className="bg-surface-elevated rounded-[18px] border border-warm-gray-200/70 shadow-soft p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-warm-gray-200/80 mb-4">
+                  <div>
+                    <h3 className="font-heading font-bold text-base text-warm-gray-900 flex items-center gap-2">
+                      <span>👥</span> Faculty & Lead Investigator Grant Performance Leaderboard
+                    </h3>
+                    <p className="text-xs text-warm-gray-500 mt-0.5">
+                      Individual investigator workload, authored proposals, template section velocity, and funding capital handled.
+                    </p>
+                  </div>
+                  <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200">
+                    {analyticsData.facultyLeaderboard.length} Contributing Investigators
+                  </span>
+                </div>
+
+                {analyticsData.facultyLeaderboard.length === 0 ? (
+                  <div className="py-12 text-center text-xs text-warm-gray-400">
+                    Assign proposal sections in Proposal Management to view faculty analytics.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-cream/60 border-b border-warm-gray-200 text-[11px] font-bold text-warm-gray-600 uppercase tracking-wider">
+                          <th className="py-3 px-4">Faculty Investigator</th>
+                          <th className="py-3 px-4">Designation / Role</th>
+                          <th className="py-3 px-4 text-center">Authored Proposals</th>
+                          <th className="py-3 px-4">Sections Completed</th>
+                          <th className="py-3 px-4">Pipeline Value</th>
+                          <th className="py-3 px-4 text-center">Awards Won</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-warm-gray-200/60 font-sans">
+                        {analyticsData.facultyLeaderboard.map((faculty, idx) => (
+                          <tr key={faculty.id || idx} className="hover:bg-cream/30 transition-colors">
+                            <td className="py-3.5 px-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-900 font-bold flex items-center justify-center text-xs shrink-0 border border-purple-200">
+                                  {faculty.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                  <p className="font-bold text-warm-gray-900">{faculty.name}</p>
+                                  <p className="text-[11px] text-warm-gray-400 font-mono">{faculty.email}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 font-medium text-warm-gray-700">
+                              {faculty.jobTitle}
+                            </td>
+                            <td className="py-3.5 px-4 text-center font-bold text-warm-gray-900">
+                              {faculty.proposalsCount}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="max-w-[140px]">
+                                <div className="flex items-center justify-between text-[10px] font-bold text-warm-gray-600 mb-1">
+                                  <span>{faculty.approvedSectionsCount} of {faculty.assignedSectionsCount}</span>
+                                  <span>{faculty.assignedSectionsCount > 0 ? Math.round((faculty.approvedSectionsCount / faculty.assignedSectionsCount) * 100) : 0}%</span>
+                                </div>
+                                <div className="w-full h-1.5 rounded-full bg-warm-gray-100 overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full bg-purple-600"
+                                    style={{
+                                      width: `${faculty.assignedSectionsCount > 0 ? (faculty.approvedSectionsCount / faculty.assignedSectionsCount) * 100 : 0}%`,
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 font-mono font-bold text-warm-gray-900">
+                              {formatCurrency(faculty.pipelineCapital)}
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              {faculty.awardsWon > 0 ? (
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 font-bold text-[10px] border border-emerald-300 flex items-center justify-center gap-1 w-fit mx-auto">
+                                  <span>🏆</span> {faculty.awardsWon}
+                                </span>
+                              ) : (
+                                <span className="text-warm-gray-400 text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4 text-right">
+                              <button
+                                type="button"
+                                onClick={() => setActiveSection('proposals')}
+                                className="px-3 py-1 rounded-[8px] bg-white hover:bg-cream text-warm-gray-700 border border-warm-gray-200 text-xs font-semibold transition-all cursor-pointer shadow-2xs"
+                              >
+                                View Proposals
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1093,21 +3484,61 @@ export default function OrgAdminDashboard() {
                 </button>
               </div>
 
-              {/* Proposal Selector Tabs */}
+              {/* Proposal Selector & Search Bar */}
               {orgProposals.length > 0 && (
-                <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-warm-gray-200/60">
-                  {orgProposals.map((prop) => (
-                    <button
-                      key={prop._id}
-                      onClick={() => setSelectedProposalId(prop._id)}
-                      className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer border whitespace-nowrap ${selectedProposalObj?._id === prop._id
-                        ? 'bg-purple-600 text-white border-purple-600 shadow-soft'
-                        : 'bg-white text-warm-gray-700 border-warm-gray-200 hover:bg-warm-gray-50'
-                        }`}
-                    >
-                      {prop.title}
-                    </button>
-                  ))}
+                <div className="space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="relative flex-1 max-w-md">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-warm-gray-400 text-xs">🔍</span>
+                      <input
+                        type="text"
+                        value={proposalManagementSearch}
+                        onChange={(e) => setProposalManagementSearch(e.target.value)}
+                        placeholder="Search proposals by title, agency, or grant..."
+                        className="w-full pl-9 pr-8 py-2 rounded-[10px] border border-warm-gray-200 bg-cream/40 text-xs text-warm-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20 placeholder:text-warm-gray-400"
+                      />
+                      {proposalManagementSearch && (
+                        <button
+                          onClick={() => setProposalManagementSearch('')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-gray-400 hover:text-warm-gray-700 text-xs font-bold"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                    <span className="text-xs text-warm-gray-400 font-medium">
+                      Showing {orgProposals.filter(p => !proposalManagementSearch.trim() || (p.title || '').toLowerCase().includes(proposalManagementSearch.toLowerCase()) || (p.grantAgency || '').toLowerCase().includes(proposalManagementSearch.toLowerCase())).length} of {orgProposals.length} proposals
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-warm-gray-200/60">
+                    {orgProposals
+                      .filter((p) => {
+                        if (!proposalManagementSearch.trim()) return true
+                        const q = proposalManagementSearch.toLowerCase().trim()
+                        return (
+                          (p.title || '').toLowerCase().includes(q) ||
+                          (p.grantTitle || '').toLowerCase().includes(q) ||
+                          (p.grantAgency || '').toLowerCase().includes(q)
+                        )
+                      })
+                      .map((prop) => (
+                        <button
+                          key={prop._id}
+                          onClick={() => {
+                            setSelectedProposalId(prop._id)
+                            setPdfNotSubmittedMsg(null)
+                          }}
+                          className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer border whitespace-nowrap flex items-center gap-1.5 ${selectedProposalObj?._id === prop._id
+                            ? 'bg-purple-600 text-white border-purple-600 shadow-soft'
+                            : 'bg-white text-warm-gray-700 border-warm-gray-200 hover:bg-warm-gray-50'
+                            }`}
+                        >
+                          <span>{prop.status === 'Awarded' ? '🏆' : prop.status === 'Submitted to Agency' ? '🏛️' : prop.status === 'Under Evaluation' ? '🔍' : '📝'}</span>
+                          {prop.title}
+                        </button>
+                      ))}
+                  </div>
                 </div>
               )}
 
@@ -1118,9 +3549,20 @@ export default function OrgAdminDashboard() {
                   <div className="bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-soft p-6">
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                       <div>
-                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                          17-Section Master Template
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                            17-Section Master Template
+                          </span>
+                          {selectedProposalObj.status === 'Submitted to Agency' ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-soft">
+                              🏛️ Submitted to Agency (Ref: {selectedProposalObj.agencySubmission?.agencySubmissionId || 'Dispatched'})
+                            </span>
+                          ) : selectedProposalObj.status === 'Submitted to Admin' ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-green-50 text-green-700 border border-green-200 shadow-soft animate-pulse">
+                              ✓ Final Proposal Submitted by PI
+                            </span>
+                          ) : null}
+                        </div>
                         <h2 className="font-heading text-xl font-bold text-warm-gray-900 mt-2">{selectedProposalObj.title}</h2>
                         <p className="text-xs text-warm-gray-500 mt-1">
                           Grant: <span className="font-semibold text-warm-gray-800">{selectedProposalObj.grantTitle || 'N/A'}</span> ({selectedProposalObj.grantAgency || 'Funding Agency'})
@@ -1131,10 +3573,23 @@ export default function OrgAdminDashboard() {
                       {/* Banner Action Buttons */}
                       <div className="flex flex-wrap items-center gap-2">
                         <button
-                          onClick={() => setShowFullProposalModal(true)}
-                          className="px-4 py-2.5 rounded-[12px] bg-purple-600 text-white text-xs font-bold hover:bg-purple-700 transition-all cursor-pointer flex items-center gap-1.5 shadow-soft"
+                          onClick={() => {
+                            if (
+                              selectedProposalObj.status !== 'Submitted to Admin' &&
+                              selectedProposalObj.status !== 'Submitted to Agency' &&
+                              selectedProposalObj.status !== 'Submitted'
+                            ) {
+                              setPdfNotSubmittedMsg(
+                                'The Principal Investigator (PI) has not submitted the final proposal to Admin yet. You can only view and export the final PDF once the PI completes the section reviews and submit to Admin.'
+                              )
+                            } else {
+                              setPdfNotSubmittedMsg(null)
+                              setShowFullProposalModal(true)
+                            }
+                          }}
+                          className="px-4.5 py-2.5 rounded-[12px] bg-purple-600 text-white text-xs font-bold hover:bg-purple-700 transition-all cursor-pointer flex items-center gap-2 shadow-soft"
                         >
-                          <span>📄</span> View Full Proposal Document
+                          <span>📄</span> View & Export Final PDF
                         </button>
                         <button
                           onClick={() => handleAutoAssignByRolePresets(selectedProposalObj._id)}
@@ -1151,13 +3606,163 @@ export default function OrgAdminDashboard() {
                         </button>
                       </div>
                     </div>
+
+                    {/* Notice if PI has not submitted final proposal yet */}
+                    {pdfNotSubmittedMsg && (
+                      <div className="mt-4 p-4 rounded-[14px] bg-amber-50 border border-amber-300 text-amber-950 flex items-start justify-between gap-3 animate-fade-in shadow-xs">
+                        <div className="flex items-start gap-3">
+                          <span className="text-xl leading-none mt-0.5">⚠️</span>
+                          <div>
+                            <p className="font-bold text-xs text-amber-900 uppercase tracking-wide">Final Proposal Not Submitted Yet</p>
+                            <p className="text-xs text-amber-800 mt-1 font-medium leading-relaxed">
+                              {pdfNotSubmittedMsg}
+                            </p>
+                            <p className="text-[11px] text-amber-700 mt-1">
+                              Current Status: <span className="font-semibold">{selectedProposalObj.status || 'In Progress'}</span> ({selectedProposalObj.progress || 0}% sections approved)
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setPdfNotSubmittedMsg(null)}
+                          className="text-amber-700 hover:text-amber-950 font-bold text-sm cursor-pointer p-1"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+
+                    {/* ─── Pre-Submission Compliance Checklist & Agency Dispatch Section ─── */}
+                    {(selectedProposalObj.status === 'Submitted to Admin' || selectedProposalObj.status === 'Submitted to Agency' || selectedProposalObj.status === 'Submitted') && (
+                      <div className="mt-6 pt-6 border-t border-warm-gray-200/80 animate-fade-in">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-base">📋</span>
+                              <h3 className="font-heading text-sm font-bold text-warm-gray-900">
+                                Institutional Pre-Submission Compliance Checklist
+                              </h3>
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                {COMPLIANCE_CHECKLIST_ITEMS.filter((item) => selectedProposalObj.preSubmissionChecklist?.[item.key]).length} of {COMPLIANCE_CHECKLIST_ITEMS.length} Verified
+                              </span>
+                            </div>
+                            <p className="text-xs text-warm-gray-500 mt-0.5">
+                              Admin verification of statutory institutional endorsements, clearances, and auditor certifications prior to formal funding agency dispatch.
+                            </p>
+                          </div>
+
+                          {/* Action Button: Submit to Agency or Status */}
+                          {selectedProposalObj.status === 'Submitted to Agency' ? (
+                            <div className="px-3.5 py-2 rounded-[10px] bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center gap-1.5 shadow-xs">
+                              <span>🏛️</span> Submitted to {selectedProposalObj.grantAgency || 'Agency'} (Ref: {selectedProposalObj.agencySubmission?.agencySubmissionId})
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!selectedProposalObj.preSubmissionChecklist?.endorsementLetter) {
+                                  alert('⚠️ Institutional Endorsement Letter (Mandatory) must be verified before submitting to the funding agency.')
+                                  return
+                                }
+                                setSubmitAgencyModal(true)
+                              }}
+                              className={`px-5 py-2.5 rounded-[12px] text-xs font-bold transition-all shadow-soft flex items-center gap-2 cursor-pointer ${
+                                selectedProposalObj.preSubmissionChecklist?.endorsementLetter
+                                  ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white hover:opacity-95 shadow-md'
+                                  : 'bg-warm-gray-200 text-warm-gray-500 border border-warm-gray-300 cursor-not-allowed opacity-75'
+                              }`}
+                            >
+                              <span>🚀</span> Submit to Funding Agency
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Interactive Checklist Cards */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-cream/50 p-4 rounded-[14px] border border-warm-gray-200/80">
+                          {COMPLIANCE_CHECKLIST_ITEMS.map((item) => {
+                            const isChecked = Boolean(selectedProposalObj.preSubmissionChecklist?.[item.key])
+                            const isLocked = selectedProposalObj.status === 'Submitted to Agency'
+                            return (
+                              <div
+                                key={item.key}
+                                onClick={() => {
+                                  if (isLocked) return
+                                  handleToggleChecklist(selectedProposalObj._id, item.key)
+                                }}
+                                className={`p-3.5 rounded-[12px] border transition-all flex items-start gap-3 select-none ${
+                                  isLocked
+                                    ? isChecked
+                                      ? 'bg-white border-emerald-200 shadow-xs'
+                                      : 'bg-warm-gray-50 border-warm-gray-200 opacity-60'
+                                    : isChecked
+                                    ? 'bg-white border-emerald-300 shadow-xs cursor-pointer hover:border-emerald-400'
+                                    : 'bg-white border-warm-gray-200 cursor-pointer hover:border-purple-300 hover:bg-purple-50/20'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  disabled={isLocked || updatingChecklistKey === item.key}
+                                  onChange={() => {}}
+                                  className="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600 shrink-0"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className={`text-xs font-bold ${isChecked ? 'text-emerald-950 font-semibold' : 'text-warm-gray-900'}`}>
+                                      {item.label}
+                                    </span>
+                                    {item.mandatory && !isChecked && (
+                                      <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-100 text-amber-900 border border-amber-200 shrink-0">
+                                        Mandatory
+                                      </span>
+                                    )}
+                                    {isChecked && (
+                                      <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
+                                        ✓ Verified
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-warm-gray-500 mt-1 leading-snug">
+                                    {item.description}
+                                  </p>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+
+                        {/* Agency Submission Complete Metadata Strip */}
+                        {selectedProposalObj.status === 'Submitted to Agency' && selectedProposalObj.agencySubmission && (
+                          <div className="mt-3 p-4 rounded-[12px] bg-emerald-50 border border-emerald-200 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                            <div className="space-y-0.5">
+                              <p className="font-bold flex items-center gap-1.5 text-emerald-900">
+                                <span>🏛️</span> Official Agency Submission Record (Permanent Dossier Lock)
+                              </p>
+                              <p className="text-[11px] text-emerald-800">
+                                Agency Reference ID: <strong className="font-mono bg-white px-2 py-0.5 rounded border border-emerald-300 font-bold">{selectedProposalObj.agencySubmission.agencySubmissionId}</strong>
+                                {selectedProposalObj.agencySubmission.submittedByName && <> &nbsp;•&nbsp; Submitted by: <strong>{selectedProposalObj.agencySubmission.submittedByName}</strong></>}
+                                {selectedProposalObj.agencySubmission.submittedAt && <> &nbsp;•&nbsp; Timestamp: {new Date(selectedProposalObj.agencySubmission.submittedAt).toLocaleString()}</>}
+                              </p>
+                              {selectedProposalObj.agencySubmission.receiptNote && (
+                                <p className="text-[11px] text-emerald-700 italic mt-0.5">
+                                  Notes: "{selectedProposalObj.agencySubmission.receiptNote}"
+                                </p>
+                              )}
+                            </div>
+                            <span className="px-2.5 py-1 rounded-[8px] bg-white border border-emerald-300 text-emerald-800 text-[10px] font-bold shrink-0">
+                              🔒 Dossier Read-Only
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* 17 Sections Table */}
                   <div className="bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-soft overflow-hidden">
                     <div className="px-6 py-4 border-b border-warm-gray-200/60 flex items-center justify-between bg-cream/40">
-                      <h3 className="font-heading font-bold text-warm-gray-900">Section Assignments & Review ({selectedProposalObj.sections?.length || 17} Sections)</h3>
-                      <span className="text-xs text-warm-gray-500">Select team member & review section text</span>
+                      <h3 className="font-heading font-bold text-warm-gray-900">Section Assignments ({selectedProposalObj.sections?.length || 17} Sections)</h3>
+                      <span className="text-xs text-warm-gray-500">Select team member for each section</span>
                     </div>
 
                     <div className="divide-y divide-warm-gray-200/60 max-h-[600px] overflow-y-auto">
@@ -1179,17 +3784,8 @@ export default function OrgAdminDashboard() {
                             </p>
                           </div>
 
-                          {/* Member Dropdown & Review Button */}
+                          {/* Member Dropdown */}
                           <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => setReviewSectionModal(sec)}
-                              className={`px-3 py-2 rounded-[10px] text-xs font-bold border transition-all cursor-pointer flex items-center gap-1 ${sec.status === 'Ready for Review'
-                                  ? 'bg-green-600 text-white border-green-600 hover:bg-green-700 shadow-soft'
-                                  : 'bg-warm-gray-100 hover:bg-warm-gray-200 text-warm-gray-800 border-warm-gray-300'
-                                }`}
-                            >
-                              <span>👁️</span> {sec.status === 'Ready for Review' ? 'Review & Approve' : 'View Text'}
-                            </button>
                             <select
                               value={sec.assignedTo || ''}
                               onChange={(e) => {
@@ -1399,48 +3995,6 @@ export default function OrgAdminDashboard() {
           </div>
         </div>
       )}
-      {/* ─── Single Section Review & Approve Modal ─── */}
-      {reviewSectionModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={() => setReviewSectionModal(null)} />
-          <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-medium w-full max-w-2xl p-6 sm:p-8 animate-fade-up max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between pb-4 border-b border-warm-gray-200/60 mb-4">
-              <div>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${reviewSectionModal.status === 'Ready for Review' ? 'bg-green-50 text-green-700 border-green-200'
-                    : reviewSectionModal.status === 'Approved' ? 'bg-blue-50 text-blue-700 border-blue-200'
-                      : 'bg-warm-gray-50 text-warm-gray-600 border-warm-gray-200'
-                  }`}>
-                  {reviewSectionModal.status}
-                </span>
-                <h2 className="font-heading text-lg font-bold text-warm-gray-900 mt-1">{reviewSectionModal.title}</h2>
-                <p className="text-xs text-warm-gray-500">Assigned writer: <span className="font-semibold text-warm-gray-800">{reviewSectionModal.assignedToName || 'Unassigned'}</span></p>
-              </div>
-              <button onClick={() => setReviewSectionModal(null)} className="text-warm-gray-400 hover:text-warm-gray-700 text-lg font-bold p-1 cursor-pointer">
-                ✕
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 bg-white rounded-[12px] border border-warm-gray-200/80 font-mono text-xs text-warm-gray-800 leading-relaxed whitespace-pre-wrap mb-6">
-              {reviewSectionModal.content || <span className="text-warm-gray-400 italic">No content written yet for this section.</span>}
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-warm-gray-200/60">
-              <button onClick={() => setReviewSectionModal(null)} className="px-4 py-2 rounded-[10px] font-semibold text-warm-gray-600 hover:bg-warm-gray-100 text-xs cursor-pointer">
-                Close
-              </button>
-              {reviewSectionModal.status !== 'Approved' && (
-                <button
-                  onClick={() => handleApproveSection(reviewSectionModal._id)}
-                  className="px-5 py-2 rounded-[10px] font-bold text-white bg-green-600 hover:bg-green-700 shadow-soft transition-all text-xs cursor-pointer flex items-center gap-1.5"
-                >
-                  <span>✓</span> Approve Section
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ─── Full Compiled Proposal Modal ─── */}
       {showFullProposalModal && selectedProposalObj && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -1448,61 +4002,195 @@ export default function OrgAdminDashboard() {
           <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-medium w-full max-w-4xl p-6 sm:p-8 animate-fade-up max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between pb-4 border-b border-warm-gray-200/60 mb-4">
               <div>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                  Master Compiled Document
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-300">
+                  PDF Document Preview
                 </span>
                 <h2 className="font-heading text-xl font-bold text-warm-gray-900 mt-1">{selectedProposalObj.title}</h2>
-                <p className="text-xs text-warm-gray-500">Agency: {selectedProposalObj.grantAgency || 'Funding Agency'} &nbsp;•&nbsp; Overall Progress: {selectedProposalObj.progress || 0}%</p>
+                <p className="text-xs text-warm-gray-500">Agency: {selectedProposalObj.grantAgency || 'Funding Agency'} &nbsp;•&nbsp; Official Proposal View</p>
               </div>
               <button onClick={() => setShowFullProposalModal(false)} className="text-warm-gray-400 hover:text-warm-gray-700 text-lg font-bold p-1 cursor-pointer">
                 ✕
               </button>
             </div>
 
-            {/* Compiled Sections Content */}
-            <div className="flex-1 overflow-y-auto p-6 bg-white rounded-[16px] border border-warm-gray-200 shadow-inner space-y-6 mb-6 text-xs leading-relaxed text-warm-gray-800">
-              {selectedProposalObj.sections?.map((sec) => (
-                <div key={sec._id} className="pb-6 border-b border-warm-gray-200/60 last:border-0">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-heading font-bold text-sm text-purple-950">{sec.title}</h3>
-                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${sec.status === 'Approved' ? 'bg-blue-50 text-blue-700 border-blue-200'
-                        : sec.status === 'Ready for Review' ? 'bg-green-50 text-green-700 border-green-200'
-                          : 'bg-warm-gray-50 text-warm-gray-500 border-warm-gray-200'
-                      }`}>
-                      {sec.status} &nbsp;•&nbsp; Writer: {sec.assignedToName || 'Unassigned'}
-                    </span>
+            {selectedProposalObj.status === 'Submitted to Admin' || selectedProposalObj.status === 'Submitted to Agency' || selectedProposalObj.status === 'Submitted' ? (
+              <>
+                {/* Official PDF Document Preview Paper Sheet */}
+                <div className="flex-1 overflow-y-auto p-6 sm:p-10 bg-white rounded-[16px] border border-slate-300 shadow-medium mb-6 font-serif text-slate-900 leading-relaxed text-xs">
+                  {/* Cover Page */}
+                  <div className="text-center pb-8 border-b-2 border-double border-indigo-950 mb-8">
+                    <p className="text-[11px] font-bold uppercase tracking-[2.5px] text-indigo-700 mb-3 font-sans">
+                      OFFICIAL RESEARCH PROPOSAL
+                    </p>
+                    <h1 className="font-heading text-2xl font-bold text-slate-900 mb-6 leading-snug">
+                      {selectedProposalObj.title}
+                    </h1>
+
+                    <div className="grid grid-cols-2 gap-3 max-w-xl mx-auto text-left bg-slate-50 p-4 rounded-[10px] border border-slate-200 text-xs font-sans">
+                      <div><span className="font-bold text-slate-600">Funding Agency:</span> <span className="text-slate-900">{selectedProposalObj.grantAgency || 'N/A'}</span></div>
+                      <div><span className="font-bold text-slate-600">Grant Scheme:</span> <span className="text-slate-900">{selectedProposalObj.grantTitle || 'N/A'}</span></div>
+                      <div><span className="font-bold text-slate-600">Funding Requested:</span> <span className="text-slate-900">{selectedProposalObj.fundingAmount || 'N/A'}</span></div>
+                      <div><span className="font-bold text-slate-600">Submission Deadline:</span> <span className="text-slate-900">{selectedProposalObj.deadline || 'N/A'}</span></div>
+                      <div><span className="font-bold text-slate-600">Total Sections:</span> <span className="text-slate-900">{selectedProposalObj.sections?.length || 17} Sections</span></div>
+                      <div><span className="font-bold text-slate-600">Date of Submission:</span> <span className="text-slate-900">{new Date().toLocaleDateString()}</span></div>
+                      {selectedProposalObj.agencySubmission?.agencySubmissionId && (
+                        <div className="col-span-2 pt-2 border-t border-slate-200">
+                          <span className="font-bold text-emerald-800">Agency Application ID:</span> <span className="font-mono font-bold text-emerald-900">{selectedProposalObj.agencySubmission.agencySubmissionId}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="whitespace-pre-wrap font-sans bg-cream/30 p-4 rounded-[10px] border border-warm-gray-200/50">
-                    {sec.content || <span className="text-warm-gray-400 italic">No section text submitted yet.</span>}
+
+                  {/* Document Header Sub-line */}
+                  <div className="flex justify-between text-[11px] text-slate-500 border-b border-slate-200 pb-2 mb-8 font-sans">
+                    <span>Official Research Proposal Submission</span>
+                    <span>Ref: {selectedProposalObj.agencySubmission?.agencySubmissionId || selectedProposalObj.grantTitle || selectedProposalObj.title}</span>
+                  </div>
+
+                  {/* 17 Document Sections (Pure Academic Formatting) */}
+                  <div className="space-y-8">
+                    {selectedProposalObj.sections?.map((sec) => (
+                      <div key={sec._id} className="pb-6 border-b border-slate-200/80 last:border-0">
+                        <h2 className="font-heading font-bold text-sm text-slate-900 border-b border-indigo-900/30 pb-1 mb-3">
+                          {sec.title}
+                        </h2>
+                        <div className="whitespace-pre-wrap text-slate-800 text-xs leading-relaxed font-sans bg-slate-50/50 p-4 rounded-[8px] border border-slate-100">
+                          {sec.content ? sec.content : <em className="text-slate-400 italic">[Section content pending]</em>}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
+
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-warm-gray-200/60">
+                  <button
+                    type="button"
+                    onClick={() => handleExportPDF(selectedProposalObj)}
+                    className="px-5 py-2.5 rounded-[10px] font-bold text-white bg-purple-600 hover:bg-purple-700 shadow-soft transition-all text-xs cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>📥</span> Export PDF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowFullProposalModal(false)}
+                    className="px-4 py-2 rounded-[10px] font-semibold text-warm-gray-600 hover:bg-warm-gray-100 text-xs cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center p-10 bg-white rounded-[16px] border border-warm-gray-200 text-center my-4">
+                <span className="text-5xl mb-4">⏳</span>
+                <h3 className="font-heading font-bold text-lg text-warm-gray-900 mb-2">Final Proposal Not Submitted Yet</h3>
+                <p className="text-xs text-warm-gray-600 max-w-md leading-relaxed mb-4">
+                  The Principal Investigator (PI) has not submitted the final proposal to Admin yet. You can only view and export the complete final PDF once the PI finishes reviewing the sections and clicks <strong>"Submit to Admin"</strong>.
+                </p>
+                <div className="px-4 py-2 bg-amber-50 text-amber-800 border border-amber-200 rounded-full text-xs font-semibold">
+                  Status: {selectedProposalObj.status || 'In Progress'} ({selectedProposalObj.progress || 0}% sections approved)
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowFullProposalModal(false)}
+                  className="mt-6 px-6 py-2 rounded-[10px] bg-warm-gray-100 hover:bg-warm-gray-200 text-warm-gray-800 text-xs font-bold cursor-pointer transition-all"
+                >
+                  Close
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Submit to Funding Agency Modal ─── */}
+      {submitAgencyModal && selectedProposalObj && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-xs" onClick={() => setSubmitAgencyModal(false)} />
+          <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-2xl w-full max-w-lg p-6 sm:p-8 animate-fade-up">
+            <div className="flex items-center justify-between pb-4 border-b border-warm-gray-200/60 mb-5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-[10px] bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-lg">
+                  🏛️
+                </div>
+                <div>
+                  <h2 className="font-heading text-lg font-bold text-warm-gray-900">
+                    Submit Proposal to Funding Agency
+                  </h2>
+                  <p className="text-xs text-warm-gray-500">
+                    Target: {selectedProposalObj.grantAgency || 'Funding Agency'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSubmitAgencyModal(false)}
+                className="text-warm-gray-400 hover:text-warm-gray-700 text-lg font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-warm-gray-200/60">
-              <button
-                type="button"
-                onClick={() => handleExportPDF(selectedProposalObj)}
-                className="px-4 py-2.5 rounded-[10px] font-bold text-purple-900 bg-purple-100 hover:bg-purple-200 transition-all text-xs cursor-pointer flex items-center gap-1.5 border border-purple-300"
-              >
-                <span>📥</span> Export PDF
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowFullProposalModal(false)}
-                className="px-4 py-2 rounded-[10px] font-semibold text-warm-gray-600 hover:bg-warm-gray-100 text-xs cursor-pointer"
-              >
-                Close Review
-              </button>
-              <button
-                type="button"
-                onClick={handleApproveAllSections}
-                disabled={actionLoading === selectedProposalObj._id}
-                className="px-5 py-2.5 rounded-[10px] font-bold text-white bg-green-600 hover:bg-green-700 shadow-soft transition-all text-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-              >
-                <span>✓</span> {actionLoading === selectedProposalObj._id ? 'Approving All...' : 'Approve All 17 Sections'}
-              </button>
+            <div className="mb-4 p-3.5 rounded-[12px] bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 leading-relaxed">
+              <p className="font-bold flex items-center gap-1.5 mb-1">
+                <span>✓</span> Statutory Clearance Verified
+              </p>
+              <p className="text-[11px] text-emerald-800">
+                Institutional Endorsement Letter has been confirmed. By proceeding, you certify that this research proposal is legally submitted on behalf of <strong>{orgName || 'the Institution'}</strong>. All 17 sections will be permanently locked.
+              </p>
             </div>
+
+            <form onSubmit={handleSubmitToAgency} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-warm-gray-800 mb-1.5">
+                  Official Agency Reference / Application ID <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={agencySubmissionData.agencySubmissionId}
+                  onChange={(e) =>
+                    setAgencySubmissionData((prev) => ({ ...prev, agencySubmissionId: e.target.value }))
+                  }
+                  placeholder="e.g., UGC/2026/MRP-8841 or DST/SERB/CRG/0921"
+                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-warm-gray-200 bg-white text-xs font-mono font-bold text-warm-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                />
+                <p className="text-[10px] text-warm-gray-500 mt-1">
+                  Generated by the funding agency's portal upon online application or physical docket dispatch.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-warm-gray-800 mb-1.5">
+                  Submission Notes / Portal Receipt (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={agencySubmissionData.receiptNote}
+                  onChange={(e) =>
+                    setAgencySubmissionData((prev) => ({ ...prev, receiptNote: e.target.value }))
+                  }
+                  placeholder="e.g., Submitted via DST e-PMS portal with institutional digital signature. Acknowledgement #48291."
+                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-warm-gray-200 bg-white text-xs text-warm-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 resize-none"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSubmitAgencyModal(false)}
+                  className="flex-1 py-2.5 rounded-[12px] font-semibold text-warm-gray-600 hover:bg-warm-gray-100 transition-all text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingAgency || !agencySubmissionData.agencySubmissionId.trim()}
+                  className="flex-1 py-2.5 rounded-[12px] font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-700 hover:opacity-95 shadow-soft transition-all text-xs cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  <span>🚀</span> {submittingAgency ? 'Submitting...' : 'Confirm Official Submission'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -1646,9 +4334,9 @@ export default function OrgAdminDashboard() {
                                       <p className="text-[11px] text-warm-gray-400">Word limit: {sec.wordCountLimit || 500} words</p>
                                     </div>
                                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${sec.status === 'Approved' ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                        : sec.status === 'Ready for Review' ? 'bg-green-50 text-green-700 border-green-200'
-                                          : sec.status === 'In Progress' ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                            : 'bg-warm-gray-50 text-warm-gray-600 border-warm-gray-200'
+                                      : sec.status === 'Ready for Review' ? 'bg-green-50 text-green-700 border-green-200'
+                                        : sec.status === 'In Progress' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                          : 'bg-warm-gray-50 text-warm-gray-600 border-warm-gray-200'
                                       }`}>
                                       {sec.status}
                                     </span>
@@ -1675,6 +4363,621 @@ export default function OrgAdminDashboard() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ─── Tracking Modal 1: Status Change Dialog ─── */}
+      {statusChangeModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={() => setStatusChangeModal(null)} />
+          <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-2xl w-full max-w-md p-6 sm:p-7 animate-fade-in z-10">
+            <div className="flex items-center justify-between pb-3 border-b border-warm-gray-200 mb-4">
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
+                  Lifecycle Stage Update
+                </span>
+                <h3 className="font-heading font-bold text-base text-warm-gray-900 mt-1">Update Tracking Status</h3>
+              </div>
+              <button onClick={() => setStatusChangeModal(null)} className="text-warm-gray-400 hover:text-warm-gray-700 font-bold p-1 cursor-pointer">✕</button>
+            </div>
+
+            <p className="text-xs text-warm-gray-600 mb-4 line-clamp-2">
+              Proposal: <strong className="text-warm-gray-900">{statusChangeModal.proposal.title}</strong>
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-warm-gray-700 block mb-1">Target Lifecycle Stage *</label>
+                <select
+                  value={statusChangeModal.newStatus}
+                  onChange={(e) => {
+                    if (e.target.value === 'Awarded') {
+                      const prop = statusChangeModal.proposal
+                      setStatusChangeModal(null)
+                      handleOpenStatusChange(prop, 'Awarded')
+                      return
+                    }
+                    setStatusChangeModal({ ...statusChangeModal, newStatus: e.target.value })
+                  }}
+                  className="w-full px-3 py-2.5 rounded-[10px] border border-warm-gray-200 bg-white text-xs font-bold text-warm-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 cursor-pointer"
+                >
+                  <option value="Submitted to Agency">🏛️ Submitted to Agency</option>
+                  <option value="Under Evaluation">🔍 Under Evaluation (Peer Review)</option>
+                  <option value="Revisions Requested">⚠️ Revisions / Query Requested</option>
+                  <option value="Awarded">🏆 Awarded / Sanctioned</option>
+                  <option value="Rejected">❌ Rejected / Not Shortlisted</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-warm-gray-700 block mb-1">
+                  Status Notes / Agency Communication <span className="text-warm-gray-400 font-normal">(Optional)</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={statusChangeModal.notes}
+                  onChange={(e) => setStatusChangeModal({ ...statusChangeModal, notes: e.target.value })}
+                  placeholder="e.g. Funding agency nodal officer communicated peer review scores; interview defense scheduled for next week."
+                  className="w-full p-3 rounded-[10px] border border-warm-gray-200 bg-cream/30 text-xs font-mono text-warm-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20 placeholder:text-warm-gray-400 resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-warm-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setStatusChangeModal(null)}
+                  className="px-4 py-2 rounded-[10px] text-xs font-semibold text-warm-gray-600 hover:bg-warm-gray-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmStatusChange}
+                  disabled={updatingTrackingStatus}
+                  className="px-5 py-2.5 rounded-[10px] text-xs font-bold text-white bg-primary hover:bg-primary-dark shadow-soft cursor-pointer transition-all disabled:opacity-50"
+                >
+                  {updatingTrackingStatus ? 'Updating...' : 'Confirm Stage Update'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Tracking Modal 2: Post-Award Sanction Details (Improvement 3) ─── */}
+      {awardModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={() => setAwardModal(null)} />
+          <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-2xl w-full max-w-lg p-6 sm:p-8 animate-fade-in z-10 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-warm-gray-200 mb-4">
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1 w-fit">
+                  <span>🏆</span> Grant Sanction & Award Form
+                </span>
+                <h3 className="font-heading font-bold text-lg text-warm-gray-900 mt-1">Record Official Sanction Order</h3>
+              </div>
+              <button onClick={() => setAwardModal(null)} className="text-warm-gray-400 hover:text-warm-gray-700 font-bold p-1 cursor-pointer">✕</button>
+            </div>
+
+            <p className="text-xs text-warm-gray-600 mb-5 leading-relaxed">
+              Transition <strong className="text-warm-gray-900">{awardModal.title}</strong> into an officially sanctioned institutional award. These details will be preserved in the grant ledger.
+            </p>
+
+            <form onSubmit={handleConfirmAward} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-warm-gray-700 block mb-1">Sanction Order Number *</label>
+                  <input
+                    type="text"
+                    required
+                    value={awardForm.sanctionOrderNumber}
+                    onChange={(e) => setAwardForm({ ...awardForm, sanctionOrderNumber: e.target.value })}
+                    placeholder="e.g. DST/SERB/2026/00412"
+                    className="w-full px-3 py-2 rounded-[10px] border border-warm-gray-200 bg-white text-xs font-mono font-bold text-warm-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-warm-gray-700 block mb-1">Sanctioned Amount *</label>
+                  <input
+                    type="text"
+                    required
+                    value={awardForm.sanctionedAmount}
+                    onChange={(e) => setAwardForm({ ...awardForm, sanctionedAmount: e.target.value })}
+                    placeholder="e.g. ₹22,50,000"
+                    className="w-full px-3 py-2 rounded-[10px] border border-warm-gray-200 bg-white text-xs font-bold text-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-warm-gray-700 block mb-1">Project Start Date</label>
+                  <input
+                    type="date"
+                    value={awardForm.startDate}
+                    onChange={(e) => setAwardForm({ ...awardForm, startDate: e.target.value })}
+                    className="w-full px-3 py-2 rounded-[10px] border border-warm-gray-200 bg-white text-xs font-medium text-warm-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-warm-gray-700 block mb-1">Duration (Months)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="120"
+                    value={awardForm.durationMonths}
+                    onChange={(e) => setAwardForm({ ...awardForm, durationMonths: e.target.value })}
+                    className="w-full px-3 py-2 rounded-[10px] border border-warm-gray-200 bg-white text-xs font-medium text-warm-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-warm-gray-700 block mb-1">Sanction Terms / Special Conditions</label>
+                <textarea
+                  rows={3}
+                  value={awardForm.sanctionNotes}
+                  onChange={(e) => setAwardForm({ ...awardForm, sanctionNotes: e.target.value })}
+                  placeholder="e.g. Overhead allowed at 10%; ₹5L earmarked for spectrophotometer purchase under Non-Recurring equipment head."
+                  className="w-full p-3 rounded-[10px] border border-warm-gray-200 bg-cream/30 text-xs font-sans text-warm-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 placeholder:text-warm-gray-400 resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-warm-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setAwardModal(null)}
+                  className="px-4 py-2 rounded-[10px] text-xs font-semibold text-warm-gray-600 hover:bg-warm-gray-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={updatingTrackingStatus}
+                  className="px-5 py-2.5 rounded-[10px] text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-90 shadow-soft cursor-pointer transition-all disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <span>🏆</span> {updatingTrackingStatus ? 'Recording...' : 'Record Award & Sanction'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Tracking Modal 3: Quick Ping PI (Improvement 6) ─── */}
+      {pingPiModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={() => setPingPiModal(null)} />
+          <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-2xl w-full max-w-md p-6 sm:p-7 animate-fade-in z-10">
+            <div className="flex items-center justify-between pb-3 border-b border-warm-gray-200 mb-3">
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
+                  Instant Team Ping
+                </span>
+                <h3 className="font-heading font-bold text-base text-warm-gray-900 mt-1">Send Notice to PI</h3>
+              </div>
+              <button onClick={() => setPingPiModal(null)} className="text-warm-gray-400 hover:text-warm-gray-700 font-bold p-1 cursor-pointer">✕</button>
+            </div>
+
+            <p className="text-xs text-warm-gray-600 mb-3">
+              Proposal: <strong className="text-warm-gray-900">{pingPiModal.title}</strong>
+            </p>
+
+            {/* Template Chips */}
+            <div className="mb-3 space-y-1.5">
+              <span className="text-[10px] font-bold text-warm-gray-500 uppercase tracking-wider block">Quick Templates</span>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  'Agency requested budget justification revisions.',
+                  'Technical committee interview presentation scheduled.',
+                  'Referee comments uploaded in portal. Please review.',
+                  'Official Sanction Order received! Congratulations!',
+                ].map((tpl) => (
+                  <button
+                    key={tpl}
+                    type="button"
+                    onClick={() => setPingPiMessage(tpl)}
+                    className="px-2 py-1 rounded-[6px] bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-900 text-[10px] font-medium text-left transition-colors cursor-pointer"
+                  >
+                    + {tpl}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <form onSubmit={handleSendPingPi} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-warm-gray-700 block mb-1">Message for PI & Research Team *</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={pingPiMessage}
+                  onChange={(e) => setPingPiMessage(e.target.value)}
+                  placeholder="Type your message or query for the PI here..."
+                  className="w-full p-3 rounded-[10px] border border-warm-gray-200 bg-cream/30 text-xs font-sans text-warm-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20 placeholder:text-warm-gray-400 resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-warm-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setPingPiModal(null)}
+                  className="px-4 py-2 rounded-[10px] text-xs font-semibold text-warm-gray-600 hover:bg-warm-gray-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={updatingTrackingStatus}
+                  className="px-5 py-2.5 rounded-[10px] text-xs font-bold text-white bg-primary hover:bg-primary-dark shadow-soft cursor-pointer transition-all disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <span>🚀</span> {updatingTrackingStatus ? 'Sending...' : 'Send Note to PI'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Tracking Modal 4: Lifecycle Audit Timeline ─── */}
+      {timelineModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={() => setTimelineModal(null)} />
+          <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-2xl w-full max-w-lg p-6 sm:p-7 animate-fade-in z-10 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-warm-gray-200 mb-4">
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
+                  Audit History
+                </span>
+                <h3 className="font-heading font-bold text-base text-warm-gray-900 mt-1">Proposal Lifecycle Progression</h3>
+              </div>
+              <button onClick={() => setTimelineModal(null)} className="text-warm-gray-400 hover:text-warm-gray-700 font-bold p-1 cursor-pointer">✕</button>
+            </div>
+
+            <div className="bg-cream/40 p-3.5 rounded-[12px] border border-warm-gray-200/60 mb-5">
+              <h4 className="font-heading font-bold text-sm text-warm-gray-900 line-clamp-1">{timelineModal.title}</h4>
+              <p className="text-xs text-warm-gray-500 mt-0.5">
+                Agency: <strong className="text-warm-gray-800">{timelineModal.grantAgency || 'Funding Agency'}</strong> &nbsp;•&nbsp; Ref: <span className="font-mono font-bold text-purple-800">{timelineModal.agencySubmission?.agencySubmissionId || 'Recorded'}</span>
+              </p>
+            </div>
+
+            {/* Stepper Timeline */}
+            <div className="space-y-4 pl-3 relative border-l-2 border-purple-200 ml-3">
+              {/* Event 1: Creation */}
+              <div className="relative pl-5">
+                <span className="absolute -left-[23px] top-0.5 w-4 h-4 rounded-full bg-purple-600 border-2 border-white shadow-xs" />
+                <p className="text-xs font-bold text-warm-gray-900">Proposal Created</p>
+                <p className="text-[11px] text-warm-gray-500">17-section template generated and allocated for team writing.</p>
+                <span className="text-[10px] text-warm-gray-400 mt-0.5 block">{new Date(timelineModal.createdAt).toLocaleString()}</span>
+              </div>
+
+              {/* Event 2: Compliance cleared & Dispatched */}
+              {timelineModal.agencySubmission?.submittedAt && (
+                <div className="relative pl-5">
+                  <span className="absolute -left-[23px] top-0.5 w-4 h-4 rounded-full bg-blue-600 border-2 border-white shadow-xs" />
+                  <p className="text-xs font-bold text-warm-gray-900">Endorsed & Dispatched to Agency</p>
+                  <p className="text-[11px] text-warm-gray-600">
+                    Dispatched by {timelineModal.agencySubmission.submittedByName || 'Org Admin'}. Ref ID: <span className="font-mono font-bold text-blue-800">{timelineModal.agencySubmission.agencySubmissionId}</span>
+                  </p>
+                  <span className="text-[10px] text-warm-gray-400 mt-0.5 block">{new Date(timelineModal.agencySubmission.submittedAt).toLocaleString()}</span>
+                </div>
+              )}
+
+              {/* Dynamic Tracking Events */}
+              {(timelineModal.trackingTimeline || []).map((step, idx) => (
+                <div key={idx} className="relative pl-5">
+                  <span className="absolute -left-[23px] top-0.5 w-4 h-4 rounded-full bg-emerald-600 border-2 border-white shadow-xs" />
+                  <p className="text-xs font-bold text-warm-gray-900">Stage: {step.stage}</p>
+                  <p className="text-[11px] text-warm-gray-600">{step.notes || 'Status updated by administrator'}</p>
+                  <p className="text-[10px] text-warm-gray-400 mt-0.5">By {step.updatedBy || 'Admin'} on {new Date(step.timestamp).toLocaleString()}</p>
+                </div>
+              ))}
+
+              {/* Award Details if Awarded */}
+              {timelineModal.awardDetails?.sanctionOrderNumber && (
+                <div className="relative pl-5 bg-emerald-50/70 p-3 rounded-[10px] border border-emerald-200">
+                  <span className="absolute -left-[23px] top-3 w-4 h-4 rounded-full bg-emerald-600 border-2 border-white shadow-xs" />
+                  <p className="text-xs font-bold text-emerald-950 flex items-center gap-1">
+                    <span>🏆</span> Grant Officially Awarded & Sanctioned
+                  </p>
+                  <p className="text-xs text-emerald-800 font-bold mt-1">
+                    Sanction Order #{timelineModal.awardDetails.sanctionOrderNumber} • {timelineModal.awardDetails.sanctionedAmount}
+                  </p>
+                  {timelineModal.awardDetails.durationMonths && (
+                    <p className="text-[11px] text-emerald-700">Duration: {timelineModal.awardDetails.durationMonths} Months</p>
+                  )}
+                  {timelineModal.awardDetails.sanctionNotes && (
+                    <p className="text-[11px] text-emerald-900 mt-1 italic">"{timelineModal.awardDetails.sanctionNotes}"</p>
+                  )}
+                  <span className="text-[10px] text-emerald-600 mt-1 block">
+                    Recorded on {timelineModal.awardDetails.awardedAt ? new Date(timelineModal.awardDetails.awardedAt).toLocaleDateString() : 'N/A'} by {timelineModal.awardDetails.awardedBy || 'Admin'}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end pt-4 border-t border-warm-gray-200 mt-6">
+              <button
+                type="button"
+                onClick={() => setTimelineModal(null)}
+                className="px-5 py-2.5 rounded-[10px] font-bold text-warm-gray-700 bg-warm-gray-100 hover:bg-warm-gray-200 text-xs cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Modal: Schedule Milestone / Custom Reminder ─── */}
+      {createReminderModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={() => setCreateReminderModal(false)} />
+          <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-2xl w-full max-w-lg p-6 sm:p-8 animate-fade-in z-10 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-warm-gray-200 mb-4">
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                  Institutional Scheduler
+                </span>
+                <h3 className="font-heading font-bold text-base text-warm-gray-900 mt-1">
+                  Schedule Milestone / Deadline Reminder
+                </h3>
+              </div>
+              <button
+                onClick={() => setCreateReminderModal(false)}
+                className="text-warm-gray-400 hover:text-warm-gray-700 font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-warm-gray-500 mb-4">
+              Set automated notifications for call deadlines, internal reviews, ethical clearances, or agency follow-ups.
+            </p>
+
+            <form onSubmit={handleCreateReminder} className="space-y-4">
+              {/* Linked Proposal */}
+              <div>
+                <label className="text-xs font-bold text-warm-gray-700 block mb-1">
+                  Link to Proposal <span className="text-warm-gray-400 font-normal">(Optional)</span>
+                </label>
+                <select
+                  value={reminderForm.proposalId}
+                  onChange={(e) => setReminderForm({ ...reminderForm, proposalId: e.target.value })}
+                  className="w-full px-3 py-2 rounded-[10px] border border-warm-gray-200 bg-white text-xs font-medium text-warm-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                >
+                  <option value="">-- General Institutional Milestone (No Specific Proposal) --</option>
+                  {orgProposals.map((p) => (
+                    <option key={p._id} value={p._id}>
+                      📋 {p.title} ({p.grantAgency || 'Grant'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Title */}
+              <div>
+                <label className="text-xs font-bold text-warm-gray-700 block mb-1">
+                  Reminder Title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={reminderForm.title}
+                  onChange={(e) => setReminderForm({ ...reminderForm, title: e.target.value })}
+                  placeholder="e.g. DST SERB Query Resolution Deadline or Ethical Committee Review"
+                  className="w-full px-3 py-2.5 rounded-[10px] border border-warm-gray-200 bg-white text-xs font-medium text-warm-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-warm-gray-400"
+                />
+              </div>
+
+              {/* Due Date & Priority */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-warm-gray-700 block mb-1">
+                    Target Due Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={reminderForm.targetDate}
+                    onChange={(e) => setReminderForm({ ...reminderForm, targetDate: e.target.value })}
+                    className="w-full px-3 py-2 rounded-[10px] border border-warm-gray-200 bg-white text-xs font-medium text-warm-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-warm-gray-700 block mb-1">
+                    Priority Level
+                  </label>
+                  <select
+                    value={reminderForm.priority}
+                    onChange={(e) => setReminderForm({ ...reminderForm, priority: e.target.value })}
+                    className="w-full px-3 py-2 rounded-[10px] border border-warm-gray-200 bg-white text-xs font-bold text-warm-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                  >
+                    <option value="high">🔴 High Priority (Immediate Alert)</option>
+                    <option value="medium">🟡 Medium Priority (Standard)</option>
+                    <option value="low">🟢 Low Priority (Routine)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Reminder Type Chips */}
+              <div>
+                <label className="text-xs font-bold text-warm-gray-700 block mb-1.5">
+                  Milestone Category
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                  {[
+                    { key: 'call_deadline', label: '🏛️ Call Deadline' },
+                    { key: 'internal_review', label: '🔍 Internal Review' },
+                    { key: 'ethical_clearance', label: '🛡️ Ethical Board' },
+                    { key: 'agency_followup', label: '✉️ Agency Follow-up' },
+                    { key: 'budget_audit', label: '💰 Budget Audit' },
+                    { key: 'custom', label: '📌 Custom Task' },
+                  ].map((t) => (
+                    <button
+                      key={t.key}
+                      type="button"
+                      onClick={() => setReminderForm({ ...reminderForm, reminderType: t.key })}
+                      className={`px-2.5 py-1.5 rounded-[8px] text-[11px] font-bold text-left transition-all cursor-pointer border ${
+                        reminderForm.reminderType === t.key
+                          ? 'bg-primary-50 text-primary border-primary font-bold shadow-xs'
+                          : 'bg-cream/40 text-warm-gray-700 border-warm-gray-200 hover:bg-cream'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recipient / Assignee */}
+              <div>
+                <label className="text-xs font-bold text-warm-gray-700 block mb-1">
+                  Assignee / Recipient <span className="text-warm-gray-400 font-normal">(Optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={reminderForm.recipientName}
+                  onChange={(e) => setReminderForm({ ...reminderForm, recipientName: e.target.value })}
+                  placeholder="e.g. Prof. Thorne (PI), Dr. Rostova, or Dean R&D"
+                  className="w-full px-3 py-2 rounded-[10px] border border-warm-gray-200 bg-white text-xs font-medium text-warm-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-warm-gray-400"
+                />
+              </div>
+
+              {/* Instructions / Notes */}
+              <div>
+                <label className="text-xs font-bold text-warm-gray-700 block mb-1">
+                  Notes / Instructions <span className="text-warm-gray-400 font-normal">(Optional)</span>
+                </label>
+                <textarea
+                  rows={2}
+                  value={reminderForm.notes}
+                  onChange={(e) => setReminderForm({ ...reminderForm, notes: e.target.value })}
+                  placeholder="e.g. Finalize financial breakdown and obtain Registrar sign-off prior to portal submission."
+                  className="w-full p-2.5 rounded-[10px] border border-warm-gray-200 bg-cream/30 text-xs font-sans text-warm-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-warm-gray-400 resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-warm-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setCreateReminderModal(false)}
+                  className="px-4 py-2 rounded-[10px] text-xs font-semibold text-warm-gray-600 hover:bg-warm-gray-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingReminder}
+                  className="px-5 py-2.5 rounded-[10px] text-xs font-bold text-white bg-primary hover:bg-primary-dark shadow-soft cursor-pointer transition-all disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <span>🔔</span> {submittingReminder ? 'Scheduling...' : 'Save & Notify Team'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Modal: Official Agency Status Enquiry Letter Generator ─── */}
+      {followupLetterModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={() => setFollowupLetterModal(null)} />
+          <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-2xl w-full max-w-2xl p-6 sm:p-8 animate-fade-in z-10 max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-warm-gray-200 mb-4 shrink-0">
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
+                  Institutional Letterhead Generator
+                </span>
+                <h3 className="font-heading font-bold text-base text-warm-gray-900 mt-1">
+                  Official Status Enquiry Letter Draft
+                </h3>
+              </div>
+              <button
+                onClick={() => setFollowupLetterModal(null)}
+                className="text-warm-gray-400 hover:text-warm-gray-700 font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Letter Summary Card */}
+            <div className="bg-cream/40 p-3 rounded-[12px] border border-warm-gray-200/60 mb-3 shrink-0 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div>
+                <span className="text-warm-gray-500">Proposal:</span>{' '}
+                <strong className="text-warm-gray-900">{followupLetterModal.title}</strong>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-mono font-bold text-[10px] border border-blue-200">
+                  Ref: {followupLetterModal.agencySubmission?.agencySubmissionId || 'Recorded'}
+                </span>
+                <span className="text-warm-gray-500 text-[11px]">
+                  Agency: <strong className="text-warm-gray-800">{followupLetterModal.grantAgency || 'Funding Agency'}</strong>
+                </span>
+              </div>
+            </div>
+
+            {/* Formatted Letterhead Preview Box */}
+            <div className="flex-1 overflow-y-auto p-5 sm:p-6 bg-white rounded-[14px] border border-warm-gray-200 shadow-inner font-mono text-xs text-warm-gray-800 leading-relaxed whitespace-pre-wrap select-text">
+              {getFollowupLetterContent(followupLetterModal)}
+            </div>
+
+            {/* Footer Toolbar */}
+            <div className="flex items-center justify-between pt-4 border-t border-warm-gray-200 mt-4 shrink-0">
+              <span className="text-[11px] text-warm-gray-500 hidden sm:inline">
+                Formal draft ready for official Registrar dispatch or email representation.
+              </span>
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const text = getFollowupLetterContent(followupLetterModal)
+                    navigator.clipboard.writeText(text)
+                    setCopiedLetter(true)
+                    showToast('✓ Enquiry letter copied to clipboard!')
+                    setTimeout(() => setCopiedLetter(false), 2000)
+                  }}
+                  className={`px-4 py-2 rounded-[10px] text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-soft ${
+                    copiedLetter
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-primary text-white hover:bg-primary-dark'
+                  }`}
+                >
+                  <span>{copiedLetter ? '✓' : '📋'}</span>
+                  {copiedLetter ? 'Copied to Clipboard!' : 'Copy Letter Text'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3.5 py-2 rounded-[10px] text-xs font-bold text-warm-gray-700 bg-warm-gray-100 hover:bg-warm-gray-200 transition-colors cursor-pointer flex items-center gap-1"
+                >
+                  <span>🖨️</span> Print / PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFollowupLetterModal(null)}
+                  className="px-3.5 py-2 rounded-[10px] text-xs font-semibold text-warm-gray-500 hover:text-warm-gray-800 cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Real-Time Live Notification Toast ─── */}
+      {liveToast && (
+        <div className="fixed bottom-6 right-6 z-[99999] bg-slate-900/95 text-white px-4 py-3 rounded-[14px] shadow-2xl border border-slate-700/80 text-xs flex items-center gap-3 backdrop-blur-md max-w-sm transition-all animate-fade-in">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
+          <span className="flex-1 font-medium leading-snug">{liveToast}</span>
+          <button
+            onClick={() => setLiveToast(null)}
+            className="text-slate-400 hover:text-white font-bold ml-1 text-sm cursor-pointer"
+          >
+            ✕
+          </button>
         </div>
       )}
     </div>

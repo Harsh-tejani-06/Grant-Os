@@ -30,9 +30,9 @@ const STATUS_OPTIONS = [
 // ─── Sidebar nav items (same as OrgDashboard) ───
 const NAV_ITEMS = [
   { key: 'home', label: 'Dashboard', icon: '🏠' },
-  { key: 'proposals', label: 'Proposal Management', icon: '📝' },
   { key: 'grants', label: 'Grant Discovery', icon: '🔍' },
-  { key: 'applications', label: 'Applications', icon: '📋' },
+  { key: 'proposals', label: 'Proposal Management', icon: '📝' },
+  { key: 'tracking', label: 'Proposal Tracking', icon: '📊' },
   { key: 'team', label: 'Team Management', icon: '👥' },
   { key: 'deadlines', label: 'Deadline Alerts', icon: '🔔' },
   { key: 'analytics', label: 'Analytics', icon: '📈' },
@@ -109,13 +109,12 @@ function GrantDetailPanel({ grant, onClose, userRole, onApply, applyLoading, app
                 {grant.title}
               </h2>
               <span
-                className={`flex-shrink-0 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
-                  grant.displayStatus === 'Open'
+                className={`flex-shrink-0 px-2.5 py-1 rounded-full text-[11px] font-bold border ${grant.displayStatus === 'Open'
                     ? 'bg-green-50 text-green-600 border-green-200'
                     : grant.displayStatus === 'Closing Soon'
                       ? 'bg-orange-50 text-orange-600 border-orange-200'
                       : 'bg-red-50 text-red-600 border-red-200'
-                }`}
+                  }`}
               >
                 {grant.displayStatus}
               </span>
@@ -419,10 +418,14 @@ export default function GrantDiscoveryPage() {
     if (key === 'grants') return // Already on this page
     if (key === 'home') {
       if (userRole === 'team_member') navigate('/member/dashboard')
-      else navigate('/org/dashboard')
+      else navigate('/org/dashboard', { state: { section: 'home' } })
     } else {
       // For sections that live on OrgDashboard
-      navigate('/org/dashboard')
+      if (userRole === 'team_member') {
+        navigate('/member/dashboard', { state: { section: key } })
+      } else {
+        navigate('/org/dashboard', { state: { section: key } })
+      }
     }
   }
 
@@ -484,9 +487,8 @@ export default function GrantDiscoveryPage() {
     <div className="min-h-screen bg-cream flex">
       {/* ─── Sidebar ─── */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-surface-elevated border-r border-warm-gray-200/60 transform transition-transform duration-300 lg:translate-x-0 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-surface-elevated border-r border-warm-gray-200/60 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
         id="grant-discovery-sidebar"
       >
         <div className="flex flex-col h-full">
@@ -511,11 +513,10 @@ export default function GrantDiscoveryPage() {
               <button
                 key={item.key}
                 onClick={() => handleNavClick(item.key)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[12px] text-sm font-medium transition-all duration-200 cursor-pointer ${
-                  item.key === 'grants'
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[12px] text-sm font-medium transition-all duration-200 cursor-pointer ${item.key === 'grants'
                     ? 'bg-primary text-white shadow-soft'
                     : 'text-warm-gray-600 hover:bg-warm-gray-50 hover:text-warm-gray-900'
-                }`}
+                  }`}
                 id={`nav-${item.key}`}
               >
                 <span className="text-lg">{item.icon}</span>
@@ -676,13 +677,12 @@ export default function GrantDiscoveryPage() {
                       <p className="text-xs text-warm-gray-500 truncate">{grant.agencyName}</p>
                     </div>
                     <span
-                      className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                        grant.displayStatus === 'Open'
+                      className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold border ${grant.displayStatus === 'Open'
                           ? 'bg-green-50 text-green-600 border-green-200'
                           : grant.displayStatus === 'Closing Soon'
                             ? 'bg-orange-50 text-orange-600 border-orange-200'
                             : 'bg-red-50 text-red-600 border-red-200'
-                      }`}
+                        }`}
                     >
                       {grant.displayStatus}
                     </span>
@@ -744,11 +744,10 @@ export default function GrantDiscoveryPage() {
                   <button
                     key={pageNum}
                     onClick={() => fetchGrants(pageNum)}
-                    className={`w-10 h-10 rounded-[10px] text-sm font-semibold transition-colors cursor-pointer ${
-                      pageNum === pagination.page
+                    className={`w-10 h-10 rounded-[10px] text-sm font-semibold transition-colors cursor-pointer ${pageNum === pagination.page
                         ? 'bg-primary text-white shadow-soft'
                         : 'bg-surface-elevated border border-warm-gray-200/60 text-warm-gray-600 hover:bg-warm-gray-50'
-                    }`}
+                      }`}
                   >
                     {pageNum}
                   </button>

@@ -10,6 +10,10 @@ const {
   assignSection,
   bulkAssignSections,
   approveAllSections,
+  submitToAdmin,
+  updatePreSubmissionChecklist,
+  submitToAgency,
+  updateProposalTrackingStatus,
   deleteProposal,
 } = require('../controllers/proposalController');
 const { protect, requireRole } = require('../middleware/auth');
@@ -22,6 +26,12 @@ router.get('/my-assigned', protect, getMyAssignedProposals);
 
 // PUT /api/proposals/:proposalId/sections/:sectionId — Update section content/status
 router.put('/:proposalId/sections/:sectionId', protect, updateSection);
+
+// PUT /api/proposals/:proposalId/approve-all — Approve all 17 sections (PI or Admin)
+router.put('/:proposalId/approve-all', protect, approveAllSections);
+
+// PUT /api/proposals/:proposalId/submit-admin — PI submits final proposal to Admin
+router.put('/:proposalId/submit-admin', protect, submitToAdmin);
 
 // POST /api/proposals/:proposalId/comments — Add proposal team comment
 router.post('/:proposalId/comments', protect, addProposalComment);
@@ -39,8 +49,17 @@ router.post('/create', protect, requireRole('org_admin'), createProposal);
 // GET /api/proposals/org-proposals — Get all proposals for the org
 router.get('/org-proposals', protect, requireRole('org_admin'), getOrgProposals);
 
-// PUT /api/proposals/:proposalId/approve-all — Approve all 17 sections
-router.put('/:proposalId/approve-all', protect, requireRole('org_admin'), approveAllSections);
+// PUT /api/proposals/:proposalId/approve-all — Approve all 17 sections (PI or Org Admin)
+router.put('/:proposalId/approve-all', protect, approveAllSections);
+
+// PUT /api/proposals/:proposalId/checklist — Update Pre-Submission Checklist
+router.put('/:proposalId/checklist', protect, requireRole('org_admin'), updatePreSubmissionChecklist);
+
+// PUT /api/proposals/:proposalId/submit-agency — Admin submits proposal to Funding Agency
+router.put('/:proposalId/submit-agency', protect, requireRole('org_admin'), submitToAgency);
+
+// PUT /api/proposals/:proposalId/tracking-status — Admin updates lifecycle tracking status
+router.put('/:proposalId/tracking-status', protect, requireRole('org_admin'), updateProposalTrackingStatus);
 
 // PUT /api/proposals/:proposalId/sections/:sectionId/assign — Assign section to member
 router.put('/:proposalId/sections/:sectionId/assign', protect, requireRole('org_admin'), assignSection);
