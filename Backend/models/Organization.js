@@ -78,6 +78,10 @@ const organizationSchema = new mongoose.Schema(
       default: 0,
     },
 
+    // ─── Embedding (Grant Discovery) ───
+    embedding: { type: [Number], default: [] },
+    embeddingContentHash: { type: String, default: null },
+
     // ─── Approval Status ───
     status: {
       type: String,

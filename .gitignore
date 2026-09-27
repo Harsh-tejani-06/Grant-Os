@@ -21,3 +21,6 @@ build/
 
 # IDE
 .vscode/
+
+Backend/mongo-data/
+    

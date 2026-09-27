@@ -5904,4 +5904,4 @@ function FactBox({ label, value, fallback = '—' }) {
       <strong className="text-warm-gray-900">{value || fallback}</strong>
     </div>
   )
-}
+} 
