@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import api from '../api'
+import { socket, joinProposalRoom, leaveProposalRoom } from '../socket'
 
 export default function ProposalWritingWorkspace({ userName }) {
   const [proposals, setProposals] = useState([])
@@ -12,6 +14,16 @@ export default function ProposalWritingWorkspace({ userName }) {
   const [lastSavedTime, setLastSavedTime] = useState(null)
   const [activeRightTab, setActiveRightTab] = useState('ai')
   const [editorMode, setEditorMode] = useState('edit') // 'edit' | 'preview'
+  const [socketConnected, setSocketConnected] = useState(socket.connected)
+  const [liveNotification, setLiveNotification] = useState(null)
+  const [unreadChatCount, setUnreadChatCount] = useState(0)
+
+  const showLiveNotification = (message, type = 'info') => {
+    setLiveNotification({ message, type })
+    setTimeout(() => {
+      setLiveNotification((prev) => (prev?.message === message ? null : prev))
+    }, 4500)
+  }
 
   const textareaRef = useRef(null)
   const chatContainerRef = useRef(null)
@@ -20,10 +32,13 @@ export default function ProposalWritingWorkspace({ userName }) {
   const currentProposal = proposals.find((p) => p._id === selectedProposalId)
   const currentSection = currentProposal?.sections?.find((s) => s._id === selectedSectionId)
 
-  // Auto-scroll chat to bottom on new comments or tab switch
+  // Auto-scroll chat to bottom on new comments or tab switch, and reset unread count
   useEffect(() => {
-    if (activeRightTab === 'comments' && chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+    if (activeRightTab === 'comments') {
+      setUnreadChatCount(0)
+      if (chatContainerRef.current) {
+        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+      }
     }
   }, [activeRightTab, currentProposal?.comments])
 
@@ -35,6 +50,175 @@ export default function ProposalWritingWorkspace({ userName }) {
   // Comments State
   const [newComment, setNewComment] = useState('')
   const [commentSubmitting, setCommentSubmitting] = useState(false)
+
+  // ─── User Info & PI Master State ───
+  const getInitialUser = () => {
+    try {
+      const stored = localStorage.getItem('grantos_user')
+      if (stored) {
+        const u = JSON.parse(stored)
+        return {
+          id: u.id || u._id || '',
+          role: u.role || '',
+          jobTitle: u.jobTitle || '',
+          fullName: u.fullName || u.name || '',
+          email: u.email || '',
+        }
+      }
+    } catch {}
+    return { id: '', role: '', jobTitle: '', fullName: '', email: '' }
+  }
+
+  const [currentUserInfo, setCurrentUserInfo] = useState(getInitialUser)
+  const [showFullProposalModal, setShowFullProposalModal] = useState(false)
+  const [submittingToAdmin, setSubmittingToAdmin] = useState(false)
+  const [reviewSectionModal, setReviewSectionModal] = useState(null)
+  const [approvingSectionId, setApprovingSectionId] = useState(null)
+  const [workspaceView, setWorkspaceView] = useState('review') // 'review' | 'editor'
+
+  useEffect(() => {
+    api.get('/auth/me').then((res) => {
+      if (res.data.success && res.data.user) {
+        setCurrentUserInfo({
+          id: res.data.user.id || res.data.user._id || '',
+          role: res.data.user.role || '',
+          jobTitle: res.data.user.jobTitle || '',
+          fullName: res.data.user.fullName || '',
+          email: res.data.user.email || '',
+        })
+      }
+    }).catch(() => {})
+  }, [])
+
+  const nameToCheck = (currentUserInfo.fullName || userName || '').toLowerCase()
+  const titleToCheck = (currentUserInfo.jobTitle || '').toLowerCase()
+  const emailToCheck = (currentUserInfo.email || '').toLowerCase()
+
+  const isPI = currentUserInfo.role === 'org_admin' || 
+    titleToCheck.includes('principal investigator') ||
+    titleToCheck.includes('pi') ||
+    nameToCheck.includes('principal investigator') ||
+    nameToCheck.includes('pi') ||
+    nameToCheck.includes('thorne') ||
+    emailToCheck.includes('pi.') ||
+    emailToCheck.startsWith('pi@')
+
+  const isAssignedToUser = (sec) => {
+    if (!sec) return false
+    const userId = currentUserInfo.id
+    if (userId && sec.assignedTo) {
+      if (
+        sec.assignedTo === userId ||
+        sec.assignedTo?._id === userId ||
+        sec.assignedTo?.toString() === userId?.toString()
+      ) {
+        return true
+      }
+    }
+    const currentName = (currentUserInfo.fullName || userName || '').trim().toLowerCase()
+    const assignedName = (sec.assignedToName || '').trim().toLowerCase()
+    if (currentName && assignedName) {
+      if (assignedName === currentName) return true
+      if (
+        isPI &&
+        (assignedName.includes('principal investigator') ||
+         assignedName.includes('pi') ||
+         assignedName.includes('thorne'))
+      ) {
+        return true
+      }
+    }
+    return false
+  }
+
+  const myAssignedSections = currentProposal?.sections?.filter((sec) => isAssignedToUser(sec)) || []
+  const isProposalLocked = ['Submitted to Admin', 'Submitted to Agency', 'Under Evaluation', 'Awarded', 'Rejected', 'Submitted'].includes(currentProposal?.status)
+
+  const handleApproveSection = async (sectionId) => {
+    if (!selectedProposalId || !sectionId || isProposalLocked) return
+    try {
+      setApprovingSectionId(sectionId)
+      const res = await api.put(`/proposals/${selectedProposalId}/sections/${sectionId}`, {
+        status: 'Approved',
+      })
+      if (res.data.success) {
+        setProposals((prev) =>
+          prev.map((p) => {
+            if (p._id === selectedProposalId) {
+              const updatedSections = p.sections.map((s) =>
+                s._id === sectionId ? { ...s, status: 'Approved', lastEditedAt: new Date() } : s
+              )
+              const totalSec = updatedSections.length
+              const compSec = updatedSections.filter((s) => s.status === 'Ready for Review' || s.status === 'Approved').length
+              const progress = totalSec > 0 ? Math.round((compSec / totalSec) * 100) : 0
+              return {
+                ...p,
+                progress: res.data.proposal?.progress ?? progress,
+                sections: updatedSections,
+              }
+            }
+            return p
+          })
+        )
+        if (selectedSectionId === sectionId) {
+          setSectionStatus('Approved')
+        }
+        if (reviewSectionModal && reviewSectionModal._id === sectionId) {
+          setReviewSectionModal((prev) => ({ ...prev, status: 'Approved' }))
+        }
+      }
+    } catch (err) {
+      console.error('Failed to approve section:', err)
+    } finally {
+      setApprovingSectionId(null)
+    }
+  }
+
+  const handleApproveAllSections = async () => {
+    if (!selectedProposalId || isProposalLocked) return
+    try {
+      const res = await api.put(`/proposals/${selectedProposalId}/approve-all`)
+      if (res.data.success) {
+        setProposals((prev) =>
+          prev.map((p) => {
+            if (p._id === selectedProposalId) {
+              return {
+                ...p,
+                progress: 100,
+                status: 'Under Review',
+                sections: p.sections.map((s) => ({ ...s, status: 'Approved', lastEditedAt: new Date() })),
+              }
+            }
+            return p
+          })
+        )
+        if (reviewSectionModal) {
+          setReviewSectionModal((prev) => ({ ...prev, status: 'Approved' }))
+        }
+        setSectionStatus('Approved')
+        setShowFullProposalModal(false)
+      }
+    } catch (err) {
+      console.error('Failed to approve all sections:', err)
+    }
+  }
+
+  const handleSubmitToAdmin = async () => {
+    if (!selectedProposalId || isProposalLocked) return
+    try {
+      setSubmittingToAdmin(true)
+      const res = await api.put(`/proposals/${selectedProposalId}/submit-admin`)
+      if (res.data.success) {
+        fetchProposals()
+        setShowFullProposalModal(false)
+        alert('🚀 Master Proposal successfully submitted to Organization Admin!')
+      }
+    } catch (err) {
+      console.error('Failed to submit proposal to admin:', err)
+    } finally {
+      setSubmittingToAdmin(false)
+    }
+  }
 
   // ─── Table Builder State (Clean 3x3 Structure) ───
   const [showTableModal, setShowTableModal] = useState(false)
@@ -149,7 +333,7 @@ export default function ProposalWritingWorkspace({ userName }) {
   }
 
   const handleExportPDF = (proposal) => {
-    if (!proposal) return
+    if (!proposal || !isPI) return
 
     const printWindow = window.open('', '_blank')
     if (!printWindow) {
@@ -339,9 +523,10 @@ export default function ProposalWritingWorkspace({ userName }) {
           const firstProp = res.data.proposals[0]
           setSelectedProposalId(firstProp._id)
           if (firstProp.sections && firstProp.sections.length > 0) {
-            setSelectedSectionId(firstProp.sections[0]._id)
-            setContent(firstProp.sections[0].content || '')
-            setSectionStatus(firstProp.sections[0].status || 'Not Started')
+            const myFirst = firstProp.sections.find((s) => isAssignedToUser(s)) || firstProp.sections[0]
+            setSelectedSectionId(myFirst._id)
+            setContent(myFirst.content || '')
+            setSectionStatus(myFirst.status || 'Not Started')
           }
         }
       }
@@ -354,20 +539,236 @@ export default function ProposalWritingWorkspace({ userName }) {
 
   useEffect(() => {
     fetchProposals()
-
-    // ─── Live Background Polling (Every 4 seconds for instant real-time chat) ───
-    const pollInterval = setInterval(() => {
-      api.get('/proposals/my-assigned')
-        .then((res) => {
-          if (res.data.success && res.data.proposals) {
-            setProposals(res.data.proposals)
-          }
-        })
-        .catch(() => {})
-    }, 4000)
-
-    return () => clearInterval(pollInterval)
   }, [])
+
+  // ─── Real-Time Live Updates via Socket.io ───
+  useEffect(() => {
+    if (!selectedProposalId) return
+
+    joinProposalRoom(selectedProposalId)
+
+    const handleConnect = () => setSocketConnected(true)
+    const handleDisconnect = () => setSocketConnected(false)
+
+    // 1. Instant Team Chat message
+    const handleProposalComment = (data) => {
+      if (!data || data.proposalId !== selectedProposalId) return
+
+      setProposals((prev) =>
+        prev.map((p) => {
+          if (p._id === data.proposalId) {
+            const currentList = p.comments || []
+            const newComment = data.comment
+            // Avoid duplicate if sent by current user and already updated by API response
+            const exists = newComment && currentList.some(
+              (c) =>
+                (c._id && newComment._id && c._id === newComment._id) ||
+                (c.text === newComment.text &&
+                  c.senderName === newComment.senderName &&
+                  Math.abs(new Date(c.createdAt) - new Date(newComment.createdAt)) < 2500)
+            )
+            if (exists) return p
+            return {
+              ...p,
+              comments: data.comments || [...currentList, newComment],
+            }
+          }
+          return p
+        })
+      )
+
+      if (activeRightTab !== 'comments') {
+        setUnreadChatCount((prev) => prev + 1)
+      }
+
+      if (data.comment?.senderName && data.comment.senderName !== (currentUserInfo.fullName || userName)) {
+        showLiveNotification(`💬 ${data.comment.senderName}: "${data.comment.text?.slice(0, 45)}"`, 'chat')
+      }
+
+      setTimeout(() => {
+        if (chatContainerRef.current) {
+          chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+        }
+      }, 50)
+    }
+
+    // 2. Instant Section status or content update
+    const handleSectionUpdate = (data) => {
+      if (!data || data.proposalId !== selectedProposalId) return
+
+      setProposals((prev) =>
+        prev.map((p) => {
+          if (p._id === data.proposalId) {
+            const updatedSections = p.sections.map((s) =>
+              s._id === data.sectionId ? { ...s, ...data.section } : s
+            )
+            return {
+              ...p,
+              progress: data.progress !== undefined ? data.progress : p.progress,
+              sections: updatedSections,
+            }
+          }
+          return p
+        })
+      )
+
+      if (selectedSectionId === data.sectionId && data.section?.status) {
+        setSectionStatus(data.section.status)
+      }
+
+      setReviewSectionModal((curr) => {
+        if (curr && curr._id === data.sectionId) {
+          return { ...curr, ...data.section }
+        }
+        return curr
+      })
+
+      const updater = data.updatedBy?.name || 'A team member'
+      if (data.updatedBy?.name !== (currentUserInfo.fullName || userName)) {
+        showLiveNotification(`⚡ ${data.section?.title || 'Section'} status updated to "${data.section?.status}" by ${updater}`, 'status')
+      }
+    }
+
+    // 3. Instant All Sections Approved (PI or Admin)
+    const handleAllApproved = (data) => {
+      if (!data || data.proposalId !== selectedProposalId) return
+
+      setProposals((prev) =>
+        prev.map((p) => {
+          if (p._id === data.proposalId) {
+            return {
+              ...p,
+              progress: 100,
+              status: data.status || 'Under Review',
+              sections: p.sections.map((s) => ({ ...s, status: 'Approved', lastEditedAt: new Date() })),
+            }
+          }
+          return p
+        })
+      )
+      setSectionStatus('Approved')
+      setReviewSectionModal((curr) => (curr ? { ...curr, status: 'Approved' } : null))
+      showLiveNotification(`🎉 All 17 sections have been Approved!`, 'approval')
+    }
+
+    // 4. Instant Submitted to Admin
+    const handleSubmittedToAdmin = (data) => {
+      if (!data || data.proposalId !== selectedProposalId) return
+
+      setProposals((prev) =>
+        prev.map((p) => {
+          if (p._id === data.proposalId) {
+            return {
+              ...p,
+              status: 'Submitted to Admin',
+              submittedByPIAt: data.submittedByPIAt || new Date(),
+            }
+          }
+          return p
+        })
+      )
+      showLiveNotification(`🚀 Proposal successfully submitted to Organization Admin!`, 'status')
+    }
+
+    // 5. Instant Section Assignments Update
+    const handleSectionsAssigned = (data) => {
+      if (!data || data.proposalId !== selectedProposalId) return
+      if (data.proposal) {
+        setProposals((prev) =>
+          prev.map((p) => (p._id === data.proposalId ? { ...p, ...data.proposal } : p))
+        )
+        showLiveNotification(`👥 Section assignments have been updated by Admin`, 'status')
+      }
+    }
+
+    // 6. Submitted to Agency by Admin
+    const handleSubmittedToAgency = (data) => {
+      if (!data || data.proposalId !== selectedProposalId) return
+
+      setProposals((prev) =>
+        prev.map((p) => {
+          if (p._id === data.proposalId) {
+            const commentsList = data.comments || (data.comment ? [...(p.comments || []), data.comment] : p.comments)
+            return {
+              ...p,
+              status: 'Submitted to Agency',
+              agencySubmission: data.agencySubmission,
+              comments: commentsList,
+            }
+          }
+          return p
+        })
+      )
+      showLiveNotification(
+        '🏛️ Your proposal has been officially endorsed and submitted to the funding agency by the Organization Admin.',
+        'approval'
+      )
+    }
+
+    // 7. Checklist updated
+    const handleChecklistUpdated = (data) => {
+      if (!data || data.proposalId !== selectedProposalId) return
+      setProposals((prev) =>
+        prev.map((p) => (p._id === data.proposalId ? { ...p, preSubmissionChecklist: data.checklist } : p))
+      )
+    }
+
+    // 8. Lifecycle Tracking status updated by Org Admin
+    const handleTrackingStatusUpdated = (data) => {
+      if (!data || data.proposalId !== selectedProposalId) return
+      setProposals((prev) =>
+        prev.map((p) => {
+          if (p._id === data.proposalId) {
+            const commentsList = data.comments || (data.comment ? [...(p.comments || []), data.comment] : p.comments)
+            return {
+              ...p,
+              status: data.status,
+              awardDetails: data.awardDetails || p.awardDetails,
+              trackingTimeline: data.trackingTimeline || p.trackingTimeline,
+              comments: commentsList,
+            }
+          }
+          return p
+        })
+      )
+
+      const stageEmoji =
+        data.status === 'Awarded' ? '🏆' :
+        data.status === 'Under Evaluation' ? '🔍' :
+        data.status === 'Revisions Requested' ? '📝' :
+        data.status === 'Rejected' ? '❌' : '📊'
+
+      showLiveNotification(
+        `${stageEmoji} Proposal tracking status updated to "${data.status}" by Org Admin.`,
+        data.status === 'Awarded' ? 'approval' : 'status'
+      )
+    }
+
+    socket.on('connect', handleConnect)
+    socket.on('disconnect', handleDisconnect)
+    socket.on('proposalCommentAdded', handleProposalComment)
+    socket.on('proposalSectionUpdated', handleSectionUpdate)
+    socket.on('proposalAllSectionsApproved', handleAllApproved)
+    socket.on('proposalSubmittedToAdmin', handleSubmittedToAdmin)
+    socket.on('proposalSubmittedToAgency', handleSubmittedToAgency)
+    socket.on('proposalChecklistUpdated', handleChecklistUpdated)
+    socket.on('proposalSectionsAssigned', handleSectionsAssigned)
+    socket.on('proposalTrackingStatusUpdated', handleTrackingStatusUpdated)
+
+    return () => {
+      leaveProposalRoom(selectedProposalId)
+      socket.off('connect', handleConnect)
+      socket.off('disconnect', handleDisconnect)
+      socket.off('proposalCommentAdded', handleProposalComment)
+      socket.off('proposalSectionUpdated', handleSectionUpdate)
+      socket.off('proposalAllSectionsApproved', handleAllApproved)
+      socket.off('proposalSubmittedToAdmin', handleSubmittedToAdmin)
+      socket.off('proposalSubmittedToAgency', handleSubmittedToAgency)
+      socket.off('proposalChecklistUpdated', handleChecklistUpdated)
+      socket.off('proposalSectionsAssigned', handleSectionsAssigned)
+      socket.off('proposalTrackingStatusUpdated', handleTrackingStatusUpdated)
+    }
+  }, [selectedProposalId, selectedSectionId, activeRightTab, currentUserInfo.fullName, userName])
 
   // Sync editor when section changes
   useEffect(() => {
@@ -387,6 +788,14 @@ export default function ProposalWritingWorkspace({ userName }) {
   // ─── Save Section ───
   const handleSaveSection = async (newStatus = sectionStatus) => {
     if (!selectedProposalId || !selectedSectionId) return
+    if (isProposalLocked) {
+      alert(`This proposal is ${currentProposal?.status}. Dossier is locked and cannot be edited.`)
+      return
+    }
+    if (!isAssignedToUser(currentSection) && newStatus !== 'Approved') {
+      alert('You can only edit sections assigned to you.')
+      return
+    }
     try {
       setSaving(true)
       const res = await api.put(`/proposals/${selectedProposalId}/sections/${selectedSectionId}`, {
@@ -420,23 +829,31 @@ export default function ProposalWritingWorkspace({ userName }) {
 
   // Toggle review status
   const handleToggleReview = () => {
+    if (isProposalLocked) return
     const next = sectionStatus === 'Ready for Review' ? 'In Progress' : 'Ready for Review'
     handleSaveSection(next)
   }
 
   // ─── AI Assist ───
   const handleAiAssist = async (action) => {
-    if (!currentSection) return
+    if (!currentSection || isProposalLocked) return
     try {
       setAiLoading(true)
       setAiResult('')
       const res = await api.post('/proposals/ai-assist', {
         action,
+        proposalId: currentProposal?._id,
+        proposalTitle: currentProposal?.title,
+        sectionKey: currentSection.sectionKey,
         sectionTitle: currentSection.title,
+        wordCountLimit: currentSection.wordCountLimit,
+        starterGuide: currentSection.starterGuide,
         currentContent: content,
         prompt: aiPrompt,
         grantTitle: currentProposal?.grantTitle,
         grantAgency: currentProposal?.grantAgency,
+        fundingAmount: currentProposal?.fundingAmount,
+        deadline: currentProposal?.deadline,
       })
       if (res.data.success) {
         setAiResult(res.data.text)
@@ -451,6 +868,10 @@ export default function ProposalWritingWorkspace({ userName }) {
 
   const handleInsertAi = (mode) => {
     if (!aiResult) return
+    if (!isAssignedToUser(currentSection)) {
+      alert('You can only edit sections assigned to you.')
+      return
+    }
     if (mode === 'replace') {
       setContent(aiResult)
     } else {
@@ -524,7 +945,7 @@ export default function ProposalWritingWorkspace({ userName }) {
   }
 
   return (
-    <div className="space-y-6 animate-fade-up">
+    <div className="space-y-6 animate-fade-in">
 
       {/* ─── Proposal Switcher Tabs (For switching between active proposals) ─── */}
       {proposals.length > 0 && (
@@ -567,11 +988,16 @@ export default function ProposalWritingWorkspace({ userName }) {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                Active Workspace
+              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${isPI ? 'bg-purple-100 text-purple-900 border-purple-300' : 'bg-purple-50 text-purple-700 border-purple-200'}`}>
+                {isPI ? '🎓 Principal Investigator (PI) Workspace' : 'Active Workspace'}
               </span>
               <span className="text-[10px] text-warm-gray-400">•</span>
               <span className="text-xs text-warm-gray-500 font-medium">{currentProposal?.grantAgency}</span>
+              <span className="text-[10px] text-warm-gray-400">•</span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Live Sync Active
+              </span>
             </div>
             <h2 className="font-heading text-2xl font-bold text-warm-gray-900">{currentProposal?.title}</h2>
             <p className="text-xs text-warm-gray-500 mt-1">
@@ -581,29 +1007,98 @@ export default function ProposalWritingWorkspace({ userName }) {
             </p>
           </div>
 
-          {/* Overall Progress & PDF Export */}
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => handleExportPDF(currentProposal)}
-              className="px-4 py-3 rounded-[14px] bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-soft transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
-            >
-              <span>📥</span> Export Master PDF
-            </button>
-            <div className="flex items-center gap-4 bg-cream/70 p-3.5 rounded-[14px] border border-warm-gray-200/50 min-w-[220px]">
+          {/* Action Buttons & Progress */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* View Mode Switcher for PI */}
+            {isPI && (
+              <div className="flex items-center bg-warm-gray-100/80 p-1 rounded-[12px] border border-warm-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setWorkspaceView('review')}
+                  className={`px-3 py-2 rounded-[9px] text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    workspaceView === 'review'
+                      ? 'bg-purple-600 text-white shadow-soft'
+                      : 'text-warm-gray-600 hover:text-warm-gray-900'
+                  }`}
+                >
+                  <span>📋</span> Section Review ({currentProposal?.sections?.length || 17})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWorkspaceView('editor')}
+                  className={`px-3 py-2 rounded-[9px] text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    workspaceView === 'editor'
+                      ? 'bg-purple-600 text-white shadow-soft'
+                      : 'text-warm-gray-600 hover:text-warm-gray-900'
+                  }`}
+                >
+                  <span>✍️</span> Editor Workspace
+                </button>
+              </div>
+            )}
+
+            {/* ONLY PI CAN EXPORT FINAL PDF */}
+            {isPI && (
+              <button
+                type="button"
+                onClick={() => handleExportPDF(currentProposal)}
+                className="px-4 py-2.5 rounded-[12px] bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-soft transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap"
+              >
+                <span>📥</span> Export PDF
+              </button>
+            )}
+
+            {/* PROPOSAL STATUS & PI ACTIONS */}
+            {currentProposal?.status === 'Awarded' ? (
+              <span className="px-4 py-2.5 rounded-[12px] bg-gradient-to-r from-emerald-100 to-amber-100 text-emerald-900 border border-emerald-300 font-bold text-xs flex items-center gap-1.5 shadow-soft">
+                <span>🏆</span> Sanctioned & Awarded
+              </span>
+            ) : currentProposal?.status === 'Under Evaluation' ? (
+              <span className="px-4 py-2.5 rounded-[12px] bg-indigo-50 text-indigo-800 border border-indigo-200 font-bold text-xs flex items-center gap-1.5 shadow-soft">
+                <span>🔍</span> Agency Evaluation
+              </span>
+            ) : currentProposal?.status === 'Revisions Requested' ? (
+              <span className="px-4 py-2.5 rounded-[12px] bg-amber-50 text-amber-900 border border-amber-300 font-bold text-xs flex items-center gap-1.5 shadow-soft">
+                <span>📝</span> Revisions Requested
+              </span>
+            ) : currentProposal?.status === 'Rejected' ? (
+              <span className="px-4 py-2.5 rounded-[12px] bg-rose-50 text-rose-800 border border-rose-200 font-bold text-xs flex items-center gap-1.5 shadow-soft">
+                <span>❌</span> Not Sanctioned
+              </span>
+            ) : currentProposal?.status === 'Submitted to Agency' ? (
+              <span className="px-4 py-2.5 rounded-[12px] bg-blue-50 text-blue-800 border border-blue-200 font-bold text-xs flex items-center gap-1.5 shadow-soft">
+                <span>🏛️</span> Submitted to Agency
+              </span>
+            ) : currentProposal?.status === 'Submitted to Admin' ? (
+              <span className="px-4 py-2.5 rounded-[12px] bg-amber-50 text-amber-800 border border-amber-200 font-bold text-xs flex items-center gap-1.5 shadow-soft">
+                <span>⏳</span> In Institutional Review
+              </span>
+            ) : isPI ? (
+              <button
+                type="button"
+                onClick={handleSubmitToAdmin}
+                disabled={submittingToAdmin}
+                className="px-4 py-2.5 rounded-[12px] bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-90 text-white font-bold text-xs shadow-soft transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap disabled:opacity-50"
+              >
+                <span>🚀</span> {submittingToAdmin ? 'Submitting...' : 'Submit to Admin'}
+              </button>
+            ) : null}
+
+            {/* Progress */}
+            <div className="flex items-center gap-4 bg-cream/70 p-2.5 rounded-[12px] border border-warm-gray-200/50 min-w-[180px]">
               <div className="flex-1">
-                <div className="flex justify-between text-xs mb-1.5 font-semibold">
-                  <span className="text-warm-gray-700">Overall Progress</span>
+                <div className="flex justify-between text-xs mb-1 font-semibold">
+                  <span className="text-warm-gray-700">Progress</span>
                   <span className="text-purple-600">{currentProposal?.progress || 0}%</span>
                 </div>
-                <div className="w-full h-2.5 rounded-full bg-warm-gray-200/80 overflow-hidden">
+                <div className="w-full h-2 rounded-full bg-warm-gray-200/80 overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-purple-500 to-purple-600 rounded-full transition-all duration-700"
                     style={{ width: `${currentProposal?.progress || 0}%` }}
                   />
                 </div>
                 <p className="text-[10px] text-warm-gray-400 mt-1">
-                  {currentProposal?.sections?.filter(s => s.status === 'Ready for Review' || s.status === 'Approved').length || 0} / {currentProposal?.sections?.length || 0} sections complete
+                  {currentProposal?.sections?.filter(s => s.status === 'Approved').length || 0} / {currentProposal?.sections?.length || 0} approved
                 </p>
               </div>
             </div>
@@ -611,55 +1106,238 @@ export default function ProposalWritingWorkspace({ userName }) {
         </div>
       </div>
 
+      {/* ─── Lifecycle & Dossier Lock Banner ─── */}
+      {(isProposalLocked || currentProposal?.status === 'Revisions Requested') && (
+        <div className={`p-4 rounded-[16px] border flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in ${
+          currentProposal?.status === 'Awarded'
+            ? 'bg-gradient-to-r from-emerald-50 via-teal-50 to-amber-50 border-emerald-300 text-emerald-950'
+            : currentProposal?.status === 'Under Evaluation'
+            ? 'bg-indigo-50/90 border-indigo-200 text-indigo-950'
+            : currentProposal?.status === 'Revisions Requested'
+            ? 'bg-amber-50/90 border-amber-300 text-amber-950'
+            : currentProposal?.status === 'Rejected'
+            ? 'bg-rose-50/90 border-rose-200 text-rose-950'
+            : currentProposal?.status === 'Submitted to Agency'
+            ? 'bg-blue-50/90 border-blue-200 text-blue-950'
+            : 'bg-amber-50/90 border-amber-200 text-amber-950'
+        }`}>
+          <div className="flex items-start sm:items-center gap-3">
+            <span className="text-2xl shrink-0 mt-0.5 sm:mt-0">
+              {currentProposal?.status === 'Awarded' ? '🏆' :
+               currentProposal?.status === 'Under Evaluation' ? '🔍' :
+               currentProposal?.status === 'Revisions Requested' ? '📝' :
+               currentProposal?.status === 'Rejected' ? '❌' :
+               currentProposal?.status === 'Submitted to Agency' ? '🏛️' : '🔒'}
+            </span>
+            <div>
+              <p className="text-xs font-bold font-heading">
+                {currentProposal?.status === 'Awarded'
+                  ? `Grant Sanctioned & Awarded! Sanction Order #${currentProposal?.awardDetails?.sanctionOrderNumber || 'Verified'}`
+                  : currentProposal?.status === 'Under Evaluation'
+                  ? `Under Agency Peer Review & Technical Evaluation (Ref #${currentProposal?.agencySubmission?.agencySubmissionId || 'Official'})`
+                  : currentProposal?.status === 'Revisions Requested'
+                  ? 'Revisions Requested by Funding Agency / Org Admin — Dossier Unlocked for Revisions'
+                  : currentProposal?.status === 'Rejected'
+                  ? 'Grant Proposal Not Sanctioned / Rejected by Funding Agency'
+                  : currentProposal?.status === 'Submitted to Agency'
+                  ? `Officially Endorsed & Dispatched to Agency: Confirmation Ref #${currentProposal?.agencySubmission?.agencySubmissionId || 'N/A'}`
+                  : 'Proposal Submitted to Organization Admin (Institutional Compliance & Clearance Phase)'}
+              </p>
+              <p className="text-[11px] opacity-80 mt-0.5 leading-relaxed">
+                {currentProposal?.status === 'Awarded'
+                  ? `Sanctioned Amount: ₹${Number(currentProposal?.awardDetails?.sanctionedAmount || 0).toLocaleString()} | Tenure: ${currentProposal?.awardDetails?.durationMonths || 36} months. Congratulations to the project team!`
+                  : currentProposal?.status === 'Under Evaluation'
+                  ? 'The proposal dossier is under active assessment by the funding agency committee. Track updates in the Proposal Tracking Dashboard.'
+                  : currentProposal?.status === 'Revisions Requested'
+                  ? 'Please review the requested changes in team comments/chat, update the relevant sections, and resubmit when ready.'
+                  : currentProposal?.status === 'Rejected'
+                  ? 'The funding agency did not approve funding for this call cycle. Review reviewer notes in comments for feedback.'
+                  : currentProposal?.status === 'Submitted to Agency'
+                  ? `Submitted by ${currentProposal?.agencySubmission?.submittedByName || 'Admin'} on ${currentProposal?.agencySubmission?.submittedAt ? new Date(currentProposal.agencySubmission.submittedAt).toLocaleDateString() : 'N/A'}. Dossier is locked as an official record.`
+                  : 'The proposal is locked while the Org Admin verifies mandatory institutional compliance prerequisites before legal dispatch.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+            <span className="px-2.5 py-1 rounded-[8px] bg-white/80 border border-current font-mono text-[10px] font-bold">
+              {currentProposal?.status}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowFullProposalModal(true)}
+              className="px-3 py-1.5 rounded-[8px] bg-white hover:bg-white/90 text-xs font-bold text-warm-gray-800 border border-warm-gray-300 shadow-xs cursor-pointer flex items-center gap-1"
+            >
+              <span>📄</span> View Master Dossier
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── PI Section-by-Section Review Table View ─── */}
+      {isPI && workspaceView === 'review' && (
+        <div className="bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-soft overflow-hidden animate-fade-in">
+          <div className="px-6 py-4 border-b border-warm-gray-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-cream/40">
+            <div>
+              <h3 className="font-heading font-bold text-warm-gray-900 text-base">
+                Proposal Sections Review ({currentProposal?.sections?.length || 17} Sections)
+              </h3>
+              <p className="text-xs text-warm-gray-500">
+                Review each section submitted by your team members. Approve them section-by-section or approve all at once.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {!isProposalLocked && (
+                <button
+                  type="button"
+                  onClick={handleApproveAllSections}
+                  className="px-4 py-2 rounded-[10px] bg-green-600 hover:bg-green-700 text-white font-bold text-xs shadow-soft transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>✓</span> Approve All 17 Sections
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="divide-y divide-warm-gray-200/60 max-h-[700px] overflow-y-auto">
+            {currentProposal?.sections?.map((sec) => {
+              const secWordCount = sec.content?.trim() ? sec.content.trim().split(/\s+/).length : 0
+              const commentCount = sec.comments?.length || 0
+              return (
+                <div
+                  key={sec._id}
+                  className="p-4 sm:p-5 hover:bg-cream/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                      <span className="font-heading font-bold text-sm text-warm-gray-900">
+                        {sec.title}
+                      </span>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${statusColor(sec.status)}`}>
+                        {sec.status}
+                      </span>
+                      {commentCount > 0 && (
+                        <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-800 rounded-full flex items-center gap-1">
+                          💬 {commentCount} comments
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-warm-gray-500">
+                      <span>
+                        Assigned writer: <strong className="text-warm-gray-800">{sec.assignedToName || 'Unassigned'}</strong>
+                      </span>
+                      <span>•</span>
+                      <span>
+                        Words: <strong className="text-warm-gray-800">{secWordCount}</strong> / {sec.wordCountLimit || 500}
+                      </span>
+                      {sec.lastEditedAt && (
+                        <>
+                          <span>•</span>
+                          <span>Last updated: {new Date(sec.lastEditedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Section Actions */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setReviewSectionModal(sec)}
+                      className={`px-3.5 py-2 rounded-[10px] text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                        !isProposalLocked && sec.status === 'Ready for Review'
+                          ? 'bg-green-600 text-white border-green-600 hover:bg-green-700 shadow-soft animate-pulse'
+                          : sec.status === 'Approved'
+                          ? 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'
+                          : 'bg-warm-gray-100 hover:bg-warm-gray-200 text-warm-gray-800 border-warm-gray-300'
+                      }`}
+                    >
+                      <span>👁️</span> {!isProposalLocked && sec.status === 'Ready for Review' ? 'Review & Approve' : sec.status === 'Approved' ? 'View Approved' : 'View Text'}
+                    </button>
+                    {!isProposalLocked && isAssignedToUser(sec) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedSectionId(sec._id)
+                          setWorkspaceView('editor')
+                        }}
+                        className="px-3 py-2 rounded-[10px] text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition-all cursor-pointer flex items-center gap-1"
+                      >
+                        <span>✍️</span> Edit
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ─── 3-Column Workspace ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      {(!isPI || workspaceView === 'editor') && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
         {/* ── Left: Section Selector (3 cols) ── */}
         <div className="lg:col-span-3 bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-soft overflow-hidden">
           <div className="p-4 border-b border-warm-gray-200/60 bg-cream/30 flex items-center justify-between">
             <p className="text-[10px] font-bold text-warm-gray-500 uppercase tracking-wider">
-              My Assigned Sections ({currentProposal?.sections?.length || 0})
+              My Assigned Sections ({myAssignedSections.length})
             </p>
             <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">
               Assigned to Me
             </span>
           </div>
           <div className="p-3 space-y-1.5 max-h-[600px] overflow-y-auto">
-            {currentProposal?.sections?.map((sec) => {
-              const isSelected = sec._id === selectedSectionId
-              const commentCount = sec.comments?.length || 0
-              return (
-                <button
-                  key={sec._id}
-                  onClick={() => {
-                    setSelectedProposalId(currentProposal._id)
-                    setSelectedSectionId(sec._id)
-                  }}
-                  className={`w-full text-left p-3 rounded-[12px] transition-all text-xs font-medium cursor-pointer border ${
-                    isSelected
-                      ? 'bg-purple-50 border-purple-200 text-purple-900 shadow-soft'
-                      : 'bg-white hover:bg-warm-gray-50 text-warm-gray-700 border-warm-gray-200/60'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <span className="font-semibold leading-tight">{sec.title}</span>
-                    {commentCount > 0 && (
-                      <span className="px-1.5 py-0.5 text-[9px] font-bold bg-amber-100 text-amber-800 rounded-full flex-shrink-0 flex items-center gap-0.5">
-                        💬 {commentCount}
+            {myAssignedSections.length === 0 ? (
+              <div className="p-6 text-center text-xs text-warm-gray-500">
+                <p className="font-semibold mb-1">No writing sections assigned to you.</p>
+                {isPI && (
+                  <button
+                    type="button"
+                    onClick={() => setWorkspaceView('review')}
+                    className="mt-2 text-purple-600 font-bold hover:underline cursor-pointer"
+                  >
+                    Go to Section Review →
+                  </button>
+                )}
+              </div>
+            ) : (
+              myAssignedSections.map((sec) => {
+                const isSelected = sec._id === selectedSectionId
+                const commentCount = sec.comments?.length || 0
+                return (
+                  <div
+                    key={sec._id}
+                    onClick={() => {
+                      setSelectedProposalId(currentProposal._id)
+                      setSelectedSectionId(sec._id)
+                    }}
+                    className={`w-full text-left p-3 rounded-[12px] transition-all text-xs font-medium cursor-pointer border ${
+                      isSelected
+                        ? 'bg-purple-50 border-purple-200 text-purple-900 shadow-soft'
+                        : 'bg-white hover:bg-warm-gray-50 text-warm-gray-700 border-warm-gray-200/60'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <span className="font-semibold leading-tight">{sec.title}</span>
+                      {commentCount > 0 && (
+                        <span className="px-1.5 py-0.5 text-[9px] font-bold bg-amber-100 text-amber-800 rounded-full flex-shrink-0 flex items-center gap-0.5">
+                          💬 {commentCount}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded-full border ${statusColor(sec.status)}`}>
+                        {sec.status}
                       </span>
-                    )}
+                      <span className="text-[9px] text-warm-gray-500 truncate max-w-[110px]">
+                        👤 Assigned to Me
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded-full border ${statusColor(sec.status)}`}>
-                      {sec.status}
-                    </span>
-                    <span className="text-[9px] text-warm-gray-500 truncate max-w-[110px]">
-                      👤 {sec.assignedToName || 'Unassigned'}
-                    </span>
-                  </div>
-                </button>
-              )
-            })}
+                )
+              })
+            )}
           </div>
         </div>
 
@@ -677,24 +1355,49 @@ export default function ProposalWritingWorkspace({ userName }) {
               </p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <button
-                onClick={handleToggleReview}
-                disabled={saving}
-                className={`px-3 py-1.5 rounded-[10px] text-xs font-bold transition-all cursor-pointer border ${
-                  sectionStatus === 'Ready for Review'
-                    ? 'bg-green-600 text-white border-green-600 hover:bg-green-700'
-                    : 'bg-warm-gray-100 hover:bg-warm-gray-200 text-warm-gray-800 border-warm-gray-300'
-                }`}
-              >
-                {sectionStatus === 'Ready for Review' ? '✓ Ready for Review' : '⬆ Mark Ready'}
-              </button>
-              <button
-                onClick={() => handleSaveSection(sectionStatus === 'Not Started' ? 'In Progress' : sectionStatus)}
-                disabled={saving}
-                className="px-4 py-1.5 rounded-[10px] bg-primary text-white text-xs font-bold hover:bg-primary/90 transition-all cursor-pointer shadow-soft disabled:opacity-50"
-              >
-                {saving ? 'Saving...' : '💾 Save'}
-              </button>
+              {isProposalLocked ? (
+                <span className="px-3 py-1.5 rounded-[10px] bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1">
+                  🔒 Dossier Locked ({currentProposal?.status})
+                </span>
+              ) : (
+                <>
+                  {isPI && sectionStatus !== 'Approved' && (
+                    <button
+                      onClick={() => handleSaveSection('Approved')}
+                      disabled={saving}
+                      className="px-3 py-1.5 rounded-[10px] bg-green-600 hover:bg-green-700 text-white text-xs font-bold transition-all cursor-pointer shadow-soft disabled:opacity-50"
+                    >
+                      ✓ Approve Section
+                    </button>
+                  )}
+                  {isAssignedToUser(currentSection) ? (
+                    <>
+                      <button
+                        onClick={handleToggleReview}
+                        disabled={saving}
+                        className={`px-3 py-1.5 rounded-[10px] text-xs font-bold transition-all cursor-pointer border ${
+                          sectionStatus === 'Ready for Review'
+                            ? 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
+                            : 'bg-warm-gray-100 hover:bg-warm-gray-200 text-warm-gray-800 border-warm-gray-300'
+                        }`}
+                      >
+                        {sectionStatus === 'Ready for Review' ? '✓ Ready for Review' : '⬆ Mark Ready'}
+                      </button>
+                      <button
+                        onClick={() => handleSaveSection(sectionStatus === 'Not Started' ? 'In Progress' : sectionStatus)}
+                        disabled={saving}
+                        className="px-4 py-1.5 rounded-[10px] bg-primary text-white text-xs font-bold hover:bg-primary/90 transition-all cursor-pointer shadow-soft disabled:opacity-50"
+                      >
+                        {saving ? 'Saving...' : '💾 Save'}
+                      </button>
+                    </>
+                  ) : (
+                    <span className="px-3 py-1.5 rounded-[10px] bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold flex items-center gap-1">
+                      🔒 Read-Only (Assigned to {currentSection?.assignedToName || 'another member'})
+                    </span>
+                  )}
+                </>
+              )}
             </div>
           </div>
 
@@ -725,7 +1428,7 @@ export default function ProposalWritingWorkspace({ userName }) {
             </div>
 
             {/* Selection Formatting Buttons */}
-            {editorMode === 'edit' && (
+            {editorMode === 'edit' && isAssignedToUser(currentSection) && !isProposalLocked && (
               <div className="flex flex-wrap items-center gap-1.5">
                 <button
                   onClick={() => applyFormatting('**', '**', 'bold text')}
@@ -796,9 +1499,24 @@ export default function ProposalWritingWorkspace({ userName }) {
               <textarea
                 ref={textareaRef}
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder={`Start writing your "${currentSection?.title || 'section'}" here...\n\nSelect text and click B, I, H2, H3 to format highlighted text. Or click "📝 Draft Section" in the AI panel to auto-generate a draft.`}
-                className="w-full h-full min-h-[380px] p-4 rounded-[12px] bg-white border border-warm-gray-200/70 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-sm font-mono text-warm-gray-900 leading-relaxed resize-y transition-all"
+                onChange={(e) => {
+                  if (isAssignedToUser(currentSection) && !isProposalLocked) {
+                    setContent(e.target.value)
+                  }
+                }}
+                readOnly={isProposalLocked || !isAssignedToUser(currentSection)}
+                placeholder={
+                  isProposalLocked
+                    ? `Proposal dossier is locked (${currentProposal?.status}). Section content is in read-only mode.`
+                    : !isAssignedToUser(currentSection)
+                    ? 'This section is assigned to another team member. You can view and approve it, but only the assigned member can edit it.'
+                    : `Start writing your "${currentSection?.title || 'section'}" here...\n\nSelect text and click B, I, H2, H3 to format highlighted text. Or click "📝 Draft Section" in the AI panel to auto-generate a draft.`
+                }
+                className={`w-full h-full min-h-[380px] p-4 rounded-[12px] border text-sm font-mono leading-relaxed resize-y transition-all ${
+                  isProposalLocked || !isAssignedToUser(currentSection)
+                    ? 'bg-warm-gray-50/80 text-warm-gray-800 border-warm-gray-200 cursor-not-allowed'
+                    : 'bg-white border-warm-gray-200/70 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-warm-gray-900'
+                }`}
               />
             ) : (
               <div className="w-full h-full min-h-[380px] max-h-[500px] overflow-y-auto p-5 rounded-[12px] bg-white border border-warm-gray-200/70 shadow-inner">
@@ -823,22 +1541,28 @@ export default function ProposalWritingWorkspace({ userName }) {
           <div className="flex border-b border-warm-gray-200/60 bg-cream/40">
             {[
               { key: 'ai', label: '🤖 AI' },
-              { key: 'comments', label: '💬 Team Chat', badge: currentProposal?.comments?.length },
+              { key: 'comments', label: '💬 Team Chat', badge: currentProposal?.comments?.length, unread: unreadChatCount },
               { key: 'guide', label: '📋 Guide' },
             ].map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveRightTab(tab.key)}
-                className={`flex-1 py-3 text-xs font-bold transition-colors cursor-pointer border-b-2 ${
+                className={`flex-1 py-3 text-xs font-bold transition-colors cursor-pointer border-b-2 flex items-center justify-center gap-1 ${
                   activeRightTab === tab.key
                     ? 'border-purple-600 text-purple-700 bg-white'
                     : 'border-transparent text-warm-gray-500 hover:text-warm-gray-800'
                 }`}
               >
-                {tab.label}
-                {tab.badge > 0 && (
-                  <span className="ml-1 px-1.5 text-[9px] bg-purple-100 text-purple-800 rounded-full font-bold">{tab.badge}</span>
-                )}
+                <span>{tab.label}</span>
+                {tab.unread > 0 && activeRightTab !== tab.key ? (
+                  <span className="px-1.5 py-0.2 text-[9px] bg-red-500 text-white rounded-full font-bold animate-pulse">
+                    +{tab.unread}
+                  </span>
+                ) : tab.badge > 0 ? (
+                  <span className="px-1.5 py-0.2 text-[9px] bg-purple-100 text-purple-800 rounded-full font-bold">
+                    {tab.badge}
+                  </span>
+                ) : null}
               </button>
             ))}
           </div>
@@ -847,9 +1571,14 @@ export default function ProposalWritingWorkspace({ userName }) {
           {activeRightTab === 'ai' && (
             <div className="p-4 space-y-4 text-xs">
               <div className="p-3 rounded-[12px] bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200/60">
-                <p className="font-bold text-purple-900 mb-0.5">✨ Gemini AI Writing Assistant</p>
-                <p className="text-[11px] text-purple-700/80 leading-snug">
-                  Generate drafts, polish academic tone, or review compliance for "{currentSection?.title || 'this section'}".
+                <p className="font-bold text-purple-900 mb-0.5 flex items-center gap-1.5">
+                  <span>✨</span> GrantOS AI Research Assistant
+                </p>
+                <p className="text-[11px] text-purple-900 font-semibold leading-snug truncate">
+                  Target: <span className="text-purple-700">{currentProposal?.grantTitle || 'Research Grant'}</span>
+                </p>
+                <p className="text-[10px] text-purple-600 mt-0.5">
+                  Agency: {currentProposal?.grantAgency || 'Funding Agency'} &nbsp;•&nbsp; Section: "{currentSection?.title}"
                 </p>
               </div>
 
@@ -900,20 +1629,26 @@ export default function ProposalWritingWorkspace({ userName }) {
                   <div className="max-h-[200px] overflow-y-auto text-[11px] text-warm-gray-700 bg-white p-3 rounded-[8px] border border-warm-gray-200 font-mono leading-relaxed whitespace-pre-wrap">
                     {aiResult}
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleInsertAi('append')}
-                      className="flex-1 py-1.5 bg-purple-600 text-white rounded-[8px] font-bold text-[11px] hover:bg-purple-700 transition-colors cursor-pointer"
-                    >
-                      + Append to Editor
-                    </button>
-                    <button
-                      onClick={() => handleInsertAi('replace')}
-                      className="py-1.5 px-3 bg-warm-gray-200 text-warm-gray-800 rounded-[8px] font-bold text-[11px] hover:bg-warm-gray-300 transition-colors cursor-pointer"
-                    >
-                      Replace All
-                    </button>
-                  </div>
+                  {isAssignedToUser(currentSection) ? (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleInsertAi('append')}
+                        className="flex-1 py-1.5 bg-purple-600 text-white rounded-[8px] font-bold text-[11px] hover:bg-purple-700 transition-colors cursor-pointer"
+                      >
+                        + Append to Editor
+                      </button>
+                      <button
+                        onClick={() => handleInsertAi('replace')}
+                        className="py-1.5 px-3 bg-warm-gray-200 text-warm-gray-800 rounded-[8px] font-bold text-[11px] hover:bg-warm-gray-300 transition-colors cursor-pointer"
+                      >
+                        Replace All
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded-[8px] border border-amber-200 italic text-center">
+                      🔒 Read-only section. Only the assigned writer ({currentSection?.assignedToName}) can insert text.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -922,6 +1657,13 @@ export default function ProposalWritingWorkspace({ userName }) {
           {/* ── Unified Team Chat Tab ── */}
           {activeRightTab === 'comments' && (
             <div className="p-4 flex flex-col h-[500px] text-xs">
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-warm-gray-200/50">
+                <span className="font-bold text-warm-gray-700 text-[11px]">💬 Proposal Discussion</span>
+                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Instant Live Sync
+                </span>
+              </div>
               <div ref={chatContainerRef} className="flex-1 overflow-y-auto space-y-3 pr-1 mb-3">
                 {(!currentProposal?.comments || currentProposal.comments.length === 0) ? (
                   <div className="text-center text-warm-gray-400 py-12">
@@ -1009,12 +1751,13 @@ export default function ProposalWritingWorkspace({ userName }) {
           )}
         </div>
       </div>
+      )}
 
       {/* ─── Interactive Table Builder Modal ─── */}
-      {showTableModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={() => setShowTableModal(false)} />
-          <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-medium w-full max-w-3xl p-6 sm:p-8 animate-fade-up max-h-[90vh] flex flex-col">
+      {showTableModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs" onClick={() => setShowTableModal(false)} />
+          <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-2xl w-full max-w-3xl p-6 sm:p-8 animate-fade-in max-h-[90vh] flex flex-col z-10 my-auto">
             <div className="flex items-center justify-between pb-4 border-b border-warm-gray-200/60 mb-4">
               <div>
                 <h2 className="font-heading text-lg font-bold text-warm-gray-900 flex items-center gap-2">
@@ -1125,7 +1868,196 @@ export default function ProposalWritingWorkspace({ userName }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
+      )}
+      {/* ─── Full Compiled Proposal Modal ─── */}
+      {showFullProposalModal && currentProposal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs" onClick={() => setShowFullProposalModal(false)} />
+          <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-2xl w-full max-w-4xl p-6 sm:p-8 animate-fade-in max-h-[90vh] flex flex-col z-10 my-auto">
+            <div className="flex items-center justify-between pb-4 border-b border-warm-gray-200/60 mb-4">
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-300">
+                  {isProposalLocked ? `Official Dossier (${currentProposal.status})` : 'PI Master Compiled Document'}
+                </span>
+                <h2 className="font-heading text-xl font-bold text-warm-gray-900 mt-1">{currentProposal.title}</h2>
+                <p className="text-xs text-warm-gray-500">Agency: {currentProposal.grantAgency || 'Funding Agency'} &nbsp;•&nbsp; Overall Progress: {currentProposal.progress || 0}%</p>
+              </div>
+              <button onClick={() => setShowFullProposalModal(false)} className="text-warm-gray-400 hover:text-warm-gray-700 text-lg font-bold p-1 cursor-pointer">
+                ✕
+              </button>
+            </div>
+
+            {/* Agency Submission Banner if Submitted */}
+            {currentProposal.agencySubmission?.agencySubmissionId && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-[12px] text-xs text-blue-900 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-xs">
+                <span>🏛️ <strong>Official Agency Reference ID:</strong> <span className="font-mono font-bold text-blue-800">{currentProposal.agencySubmission.agencySubmissionId}</span></span>
+                <span className="text-[11px] text-blue-700">Dispatched by {currentProposal.agencySubmission.submittedByName || 'Admin'} on {new Date(currentProposal.agencySubmission.submittedAt).toLocaleDateString()}</span>
+              </div>
+            )}
+
+            {/* Compiled Sections Review Content */}
+            <div className="flex-1 overflow-y-auto p-6 bg-white rounded-[16px] border border-warm-gray-200 shadow-inner space-y-6 mb-6 text-xs leading-relaxed text-warm-gray-800">
+              {currentProposal.sections?.map((sec) => (
+                <div key={sec._id} className="pb-6 border-b border-warm-gray-200/60 last:border-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-heading font-bold text-sm text-purple-950">{sec.title}</h3>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${statusColor(sec.status)}`}>
+                        {sec.status} &nbsp;•&nbsp; Writer: {sec.assignedToName || 'Unassigned'}
+                      </span>
+                      {isPI && !isProposalLocked && sec.status !== 'Approved' && (
+                        <button
+                          type="button"
+                          onClick={() => handleApproveSection(sec._id)}
+                          disabled={approvingSectionId === sec._id}
+                          className="px-2.5 py-1 rounded-[8px] bg-green-600 hover:bg-green-700 text-white font-bold text-[10px] transition-all cursor-pointer shadow-soft flex items-center gap-1 disabled:opacity-50"
+                        >
+                          <span>✓</span> {approvingSectionId === sec._id ? 'Approving...' : 'Approve'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="whitespace-pre-wrap font-sans bg-cream/30 p-4 rounded-[10px] border border-warm-gray-200/50">
+                    {sec.content || <span className="text-warm-gray-400 italic">No section text submitted yet.</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-3 pt-3 border-t border-warm-gray-200/60">
+              <button
+                type="button"
+                onClick={() => handleExportPDF(currentProposal)}
+                className="px-5 py-2.5 rounded-[10px] font-bold text-white bg-purple-600 hover:bg-purple-700 shadow-soft transition-all text-xs cursor-pointer flex items-center gap-1.5"
+              >
+                <span>📥</span> Export PDF
+              </button>
+              {isPI && !isProposalLocked && (
+                <button
+                  type="button"
+                  onClick={handleApproveAllSections}
+                  className="px-4 py-2.5 rounded-[10px] font-bold text-white bg-green-600 hover:bg-green-700 shadow-soft transition-all text-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>✓</span> Approve All 17 Sections
+                </button>
+              )}
+              {isPI && !isProposalLocked && (
+                <button
+                  type="button"
+                  onClick={handleSubmitToAdmin}
+                  disabled={submittingToAdmin}
+                  className="px-5 py-2.5 rounded-[10px] font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-90 shadow-soft transition-all text-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <span>🚀</span> {submittingToAdmin ? 'Submitting...' : 'Submit Final Proposal to Admin'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowFullProposalModal(false)}
+                className="px-4 py-2.5 rounded-[10px] font-semibold text-warm-gray-600 hover:bg-warm-gray-100 text-xs cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ─── Single Section Review & Approve Modal (for PI) ─── */}
+      {reviewSectionModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs" onClick={() => setReviewSectionModal(null)} />
+          <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-2xl w-full max-w-2xl p-6 sm:p-8 animate-fade-in max-h-[90vh] flex flex-col z-10 my-auto">
+            <div className="flex items-center justify-between pb-4 border-b border-warm-gray-200/60 mb-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${statusColor(reviewSectionModal.status)}`}>
+                    {reviewSectionModal.status}
+                  </span>
+                  <span className="text-xs text-warm-gray-400">•</span>
+                  <span className="text-xs text-warm-gray-500 font-medium">
+                    Word Limit: {reviewSectionModal.wordCountLimit || 500} words
+                  </span>
+                </div>
+                <h2 className="font-heading text-lg font-bold text-warm-gray-900">{reviewSectionModal.title}</h2>
+                <p className="text-xs text-warm-gray-500 mt-1">
+                  Assigned writer: <span className="font-semibold text-warm-gray-800">{reviewSectionModal.assignedToName || 'Unassigned'}</span>
+                </p>
+              </div>
+              <button
+                onClick={() => setReviewSectionModal(null)}
+                className="text-warm-gray-400 hover:text-warm-gray-700 text-lg font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 bg-white rounded-[12px] border border-warm-gray-200/80 font-mono text-xs text-warm-gray-800 leading-relaxed whitespace-pre-wrap mb-6">
+              {reviewSectionModal.content ? (
+                reviewSectionModal.content
+              ) : (
+                <span className="text-warm-gray-400 italic">No content written yet for this section.</span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-warm-gray-200/60">
+              <span className="text-xs text-warm-gray-500">
+                Word count: <strong className="text-warm-gray-800">{reviewSectionModal.content?.trim() ? reviewSectionModal.content.trim().split(/\s+/).length : 0}</strong> words
+              </span>
+              <div className="flex items-center gap-2">
+                {!isProposalLocked && isAssignedToUser(reviewSectionModal) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedSectionId(reviewSectionModal._id)
+                      setReviewSectionModal(null)
+                      setWorkspaceView('editor')
+                    }}
+                    className="px-3 py-2 rounded-[10px] font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-xs cursor-pointer flex items-center gap-1"
+                  >
+                    <span>✍️</span> Edit in Workspace
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setReviewSectionModal(null)}
+                  className="px-4 py-2 rounded-[10px] font-semibold text-warm-gray-600 hover:bg-warm-gray-100 text-xs cursor-pointer"
+                >
+                  Close
+                </button>
+                {isPI && !isProposalLocked && reviewSectionModal.status !== 'Approved' && (
+                  <button
+                    type="button"
+                    onClick={() => handleApproveSection(reviewSectionModal._id)}
+                    disabled={approvingSectionId === reviewSectionModal._id}
+                    className="px-5 py-2 rounded-[10px] font-bold text-white bg-green-600 hover:bg-green-700 shadow-soft transition-all text-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    <span>✓</span> {approvingSectionId === reviewSectionModal._id ? 'Approving...' : 'Approve Section'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ─── Real-Time Live Notification Toast ─── */}
+      {liveNotification && typeof document !== 'undefined' && createPortal(
+        <div className="fixed bottom-6 right-6 z-[99999] bg-slate-900/95 text-white px-4 py-3 rounded-[14px] shadow-2xl border border-slate-700/80 text-xs flex items-center gap-3 backdrop-blur-md max-w-sm transition-all animate-fade-in">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
+          <span className="flex-1 font-medium leading-snug">{liveNotification.message}</span>
+          <button
+            onClick={() => setLiveNotification(null)}
+            className="text-slate-400 hover:text-white font-bold ml-1 text-sm cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>,
+        document.body
       )}
     </div>
   )

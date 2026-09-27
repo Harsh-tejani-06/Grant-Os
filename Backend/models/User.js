@@ -26,6 +26,11 @@ const userSchema = new mongoose.Schema(
       enum: ['org_admin', 'team_member', 'system_admin', 'funding_agency'],
       default: 'org_admin',
     },
+    jobTitle: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     organization: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Organization',
