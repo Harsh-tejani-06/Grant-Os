@@ -12,8 +12,12 @@ import TeamMemberDashboard from './pages/TeamMemberDashboard.jsx'
 import FundingAgencyRegistrationPage from './pages/FundingAgencyRegistrationPage.jsx'
 import FundingAgencyPendingPage from './pages/FundingAgencyPendingPage.jsx'
 import FundingAgencyRejectedPage from './pages/FundingAgencyRejectedPage.jsx'
-import FundingAgencyWelcomePage from './pages/FundingAgencyWelcomePage.jsx'
-import GrantDiscoveryPage from './pages/GrantDiscoveryPage.jsx'
+import { AgencyProvider } from './components/AgencyContext.jsx'
+import AgencyLayout from './components/AgencyLayout.jsx'
+import AgencyOverviewPage from './pages/AgencyOverviewPage.jsx'
+import AgencyGrantCallsPage from './pages/AgencyGrantCallsPage.jsx'
+import AgencyProposalsPage from './pages/AgencyProposalsPage.jsx'
+import AgencyProfilePage from './pages/AgencyProfilePage.jsx'
 
 function App() {
   return (
@@ -25,15 +29,39 @@ function App() {
       <Route path="/org/pending" element={<OrgPendingPage />} />
       <Route path="/org/rejected" element={<OrgRejectedPage />} />
       <Route path="/org/dashboard" element={<OrgDashboardPage />} />
-      <Route path="/org/grants/discover" element={<GrantDiscoveryPage />} />
       <Route path="/admin/dashboard" element={<AdminDashboard />} />
       <Route path="/member/pending-verification" element={<MemberPendingVerificationPage />} />
       <Route path="/member/dashboard" element={<TeamMemberDashboard />} />
       <Route path="/agency/register" element={<FundingAgencyRegistrationPage />} />
       <Route path="/agency/pending" element={<FundingAgencyPendingPage />} />
       <Route path="/agency/rejected" element={<FundingAgencyRejectedPage />} />
-      <Route path="/agency/welcome" element={<FundingAgencyWelcomePage />} />
-      <Route path="/agency/dashboard" element={<FundingAgencyWelcomePage />} />
+
+      {/* Funding Agency Portal — sidebar-navigated dashboard with nested sections */}
+      <Route
+        path="/agency/dashboard" 
+        element={
+          <AgencyProvider>
+            <AgencyLayout />
+          </AgencyProvider>
+        }
+      >
+        <Route index element={<AgencyOverviewPage />} />
+        <Route path="grants" element={<AgencyGrantCallsPage />} />
+        <Route path="proposals" element={<AgencyProposalsPage />} />
+        <Route path="profile" element={<AgencyProfilePage />} />
+      </Route>
+
+      {/* Legacy path kept for compatibility — redirects into the new dashboard */}
+      <Route
+        path="/agency/welcome"
+        element={
+          <AgencyProvider>
+            <AgencyLayout />
+          </AgencyProvider>
+        }
+      >
+        <Route index element={<AgencyOverviewPage />} />
+      </Route>
     </Routes>
   )
 }

@@ -25,7 +25,7 @@ const commentSchema = new mongoose.Schema({
   },
 });
 
-// ─── Proposal Section Sub-Schema (17 sections) ───
+// ─── Proposal Section Sub-Schema (17 default + dynamically added/removed) ───
 const sectionSchema = new mongoose.Schema({
   sectionKey: {
     type: String,
@@ -76,44 +76,73 @@ const proposalSchema = new mongoose.Schema(
       required: [true, 'Proposal title is required'],
       trim: true,
     },
+
     grantTitle: {
       type: String,
       default: '',
     },
+
     grantAgency: {
       type: String,
       default: '',
     },
+
     fundingAmount: {
       type: String,
       default: '',
     },
+
     deadline: {
       type: String,
       default: '',
     },
+
+    // ─── Grant Discovery ───
+    // Links the proposal to the grant discovered from the Grant Discovery system.
     grantListingId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'GrantListing',
       default: null,
     },
+
     organization: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Organization',
     },
+
+    // Existing GrantProgram relationship retained from File 1.
+    grantProgram: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'GrantProgram',
+      default: null,
+    },
+
+    // AI matching score retained from File 1.
+    aiScore: {
+      type: Number,
+      default: null,
+    },
+
+    // ─── Proposal Creation / Ownership ───
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       default: null,
     },
+
     createdByName: {
       type: String,
       default: '',
     },
+
+    // ─── Critical Deadline Alert Tracking ───
     lastCriticalEmailAlertSentAt: {
       type: Date,
       default: null,
     },
+
+    // Unified status vocabulary shared by the org-side Proposal Tracking
+    // Dashboard (TRACKING_STAGES) and the agency-side decision workflow.
     status: {
       type: String,
       enum: [
@@ -121,59 +150,255 @@ const proposalSchema = new mongoose.Schema(
         'In Progress',
         'Under Review',
         'Submitted to Admin',
-        'Submitted',
         'Submitted to Agency',
+        'Submitted',
         'Under Evaluation',
         'Revisions Requested',
-        'Accepted',
         'Awarded',
+        'Accepted',
         'Rejected',
+        'Not Awarded',
+        'Withdrawn',
       ],
       default: 'In Progress',
     },
+
+    // Set when the org admin explicitly submits this proposal to its linked
+    // funding agency.
+    submittedAt: {
+      type: Date,
+      default: null,
+    },
+
+    // ─── PI Submission Tracking ───
     submittedByPIAt: {
       type: Date,
       default: null,
     },
+
+    // ─── Pre-Submission Checklist ───
     preSubmissionChecklist: {
-      endorsementLetter: { type: Boolean, default: false },
-      investigatorCvs: { type: Boolean, default: false },
-      ethicalClearance: { type: Boolean, default: false },
-      biosafetyClearance: { type: Boolean, default: false },
-      financeAudit: { type: Boolean, default: false },
-      conflictOfInterest: { type: Boolean, default: false },
-      lastUpdatedBy: { type: String, default: '' },
-      lastUpdatedAt: { type: Date, default: null },
-    },
-    agencySubmission: {
-      agencySubmissionId: { type: String, default: '' },
-      receiptNote: { type: String, default: '' },
-      submittedAt: { type: Date, default: null },
-      submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
-      submittedByName: { type: String, default: '' },
-    },
-    awardDetails: {
-      sanctionOrderNumber: { type: String, default: '' },
-      sanctionedAmount: { type: String, default: '' },
-      startDate: { type: Date, default: null },
-      durationMonths: { type: Number, default: 0 },
-      sanctionNotes: { type: String, default: '' },
-      awardedAt: { type: Date, default: null },
-      awardedBy: { type: String, default: '' },
-    },
-    trackingTimeline: [
-      {
-        stage: { type: String, required: true },
-        updatedBy: { type: String, default: '' },
-        notes: { type: String, default: '' },
-        timestamp: { type: Date, default: Date.now },
+      endorsementLetter: {
+        type: Boolean,
+        default: false,
       },
-    ],
+
+      investigatorCvs: {
+        type: Boolean,
+        default: false,
+      },
+
+      ethicalClearance: {
+        type: Boolean,
+        default: false,
+      },
+
+      biosafetyClearance: {
+        type: Boolean,
+        default: false,
+      },
+
+      financeAudit: {
+        type: Boolean,
+        default: false,
+      },
+
+      conflictOfInterest: {
+        type: Boolean,
+        default: false,
+      },
+
+      lastUpdatedBy: {
+        type: String,
+        default: '',
+      },
+
+      lastUpdatedAt: {
+        type: Date,
+        default: null,
+      },
+    },
+
+    // ─── Eligibility snapshot ───
+    eligibilitySnapshot: {
+      isEligible: {
+        type: Boolean,
+        default: null,
+      },
+
+      checks: {
+        type: [
+          {
+            label: {
+              type: String,
+            },
+            passed: {
+              type: Boolean,
+            },
+          },
+        ],
+        default: [],
+      },
+
+      checkedAt: {
+        type: Date,
+        default: null,
+      },
+    },
+
+    // ─── Legacy simple agency decision ───
+    decision: {
+      status: {
+        type: String,
+        enum: [
+          'pending',
+          'shortlisted',
+          'rejected',
+          'awarded',
+          'not_awarded',
+          'under_evaluation',
+          'revisions_requested',
+        ],
+        default: 'pending',
+      },
+
+      notes: {
+        type: String,
+        default: '',
+      },
+
+      decidedAt: {
+        type: Date,
+        default: null,
+      },
+
+      decidedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null,
+      },
+    },
+
+    awardAmount: {
+      type: Number,
+      default: null,
+    },
+
+    requestedAmountValue: {
+      type: Number,
+      default: null,
+    },
+
+    // ─── Official Agency-Facing Submission Reference ───
+    agencySubmission: {
+      agencySubmissionId: {
+        type: String,
+        default: '',
+      },
+
+      receiptNote: {
+        type: String,
+        default: '',
+      },
+
+      submittedAt: {
+        type: Date,
+        default: null,
+      },
+
+      // Added from File 2.
+      submittedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null,
+      },
+
+      submittedByName: {
+        type: String,
+        default: '',
+      },
+    },
+
+    // ─── Sanction / Award Details ───
+    awardDetails: {
+      sanctionOrderNumber: {
+        type: String,
+        default: '',
+      },
+
+      sanctionedAmount: {
+        type: String,
+        default: '',
+      },
+
+      startDate: {
+        type: Date,
+        default: null,
+      },
+
+      durationMonths: {
+        type: Number,
+        default: null,
+      },
+
+      sanctionNotes: {
+        type: String,
+        default: '',
+      },
+
+      awardedAt: {
+        type: Date,
+        default: null,
+      },
+
+      awardedBy: {
+        type: String,
+        default: '',
+      },
+    },
+
+    // ─── Audit Trail ───
+    trackingTimeline: {
+      type: [
+        {
+          stage: {
+            type: String,
+            required: true,
+          },
+
+          notes: {
+            type: String,
+            default: '',
+          },
+
+          updatedBy: {
+            type: String,
+            default: '',
+          },
+
+          // Preserved from File 1.
+          source: {
+            type: String,
+            enum: ['org_admin', 'funding_agency'],
+            default: 'org_admin',
+          },
+
+          timestamp: {
+            type: Date,
+            default: Date.now,
+          },
+        },
+      ],
+      default: [],
+    },
+
     progress: {
       type: Number,
       default: 0,
     },
+
     comments: [commentSchema],
+
     sections: [sectionSchema],
   },
   {

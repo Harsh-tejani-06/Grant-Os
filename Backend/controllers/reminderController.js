@@ -1,6 +1,7 @@
 const Reminder = require('../models/Reminder');
 const Proposal = require('../models/Proposal');
 const socketHelper = require('../socket');
+const User = require('../models/User');
 
 // @desc    Get all reminders for requesting user's organization
 // @route   GET /api/reminders

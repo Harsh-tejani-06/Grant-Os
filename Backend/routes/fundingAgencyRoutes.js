@@ -3,10 +3,22 @@ const { body } = require('express-validator');
 const {
   registerFundingAgency,
   getAgencyStatus,
-  publishGrantCall,
-  getMyGrantCalls,
+  createGrantProgram,
+  publishGrantProgram,
+  getMyGrantPrograms,
+  updateGrantProgram,
+  uploadGrantDocument,
+  deleteGrantProgram,
+  getAgencyProposals,
+  getAgencyProposalDetail,
+  updateProposalDecision,
+  getAgencyStats,
+  updateLegalVerification,
+  getFullProfile,
+  updateProfile,
 } = require('../controllers/fundingAgencyController');
 const { protect, requireRole } = require('../middleware/auth');
+const { uploadGrantDoc } = require('../middleware/uploadGrantDocument');
 
 const router = express.Router();
 
@@ -66,67 +78,81 @@ router.post(
 // GET /api/agency/status
 router.get('/status', protect, requireRole('funding_agency'), getAgencyStatus);
 
-// ─── Grant Call Routes ───
+// GET /api/agency/stats
+router.get('/stats', protect, requireRole('funding_agency'), getAgencyStats);
 
-// POST /api/agency/grants — Publish a new grant call
+// ─── Grant Programs (Grant Calls) ───
+
+// POST /api/agency/programs — create as Draft (minimal validation: title only;
+// full validation happens at publish time, see PUT /programs/:id/publish)
 router.post(
-  '/grants',
+  '/programs',
   protect,
   requireRole('funding_agency'),
-  [
-    body('title')
-      .trim()
-      .notEmpty()
-      .withMessage('Grant title is required')
-      .isLength({ max: 300 })
-      .withMessage('Title must be at most 300 characters'),
-    body('description')
-      .optional()
-      .trim()
-      .isLength({ max: 2000 })
-      .withMessage('Description must be at most 2000 characters'),
-    body('grantType')
-      .optional()
-      .isIn([
-        'research_grant', 'fellowship', 'startup_funding', 'institutional_infra',
-        'facility_access', 'science_communication', 'academic_programme', 'scholarship',
-        'faculty_training', 'student_competition_travel', 'institutional_recognition',
-        'general_scheme', 'travel_grant', 'other',
-      ])
-      .withMessage('Invalid grant type'),
-    body('deadline')
-      .notEmpty()
-      .withMessage('Application deadline is required')
-      .isISO8601()
-      .withMessage('Deadline must be a valid date')
-      .custom((value) => {
-        if (new Date(value) <= new Date()) {
-          throw new Error('Deadline must be a future date');
-        }
-        return true;
-      }),
-    body('infoUrl')
-      .trim()
-      .notEmpty()
-      .withMessage('Info/Source URL is required')
-      .isURL({ protocols: ['http', 'https'], require_protocol: true })
-      .withMessage('Info URL must be a valid http(s) URL'),
-    body('applicationUrl')
-      .optional({ values: 'falsy' })
-      .trim()
-      .isURL({ protocols: ['http', 'https'], require_protocol: true })
-      .withMessage('Application URL must be a valid http(s) URL'),
-    body('guidelinesUrl')
-      .optional({ values: 'falsy' })
-      .trim()
-      .isURL({ protocols: ['http', 'https'], require_protocol: true })
-      .withMessage('Guidelines URL must be a valid http(s) URL'),
-  ],
-  publishGrantCall
+  [body('title').trim().notEmpty().withMessage('Grant title is required')],
+  createGrantProgram
 );
 
-// GET /api/agency/grants — Get all grant calls by this agency
-router.get('/grants', protect, requireRole('funding_agency'), getMyGrantCalls);
+// GET /api/agency/programs
+router.get('/programs', protect, requireRole('funding_agency'), getMyGrantPrograms);
+
+// PUT /api/agency/programs/:id — used every time a draft is re-saved
+router.put('/programs/:id', protect, requireRole('funding_agency'), updateGrantProgram);
+
+// PUT /api/agency/programs/:id/publish — validates and flips Draft/Upcoming -> Active
+router.put('/programs/:id/publish', protect, requireRole('funding_agency'), publishGrantProgram);
+
+// POST /api/agency/programs/:id/document — upload/replace the grant-specific PDF
+router.post(
+  '/programs/:id/document',
+  protect,
+  requireRole('funding_agency'),
+  (req, res, next) => {
+    uploadGrantDoc.single('document')(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({
+          success: false,
+          message:
+            err.code === 'LIMIT_FILE_SIZE'
+              ? 'File exceeds the 10 MB size limit'
+              : err.message || 'File upload failed',
+        });
+      }
+      next();
+    });
+  },
+  uploadGrantDocument
+);
+
+// DELETE /api/agency/programs/:id — two-step confirmation happens on the
+// frontend; this endpoint performs the actual (safe) delete once confirmed
+router.delete('/programs/:id', protect, requireRole('funding_agency'), deleteGrantProgram);
+
+// ─── Proposals submitted to this agency ───
+
+// GET /api/agency/proposals
+router.get('/proposals', protect, requireRole('funding_agency'), getAgencyProposals);
+
+// GET /api/agency/proposals/:id
+router.get('/proposals/:id', protect, requireRole('funding_agency'), getAgencyProposalDetail);
+
+// PUT /api/agency/proposals/:id/decision
+router.put('/proposals/:id/decision', protect, requireRole('funding_agency'), updateProposalDecision);
+
+// PUT /api/agency/legal-verification
+router.put(
+  '/legal-verification',
+  protect,
+  requireRole('funding_agency'),
+  updateLegalVerification
+);
+
+// ─── Profile (identity + editable operational details) ───
+
+// GET /api/agency/profile
+router.get('/profile', protect, requireRole('funding_agency'), getFullProfile);
+
+// PUT /api/agency/profile
+router.put('/profile', protect, requireRole('funding_agency'), updateProfile);
 
 module.exports = router;
-
