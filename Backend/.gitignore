@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
-
+# MongoDB local database
+Backend/mongo-data/
 # Environment variables
 .env
 .env.local
