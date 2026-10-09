@@ -7,6 +7,7 @@ import OrgPendingPage from './pages/OrgPendingPage.jsx'
 import OrgRejectedPage from './pages/OrgRejectedPage.jsx'
 import AdminDashboard from './pages/AdminDashboard.jsx'
 import OrgDashboardPage from './pages/OrgDashboardPage.jsx'
+import GrantDiscoveryPage from './pages/GrantDiscoveryPage.jsx'
 import MemberPendingVerificationPage from './pages/MemberPendingVerificationPage.jsx'
 import TeamMemberDashboard from './pages/TeamMemberDashboard.jsx'
 import FundingAgencyRegistrationPage from './pages/FundingAgencyRegistrationPage.jsx'
@@ -28,7 +29,9 @@ function App() {
       <Route path="/org/register" element={<OrgRegistrationPage />} />
       <Route path="/org/pending" element={<OrgPendingPage />} />
       <Route path="/org/rejected" element={<OrgRejectedPage />} />
-      <Route path="/org/dashboard" element={<OrgDashboardPage />} />
+      <Route path="/org/dashboard/*" element={<OrgDashboardPage />} />
+      <Route path="/org/grants" element={<GrantDiscoveryPage />} />
+      <Route path="/grants" element={<GrantDiscoveryPage />} />
       <Route path="/admin/dashboard" element={<AdminDashboard />} />
       <Route path="/member/pending-verification" element={<MemberPendingVerificationPage />} />
       <Route path="/member/dashboard" element={<TeamMemberDashboard />} />

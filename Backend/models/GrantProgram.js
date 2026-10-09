@@ -230,6 +230,16 @@ const grantProgramSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+
+    // ─── Semantic Search & Similarity Embedding ───
+    embedding: {
+      type: [Number],
+      default: undefined,
+    },
+    embeddingContentHash: {
+      type: String,
+      default: '',
+    },
   },
   {
     timestamps: true,

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../api'
 import ProposalWritingWorkspace from '../components/ProposalWritingWorkspace'
+import GrantDiscoveryModule from '../components/GrantDiscoveryModule'
 
 const LeafIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
@@ -369,7 +370,7 @@ export default function TeamMemberDashboard() {
 
           {/* Task Nav */}
           <div className="p-4">
-            <p className="text-[10px] font-bold text-warm-gray-400 uppercase tracking-wider mb-3 px-2">My Tasks</p>
+            <p className="text-xs font-bold text-warm-gray-400 uppercase tracking-wider mb-3 px-2">My Tasks</p>
             <nav className="space-y-1">
               {assignedTasks.map((taskKey) => {
                 const task = TASK_FEATURES[taskKey]
@@ -478,202 +479,7 @@ export default function TeamMemberDashboard() {
                 <ProposalWritingWorkspace userName={userName} />
               </>
             ) : (
-              <>
-                {/* ─── Grant Discovery: real data, read-only ─── */}
-                <div className="mb-8">
-                  <h1 className="font-heading text-3xl font-bold text-warm-gray-900 mb-2">Grant Discovery</h1>
-                  <p className="text-warm-gray-500">Browse open calls from GrantOS funding agencies and government/scraped listings</p>
-                </div>
-
-                <div className="flex items-center gap-2 mb-6 border-b border-warm-gray-200/60 pb-3">
-                  <button
-                    onClick={() => setGrantSource('agency')}
-                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer border ${grantSource === 'agency'
-                      ? 'bg-primary text-white border-primary shadow-soft'
-                      : 'bg-white text-warm-gray-700 border-warm-gray-200 hover:bg-warm-gray-50'
-                      }`}
-                  >
-                    🏛️ GrantOS Funding Agencies ({openGrants.length})
-                  </button>
-                  <button
-                    onClick={() => setGrantSource('scraped')}
-                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer border ${grantSource === 'scraped'
-                      ? 'bg-primary text-white border-primary shadow-soft'
-                      : 'bg-white text-warm-gray-700 border-warm-gray-200 hover:bg-warm-gray-50'
-                      }`}
-                  >
-                    🏢 Government & Other Sources{scrapedGrants.length > 0 ? ` (${scrapedGrants.length})` : ''}
-                  </button>
-                </div>
-
-                <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-6 mb-6">
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <div className="flex-1 relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-warm-gray-400">🔍</span>
-                      <input
-                        type="text"
-                        value={grantSearch}
-                        onChange={(e) => setGrantSearch(e.target.value)}
-                        placeholder="Search grants by name, agency, or category..."
-                        className="w-full pl-11 pr-4 py-3 rounded-[12px] bg-cream border border-warm-gray-200 text-warm-gray-900 placeholder:text-warm-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-                      />
-                    </div>
-                    {grantSource === 'agency' && (
-                      <div className="flex gap-2">
-                        <select
-                          value={grantCategoryFilter}
-                          onChange={(e) => setGrantCategoryFilter(e.target.value)}
-                          className="px-4 py-3 rounded-[12px] bg-cream border border-warm-gray-200 text-warm-gray-600 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
-                        >
-                          <option>All Categories</option>
-                          {GRANT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                        <select
-                          value={grantFundingTypeFilter}
-                          onChange={(e) => setGrantFundingTypeFilter(e.target.value)}
-                          className="px-4 py-3 rounded-[12px] bg-cream border border-warm-gray-200 text-warm-gray-600 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
-                        >
-                          <option>All Types</option>
-                          {GRANT_FUNDING_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                        </select>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {grantSource === 'agency' && (
-                  <>
-                    {grantsLoading && (
-                      <div className="flex justify-center py-16">
-                        <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
-                      </div>
-                    )}
-                    {!grantsLoading && openGrants.length === 0 && (
-                      <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-12 text-center">
-                        <span className="text-4xl block mb-3">📭</span>
-                        <p className="text-warm-gray-500">No open grant calls available right now.</p>
-                      </div>
-                    )}
-                    {!grantsLoading && openGrants.length > 0 && filteredGrants.length === 0 && (
-                      <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-12 text-center">
-                        <p className="text-warm-gray-500">No grants match your search or filters.</p>
-                      </div>
-                    )}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                      {filteredGrants.map((grant) => {
-                        const daysLeft = daysUntil(grant.deadline)
-                        const isClosingSoon = daysLeft !== null && daysLeft <= 14 && daysLeft >= 0
-                        const docUrl = grantDocumentUrl(grant.document)
-                        return (
-                          <div key={grant._id} className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-6 hover:shadow-medium transition-all duration-300">
-                            <div className="flex items-start justify-between mb-3">
-                              <div>
-                                <span className="text-[10px] font-mono font-bold text-primary bg-primary-50 px-2 py-0.5 rounded-full border border-primary/15">
-                                  {grant.displayId}
-                                </span>
-                                <h3 className="font-heading text-base font-bold text-warm-gray-900 mt-1.5 mb-1">{grant.title}</h3>
-                                <p className="text-xs text-warm-gray-500">{grant.fundingAgency?.agencyName || 'Funding Agency'}</p>
-                              </div>
-                              {isClosingSoon && (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border bg-red-50 text-red-600 border-red-200 flex-shrink-0">Closing Soon</span>
-                              )}
-                            </div>
-                            {grant.description && <p className="text-xs text-warm-gray-600 leading-relaxed mb-3 line-clamp-2">{grant.description}</p>}
-                            <div className="flex items-center gap-4 mb-3 flex-wrap">
-                              <span className="text-sm font-bold text-warm-gray-900">{grant.budget || '—'}</span>
-                              <span className="text-xs text-warm-gray-400">•</span>
-                              <span className="text-xs text-warm-gray-500">
-                                Deadline: {formatGrantDate(grant.deadline)}{daysLeft !== null && daysLeft >= 0 && ` (${daysLeft}d left)`}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between mb-4">
-                              <span className="px-2.5 py-1 rounded-full bg-cream text-warm-gray-600 text-xs font-medium border border-warm-gray-200/60">{grant.category || 'Uncategorized'}</span>
-                              <span className="text-[11px] text-warm-gray-400">{grant.fundingType}</span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 pt-3 border-t border-warm-gray-100">
-                              <button onClick={() => setViewAgencyGrant(grant)} className="py-2 rounded-[10px] text-xs font-semibold text-warm-gray-700 bg-cream hover:bg-warm-gray-100 border border-warm-gray-200 transition-all cursor-pointer">🏛️ View Agency</button>
-                              <button onClick={() => setViewGrantDetails(grant)} className="py-2 rounded-[10px] text-xs font-semibold text-warm-gray-700 bg-cream hover:bg-warm-gray-100 border border-warm-gray-200 transition-all cursor-pointer">📄 View Details</button>
-                            </div>
-                            {docUrl && (
-                              <a href={docUrl} target="_blank" rel="noopener noreferrer" className="block text-center mt-2 text-[11px] font-semibold text-primary hover:underline">📎 Download Guidelines Document</a>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </>
-                )}
-
-                {grantSource === 'scraped' && (
-                  <>
-                    {scrapedGrantsLoading && (
-                      <div className="flex justify-center py-16">
-                        <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
-                      </div>
-                    )}
-                    {!scrapedGrantsLoading && scrapedGrants.length === 0 && (
-                      <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-12 text-center">
-                        <span className="text-4xl block mb-3">📭</span>
-                        <p className="text-warm-gray-500">No scraped grant listings available right now.</p>
-                      </div>
-                    )}
-                    {!scrapedGrantsLoading && scrapedGrants.length > 0 && filteredScrapedGrants.length === 0 && (
-                      <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-12 text-center">
-                        <p className="text-warm-gray-500">No grants match your search.</p>
-                      </div>
-                    )}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                      {filteredScrapedGrants.map((grant) => {
-                        const fundingDisplay = formatScrapedFunding(grant.fundingAmount)
-                        const deadlineDisplay = formatScrapedDeadline(grant.deadline)
-                        const scrapedLinks = getScrapedLinks(grant.links)
-                        return (
-                          <div key={grant._id || grant.grantId} className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-6 hover:shadow-medium transition-all duration-300">
-                            <div className="flex items-start justify-between mb-3">
-                              <div>
-                                <span className="text-[10px] font-bold text-warm-gray-500 bg-warm-gray-100 px-2 py-0.5 rounded-full border border-warm-gray-200">
-                                  {GRANT_TYPE_LABELS[grant.grantType] || grant.grantType || 'General'}
-                                </span>
-                                <h3 className="font-heading text-base font-bold text-warm-gray-900 mt-1.5 mb-1 line-clamp-2">{grant.title}</h3>
-                                <p className="text-xs text-warm-gray-500">
-                                  {grant.agency?.name || 'Government / External Source'}
-                                  {grant.agency?.parentBody && grant.agency.parentBody !== grant.agency.name && <span className="text-warm-gray-400"> • {grant.agency.parentBody}</span>}
-                                </p>
-                              </div>
-                              
-                            </div>
-                            {grant.description && <p className="text-xs text-warm-gray-600 leading-relaxed mb-3 line-clamp-3">{grant.description}</p>}
-                            <div className="flex items-center gap-4 mb-3 flex-wrap text-xs">
-                              {fundingDisplay && <span className="font-bold text-warm-gray-900 text-sm">{fundingDisplay}</span>}
-                              <span className="text-warm-gray-500">Deadline: {deadlineDisplay}</span>
-                            </div>
-                            {grant.focusAreas?.length > 0 && (
-                              <div className="flex flex-wrap gap-1.5 mb-3">
-                                {grant.focusAreas.slice(0, 3).map((f) => (
-                                  <span key={f} className="px-2 py-0.5 rounded-full bg-cream text-warm-gray-600 text-[10px] font-medium border border-warm-gray-200/60">{f}</span>
-                                ))}
-                              </div>
-                            )}
-                            <p className="text-[10px] text-warm-gray-400 mb-4">
-                              Source: {grant.source?.website || 'External'}{grant.lastScrapedAt && ` • Last checked ${formatGrantDate(grant.lastScrapedAt)}`}
-                            </p>
-                            {scrapedLinks.length > 0 && (
-                              <div className="flex flex-wrap gap-1.5 mb-3">
-                                {scrapedLinks.map((l) => (
-                                  <a key={l.key} href={l.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-[8px] bg-primary-50 text-primary text-[11px] font-semibold border border-primary/15 hover:bg-primary-100 transition-colors">
-                                    {l.icon} {l.label}
-                                  </a>
-                                ))}
-                              </div>
-                            )}
-                            <button onClick={() => setViewScrapedGrant(grant)} className="w-full py-2 rounded-[10px] text-xs font-semibold text-warm-gray-700 bg-cream hover:bg-warm-gray-100 border border-warm-gray-200 transition-all cursor-pointer">📄 View Full Details</button>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </>
-                )}
-              </>
+              <GrantDiscoveryModule embedded={true} userRole="team_member" />
             )}
           </div>
         )}
@@ -694,35 +500,35 @@ export default function TeamMemberDashboard() {
               <div className="space-y-4">
                 <div>
                   <h3 className="font-heading text-lg font-bold text-warm-gray-900">{myOrganization.organizationName}</h3>
-                  <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border bg-green-50 text-green-700 border-green-200 mt-1 capitalize">
+                  <span className="inline-block px-2 py-0.5 rounded-full text-xs font-bold border bg-green-50 text-green-700 border-green-200 mt-1 capitalize">
                     {myOrganization.status || 'approved'}
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div>
-                    <span className="block text-warm-gray-400 uppercase tracking-wider font-bold text-[10px] mb-0.5">Type</span>
+                    <span className="block text-slate-500 uppercase tracking-wider font-bold text-xs mb-0.5">Type</span>
                     <span className="text-warm-gray-800 font-semibold capitalize">{(myOrganization.organizationType || '').replace(/_/g, ' ') || '—'}</span>
                   </div>
                   <div>
-                    <span className="block text-warm-gray-400 uppercase tracking-wider font-bold text-[10px] mb-0.5">Registration No.</span>
+                    <span className="block text-slate-500 uppercase tracking-wider font-bold text-xs mb-0.5">Registration No.</span>
                     <span className="text-warm-gray-800 font-semibold">{myOrganization.registrationNumber || '—'}</span>
                   </div>
                   {myOrganization.establishedYear && (
                     <div>
-                      <span className="block text-warm-gray-400 uppercase tracking-wider font-bold text-[10px] mb-0.5">Established</span>
+                      <span className="block text-slate-500 uppercase tracking-wider font-bold text-xs mb-0.5">Established</span>
                       <span className="text-warm-gray-800 font-semibold">{myOrganization.establishedYear}</span>
                     </div>
                   )}
                   {myOrganization.website && (
                     <div>
-                      <span className="block text-warm-gray-400 uppercase tracking-wider font-bold text-[10px] mb-0.5">Website</span>
+                      <span className="block text-slate-500 uppercase tracking-wider font-bold text-xs mb-0.5">Website</span>
                       <a href={myOrganization.website} target="_blank" rel="noopener noreferrer" className="text-primary font-semibold hover:underline">{myOrganization.website}</a>
                     </div>
                   )}
                 </div>
                 {myOrganization.address && (
                   <div>
-                    <span className="block text-[10px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Address</span>
+                    <span className="block text-xs font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Address</span>
                     <p className="text-sm text-warm-gray-700">
                       {[myOrganization.address.street, myOrganization.address.city, myOrganization.address.state, myOrganization.address.pincode, myOrganization.address.country].filter(Boolean).join(', ') || '—'}
                     </p>
@@ -730,10 +536,10 @@ export default function TeamMemberDashboard() {
                 )}
                 {myOrganization.focusAreas?.length > 0 && (
                   <div>
-                    <span className="block text-[10px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1.5">Focus Areas</span>
+                    <span className="block text-xs font-bold uppercase tracking-wider text-warm-gray-400 mb-1.5">Focus Areas</span>
                     <div className="flex flex-wrap gap-1.5">
                       {myOrganization.focusAreas.map((a) => (
-                        <span key={a} className="px-2 py-0.5 rounded-full bg-primary-50 text-primary text-[11px] font-medium">{a}</span>
+                        <span key={a} className="px-2 py-0.5 rounded-full bg-primary-50 text-primary text-xs font-medium">{a}</span>
                       ))}
                     </div>
                   </div>
@@ -763,18 +569,18 @@ export default function TeamMemberDashboard() {
                   {agency.shortName && <p className="text-xs text-warm-gray-400 mb-4">{agency.shortName}</p>}
                   <div className="grid grid-cols-2 gap-3 text-xs mb-4">
                     <div>
-                      <span className="block text-warm-gray-400 uppercase tracking-wider font-bold text-[10px] mb-0.5">Agency Type</span>
+                      <span className="block text-slate-500 uppercase tracking-wider font-bold text-xs mb-0.5">Agency Type</span>
                       <span className="text-warm-gray-800 font-semibold">{AGENCY_TYPE_LABELS[agency.agencyType] || agency.agencyType || '—'}</span>
                     </div>
                     <div>
-                      <span className="block text-warm-gray-400 uppercase tracking-wider font-bold text-[10px] mb-0.5">Established</span>
+                      <span className="block text-slate-500 uppercase tracking-wider font-bold text-xs mb-0.5">Established</span>
                       <span className="text-warm-gray-800 font-semibold">{agency.establishedYear || '—'}</span>
                     </div>
                   </div>
-                  <span className="inline-block px-2.5 py-1 rounded-full text-[10px] font-bold border bg-green-50 text-green-700 border-green-200 mb-4">✓ Verified Funding Agency</span>
+                  <span className="inline-block px-2.5 py-1 rounded-full text-xs font-bold border bg-green-50 text-green-700 border-green-200 mb-4">✓ Verified Funding Agency</span>
                   {agency.description && (
                     <div className="mb-4">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">About</p>
+                      <p className="text-xs font-bold uppercase tracking-wider text-warm-gray-400 mb-1">About</p>
                       <p className="text-sm text-warm-gray-700 leading-relaxed">{agency.description}</p>
                     </div>
                   )}
@@ -803,7 +609,7 @@ export default function TeamMemberDashboard() {
                 <>
                   <div className="flex items-start justify-between mb-1 pb-4 border-b border-warm-gray-200/60">
                     <div>
-                      <span className="text-[10px] font-mono font-bold text-primary bg-primary-50 px-2 py-0.5 rounded-full border border-primary/15">{g.displayId}</span>
+                      <span className="text-xs font-mono font-bold text-primary bg-primary-50 px-2 py-0.5 rounded-full border border-primary/15">{g.displayId}</span>
                       <h2 className="font-heading text-xl font-bold text-warm-gray-900 mt-2">{g.title}</h2>
                       {g.shortTitle && <p className="text-xs text-warm-gray-400 font-mono mt-0.5">{g.shortTitle}</p>}
                       <p className="text-xs text-warm-gray-500 mt-1">{g.fundingAgency?.agencyName || 'Funding Agency'}</p>
@@ -829,7 +635,7 @@ export default function TeamMemberDashboard() {
                     {g.researchAreas?.length > 0 && (
                       <GrantSection icon="🔬" title="Research Areas">
                         <div className="flex flex-wrap gap-1.5">
-                          {g.researchAreas.map((r) => <span key={r} className="px-2.5 py-1 rounded-full bg-amber-50 text-amber text-[11px] font-semibold border border-amber/15">{r}</span>)}
+                          {g.researchAreas.map((r) => <span key={r} className="px-2.5 py-1 rounded-full bg-amber-50 text-amber text-xs font-semibold border border-amber/15">{r}</span>)}
                         </div>
                       </GrantSection>
                     )}
@@ -883,7 +689,7 @@ export default function TeamMemberDashboard() {
                 <>
                   <div className="flex items-start justify-between mb-1 pb-4 border-b border-warm-gray-200/60">
                     <div>
-                      <span className="text-[10px] font-bold text-warm-gray-500 bg-warm-gray-100 px-2 py-0.5 rounded-full border border-warm-gray-200">{GRANT_TYPE_LABELS[g.grantType] || g.grantType || 'General'}</span>
+                      <span className="text-xs font-bold text-warm-gray-500 bg-warm-gray-100 px-2 py-0.5 rounded-full border border-warm-gray-200">{GRANT_TYPE_LABELS[g.grantType] || g.grantType || 'General'}</span>
                       <h2 className="font-heading text-xl font-bold text-warm-gray-900 mt-2">{g.title}</h2>
                       <p className="text-xs text-warm-gray-500 mt-1">{g.agency?.name || 'Government / External Source'}{g.agency?.parentBody && g.agency.parentBody !== g.agency.name && ` • ${g.agency.parentBody}`}</p>
                     </div>
@@ -951,8 +757,8 @@ function GrantSection({ icon, title, children }) {
 function FactBox({ label, value, fallback = '—' }) {
   return (
     <div className="p-2.5 rounded-[8px] bg-cream border border-warm-gray-200">
-      <span className="text-warm-gray-400 block text-[10px] uppercase tracking-wide">{label}</span>
-      <strong className="text-warm-gray-900">{value || fallback}</strong>
+      <span className="text-slate-500 block text-xs font-bold uppercase tracking-wider mb-1">{label}</span>
+      <strong className="text-slate-900 font-bold text-sm block leading-snug">{value || fallback}</strong>
     </div>
   )
 }

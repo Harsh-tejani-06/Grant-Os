@@ -152,7 +152,7 @@ export default function AgencyProposalsPage() {
                 )}
 
                 {['Awarded', 'Rejected'].includes(prop.status) && prop.decision?.decidedAt && (
-                  <p className="text-[11px] text-warm-gray-400 mt-2">
+                  <p className="text-xs text-warm-gray-400 mt-2">
                     Decision recorded {formatDate(prop.decision.decidedAt)}
                     {prop.awardAmount ? ` — Award: ₹${prop.awardAmount.toLocaleString('en-IN')}` : ''}
                   </p>
@@ -161,7 +161,7 @@ export default function AgencyProposalsPage() {
 
               <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end justify-between gap-3 flex-shrink-0 border-t lg:border-t-0 pt-4 lg:pt-0 border-warm-gray-100">
                 <div className="text-left lg:text-right">
-                  <span className="text-[11px] text-warm-gray-400 block">Requested Amount</span>
+                  <span className="text-xs text-warm-gray-400 block">Requested Amount</span>
                   <span className="text-base font-bold text-warm-gray-900">{prop.fundingAmount || '—'}</span>
                 </div>
 
@@ -282,29 +282,29 @@ export default function AgencyProposalsPage() {
             <h3 className="font-heading text-lg font-bold text-warm-gray-900 mb-3">{viewOrgModal.organizationName}</h3>
             <div className="grid grid-cols-2 gap-3 text-xs mb-4">
               <div>
-                <span className="block text-warm-gray-400 uppercase tracking-wider font-bold text-[10px] mb-0.5">Type</span>
+                <span className="block text-slate-500 uppercase tracking-wider font-bold text-xs mb-0.5">Type</span>
                 <span className="text-warm-gray-800 font-semibold capitalize">{(viewOrgModal.organizationType || '').replace(/_/g, ' ') || '—'}</span>
               </div>
               <div>
-                <span className="block text-warm-gray-400 uppercase tracking-wider font-bold text-[10px] mb-0.5">Registration No.</span>
+                <span className="block text-slate-500 uppercase tracking-wider font-bold text-xs mb-0.5">Registration No.</span>
                 <span className="text-warm-gray-800 font-semibold">{viewOrgModal.registrationNumber || '—'}</span>
               </div>
               {viewOrgModal.establishedYear && (
                 <div>
-                  <span className="block text-warm-gray-400 uppercase tracking-wider font-bold text-[10px] mb-0.5">Established</span>
+                  <span className="block text-slate-500 uppercase tracking-wider font-bold text-xs mb-0.5">Established</span>
                   <span className="text-warm-gray-800 font-semibold">{viewOrgModal.establishedYear}</span>
                 </div>
               )}
               {viewOrgModal.website && (
                 <div>
-                  <span className="block text-warm-gray-400 uppercase tracking-wider font-bold text-[10px] mb-0.5">Website</span>
+                  <span className="block text-slate-500 uppercase tracking-wider font-bold text-xs mb-0.5">Website</span>
                   <a href={viewOrgModal.website} target="_blank" rel="noopener noreferrer" className="text-amber font-semibold hover:underline">{viewOrgModal.website}</a>
                 </div>
               )}
             </div>
             {viewOrgModal.address && (
               <div className="mb-4">
-                <span className="block text-[10px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Address</span>
+                <span className="block text-xs font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Address</span>
                 <p className="text-sm text-warm-gray-700">
                   {[viewOrgModal.address.street, viewOrgModal.address.city, viewOrgModal.address.state, viewOrgModal.address.pincode, viewOrgModal.address.country].filter(Boolean).join(', ') || '—'}
                 </p>
@@ -312,7 +312,7 @@ export default function AgencyProposalsPage() {
             )}
             {viewOrgModal.contactPerson && (
               <div className="mb-4">
-                <span className="block text-[10px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Contact Person</span>
+                <span className="block text-xs font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Contact Person</span>
                 <p className="text-sm text-warm-gray-700">
                   {[viewOrgModal.contactPerson.name, viewOrgModal.contactPerson.designation, viewOrgModal.contactPerson.email, viewOrgModal.contactPerson.phone].filter(Boolean).join(' • ') || '—'}
                 </p>

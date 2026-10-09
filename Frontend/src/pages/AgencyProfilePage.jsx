@@ -231,10 +231,10 @@ export default function AgencyProfilePage() {
         {completion && (
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-warm-gray-400">
+              <span className="text-xs font-bold uppercase tracking-wider text-warm-gray-400">
                 Profile Completion
               </span>
-              <span className="text-[11px] font-bold text-amber">{completion.percent}%</span>
+              <span className="text-xs font-bold text-amber">{completion.percent}%</span>
             </div>
             <div className="h-1.5 rounded-full bg-warm-gray-100 overflow-hidden mb-3">
               <div
@@ -246,7 +246,7 @@ export default function AgencyProfilePage() {
               {Object.entries(completion.sections).map(([key, done]) => (
                 <span
                   key={key}
-                  className={`text-[11px] px-2.5 py-1 rounded-full font-semibold border ${
+                  className={`text-xs px-2.5 py-1 rounded-full font-semibold border ${
                     done
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                       : 'bg-warm-gray-100 text-warm-gray-500 border-warm-gray-200'
@@ -259,7 +259,7 @@ export default function AgencyProfilePage() {
           </div>
         )}
 
-        <p className="text-[11px] text-warm-gray-400 mt-4">
+        <p className="text-xs text-warm-gray-400 mt-4">
           Last updated: {formatDateTime(profile.updatedAt)}
         </p>
       </div>
@@ -281,10 +281,10 @@ export default function AgencyProfilePage() {
           <LockedField label="Verification Status" value={checklist.isLegallyVerified ? 'Verified' : 'Not Verified'} />
         </div>
         <div className="mt-4">
-          <span className="block text-[11px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Address</span>
+          <span className="block text-xs font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Address</span>
           <p className="font-semibold text-warm-gray-800 text-sm">{formatAddress(profile.headquarters)}</p>
         </div>
-        <p className="text-[11px] text-warm-gray-400 mt-4">
+        <p className="text-xs text-warm-gray-400 mt-4">
           Need to correct one of these? Contact the GrantOS admin team — identity fields require
           manual re-verification.
         </p>
@@ -301,7 +301,7 @@ export default function AgencyProfilePage() {
               rows={4}
               className={`${inputCls} resize-none`}
             />
-            <p className="text-[11px] text-warm-gray-400 mt-1 text-right">{description.length}/1000</p>
+            <p className="text-xs text-warm-gray-400 mt-1 text-right">{description.length}/1000</p>
           </Field>
           <Field label="Mission">
             <textarea
@@ -311,7 +311,7 @@ export default function AgencyProfilePage() {
               rows={3}
               className={`${inputCls} resize-none`}
             />
-            <p className="text-[11px] text-warm-gray-400 mt-1 text-right">{mission.length}/1000</p>
+            <p className="text-xs text-warm-gray-400 mt-1 text-right">{mission.length}/1000</p>
           </Field>
           <Field label="Vision">
             <textarea
@@ -321,7 +321,7 @@ export default function AgencyProfilePage() {
               rows={3}
               className={`${inputCls} resize-none`}
             />
-            <p className="text-[11px] text-warm-gray-400 mt-1 text-right">{vision.length}/1000</p>
+            <p className="text-xs text-warm-gray-400 mt-1 text-right">{vision.length}/1000</p>
           </Field>
           <FormFooter submitting={profileSubmitting} error={profileError} success={profileSuccess} />
         </form>
@@ -431,7 +431,7 @@ export default function AgencyProfilePage() {
             <Field label="Designation"><input type="text" value={designation} onChange={(e) => setDesignation(e.target.value)} className={inputCls} /></Field>
             <Field label="Phone"><input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls} /></Field>
           </div>
-          <p className="text-[11px] text-warm-gray-400 mt-3">
+          <p className="text-xs text-warm-gray-400 mt-3">
             Name and email are tied to your registered account and can't be changed here.
           </p>
           <FormFooter submitting={profileSubmitting} error={profileError} success={profileSuccess} />
@@ -456,7 +456,7 @@ export default function AgencyProfilePage() {
               <input type="text" value={darpanId} onChange={(e) => setDarpanId(e.target.value)} placeholder="e.g. MH/2015/0123456" className={inputCls} />
             </Field>
           </div>
-          <p className="text-[11px] text-warm-gray-400 leading-relaxed">
+          <p className="text-xs text-warm-gray-400 leading-relaxed">
             Provide at least one identifier. Clear both fields and save to remove your verification status.
           </p>
           <FormFooter
@@ -474,7 +474,7 @@ export default function AgencyProfilePage() {
           <DocumentRow label="Authorization Letter" url={profile.authorizationLetterUrl} />
           <DocumentRow label="Registration Certificate" url={profile.registrationCertificateUrl} />
         </div>
-        <p className="text-[11px] text-warm-gray-400 mt-4">
+        <p className="text-xs text-warm-gray-400 mt-4">
           These were submitted during registration. Document uploads and replacements are
           handled by the GrantOS admin team during verification review.
         </p>
@@ -497,7 +497,7 @@ function Section({ title, badge, badgeTone, children }) {
     <section className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/70 p-6 shadow-soft">
       <div className="flex items-center gap-2 mb-4">
         <h3 className="font-heading text-lg font-bold text-warm-gray-900">{title}</h3>
-        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${toneCls}`}>
+        <span className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${toneCls}`}>
           {badge}
         </span>
       </div>
@@ -520,7 +520,7 @@ function Field({ label, children }) {
 function LockedField({ label, value, compact }) {
   return (
     <div>
-      <span className="block text-[11px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">
+      <span className="block text-xs font-bold uppercase tracking-wider text-warm-gray-400 mb-1">
         {label}
       </span>
       <p className={`font-semibold text-warm-gray-800 ${compact ? 'text-sm' : 'text-base'}`}>
@@ -602,7 +602,7 @@ function DocumentRow({ label, url }) {
       <span className="text-xs font-semibold text-warm-gray-700">{label}</span>
       {url
         ? <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-amber hover:underline">View →</a>
-        : <span className="text-[11px] text-warm-gray-400">Not submitted</span>}
+        : <span className="text-xs text-warm-gray-400">Not submitted</span>}
     </div>
   )
 }

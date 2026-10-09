@@ -16,6 +16,7 @@
 const GrantListing = require('../models/GrantListing');
 const FundingAgency = require('../models/FundingAgency');
 const { tokenSortRatio, bestMatch } = require('../utils/fuzzyMatch');
+const { embedGrantText, buildGrantText, contentHash } = require('../utils/embeddings');
 
 // ─── Alias table ───
 // Common short-form / alternate names for the four primary agencies.
@@ -155,6 +156,22 @@ const ingestGrant = async (req, res) => {
     const doc = await GrantListing.upsertFromScrape(scrapedData);
 
     const status = existingBefore ? 'updated' : 'inserted';
+
+    // Pre-compute embedding if missing or stale (fire-and-forget; non-blocking)
+    const grantText = buildGrantText(doc);
+    const textHash = grantText ? contentHash(grantText) : '';
+    if (
+      grantText &&
+      (!doc.embedding || doc.embedding.length !== 768 || doc.embeddingContentHash !== textHash)
+    ) {
+      embedGrantText(doc)
+        .then(({ embedding, hash }) => {
+          doc.embedding = embedding;
+          doc.embeddingContentHash = hash;
+          return doc.save();
+        })
+        .catch((err) => console.error('Grant embedding (ingest) failed (non-fatal):', err.message));
+    }
 
     res.status(status === 'inserted' ? 201 : 200).json({
       success: true,

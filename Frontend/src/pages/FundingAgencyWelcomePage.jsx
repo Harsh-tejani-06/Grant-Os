@@ -262,7 +262,7 @@ export default function FundingAgencyWelcomePage() {
                 <span className="font-heading text-xl font-bold text-warm-gray-900 tracking-tight leading-none">
                   Grant<span className="text-amber">OS</span>
                 </span>
-                <span className="text-[10px] font-semibold tracking-wider text-amber uppercase mt-0.5">
+                <span className="text-xs font-semibold tracking-wider text-amber uppercase mt-0.5">
                   Funding Agency Portal
                 </span>
               </div>
@@ -287,7 +287,7 @@ export default function FundingAgencyWelcomePage() {
                 <p className="text-xs font-bold text-warm-gray-900 leading-tight truncate max-w-[160px]">
                   {displayName}
                 </p>
-                <p className="text-[11px] text-warm-gray-500 truncate max-w-[160px]">
+                <p className="text-xs text-warm-gray-500 truncate max-w-[160px]">
                   {contactEmail || 'agency@partner.gov.in'}
                 </p>
               </div>
@@ -559,7 +559,7 @@ export default function FundingAgencyWelcomePage() {
                       <span className="text-emerald-600 mt-0.5">✓</span>
                       <div>
                         <p className="text-xs font-semibold text-warm-gray-900">Agency Account Activated</p>
-                        <p className="text-[11px] text-warm-gray-500">Official email verified for GrantOS network</p>
+                        <p className="text-xs text-warm-gray-500">Official email verified for GrantOS network</p>
                       </div>
                     </div>
 
@@ -571,7 +571,7 @@ export default function FundingAgencyWelcomePage() {
                       </span>
                       <div>
                         <p className="text-xs font-semibold text-warm-gray-900">Publish Initial RFP</p>
-                        <p className="text-[11px] text-warm-gray-500">
+                        <p className="text-xs text-warm-gray-500">
                           {activeCount > 0 ? `${activeCount} active grant call${activeCount === 1 ? '' : 's'}` : 'Specify grant scope, domain, and corpus'}
                         </p>
                       </div>
@@ -585,7 +585,7 @@ export default function FundingAgencyWelcomePage() {
                       </span>
                       <div>
                         <p className="text-xs font-semibold text-warm-gray-900">Legal Verification Document</p>
-                        <p className="text-[11px] text-warm-gray-500">Enhanced trust badge for applicant institutes</p>
+                        <p className="text-xs text-warm-gray-500">Enhanced trust badge for applicant institutes</p>
                       </div>
                     </div>
                   </div>
@@ -659,19 +659,19 @@ export default function FundingAgencyWelcomePage() {
 
                   <div className="grid grid-cols-2 gap-3 p-3.5 rounded-[12px] bg-cream border border-warm-gray-200 mb-5 text-xs">
                     <div>
-                      <span className="text-warm-gray-400 block text-[11px]">Total Funding</span>
+                      <span className="text-warm-gray-400 block text-xs">Total Funding</span>
                       <strong className="text-warm-gray-900 font-semibold text-sm">{prog.budget || '—'}</strong>
                     </div>
                     <div>
-                      <span className="text-warm-gray-400 block text-[11px]">Submissions</span>
+                      <span className="text-warm-gray-400 block text-xs">Submissions</span>
                       <strong className="text-warm-gray-900 font-semibold text-sm">{prog.applicationsCount || 0} Proposals</strong>
                     </div>
                     <div>
-                      <span className="text-warm-gray-400 block text-[11px]">Submission Deadline</span>
+                      <span className="text-warm-gray-400 block text-xs">Submission Deadline</span>
                       <span className="text-warm-gray-700 font-medium">{formatDate(prog.deadline)}</span>
                     </div>
                     <div>
-                      <span className="text-warm-gray-400 block text-[11px]">Match Filter</span>
+                      <span className="text-warm-gray-400 block text-xs">Match Filter</span>
                       <span className="text-emerald-700 font-medium">AI Active</span>
                     </div>
                   </div>
@@ -732,13 +732,13 @@ export default function FundingAgencyWelcomePage() {
 
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-[8px] bg-emerald-50 text-emerald-800 text-xs font-semibold border border-emerald-200">
                       <span>🧠 AI Match Score: {prop.aiScore}%</span>
-                      <span className="text-[10px] text-emerald-600">• High mandate relevance</span>
+                      <span className="text-xs text-emerald-600">• High mandate relevance</span>
                     </div>
                   </div>
 
                   <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end justify-between gap-3 flex-shrink-0 border-t lg:border-t-0 pt-4 lg:pt-0 border-warm-gray-100">
                     <div className="text-left lg:text-right">
-                      <span className="text-[11px] text-warm-gray-400 block">Requested Amount</span>
+                      <span className="text-xs text-warm-gray-400 block">Requested Amount</span>
                       <span className="text-base font-bold text-warm-gray-900">{prop.requestedAmount}</span>
                     </div>
 
@@ -776,7 +776,7 @@ export default function FundingAgencyWelcomePage() {
             <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/70 p-6 shadow-soft">
               <div className="flex items-center gap-2 mb-4">
                 <h3 className="font-heading text-lg font-bold text-warm-gray-900">Agency Identity</h3>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-warm-gray-400 bg-warm-gray-100 px-2 py-0.5 rounded-full">
+                <span className="text-xs font-bold uppercase tracking-wider text-warm-gray-400 bg-warm-gray-100 px-2 py-0.5 rounded-full">
                   Locked
                 </span>
               </div>
@@ -785,19 +785,19 @@ export default function FundingAgencyWelcomePage() {
               ) : profile ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="block text-[11px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Agency Name</span>
+                    <span className="block text-xs font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Agency Name</span>
                     <p className="font-semibold text-warm-gray-800">{profile.agencyName || '—'}</p>
                   </div>
                   <div>
-                    <span className="block text-[11px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Agency Type</span>
+                    <span className="block text-xs font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Agency Type</span>
                     <p className="font-semibold text-warm-gray-800 capitalize">{(profile.agencyType || '').replace(/_/g, ' ') || '—'}</p>
                   </div>
                   <div>
-                    <span className="block text-[11px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Established Year</span>
+                    <span className="block text-xs font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Established Year</span>
                     <p className="font-semibold text-warm-gray-800">{profile.establishedYear || '—'}</p>
                   </div>
                   <div>
-                    <span className="block text-[11px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Approval Status</span>
+                    <span className="block text-xs font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Approval Status</span>
                     <span className={`inline-block text-xs px-2.5 py-0.5 rounded-full font-semibold border ${
                       profile.status === 'approved'
                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -816,7 +816,7 @@ export default function FundingAgencyWelcomePage() {
             <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/70 p-6 shadow-soft">
               <div className="flex items-center gap-2 mb-1">
                 <h3 className="font-heading text-lg font-bold text-warm-gray-900">Verification Document</h3>
-                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                <span className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
                   isVerified
                     ? 'bg-emerald-50 text-emerald-700'
                     : verificationDoc?.status === 'rejected'
@@ -852,7 +852,7 @@ export default function FundingAgencyWelcomePage() {
                     <p className="text-xs font-semibold text-warm-gray-800 truncate">
                       📄 {verificationDoc.originalFileName || 'Verification document.pdf'}
                     </p>
-                    <p className="text-[11px] text-warm-gray-400 mt-0.5">
+                    <p className="text-xs text-warm-gray-400 mt-0.5">
                       Submitted {formatDate(verificationDoc.submittedAt)}
                       {verificationDoc.fileSizeBytes
                         ? ` • ${(verificationDoc.fileSizeBytes / (1024 * 1024)).toFixed(2)} MB`
@@ -887,7 +887,7 @@ export default function FundingAgencyWelcomePage() {
               />
 
               {isVerified ? (
-                <p className="text-[11px] text-warm-gray-400">
+                <p className="text-xs text-warm-gray-400">
                   This document has been verified and is now read-only. Contact the GrantOS admin
                   team if you need to submit a replacement.
                 </p>

@@ -972,7 +972,7 @@ export default function ProposalWritingWorkspace({ userName }) {
               >
                 <span>📄</span>
                 <span>{prop.title}</span>
-                <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
+                <span className={`px-1.5 py-0.2 rounded-full text-xs font-bold ${
                   isSelected ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-700'
                 }`}>
                   {prop.sections?.length || 0} sections
@@ -988,13 +988,13 @@ export default function ProposalWritingWorkspace({ userName }) {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${isPI ? 'bg-purple-100 text-purple-900 border-purple-300' : 'bg-purple-50 text-purple-700 border-purple-200'}`}>
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${isPI ? 'bg-purple-100 text-purple-900 border-purple-300' : 'bg-purple-50 text-purple-700 border-purple-200'}`}>
                 {isPI ? '🎓 Principal Investigator (PI) Workspace' : 'Active Workspace'}
               </span>
-              <span className="text-[10px] text-warm-gray-400">•</span>
+              <span className="text-xs text-warm-gray-400">•</span>
               <span className="text-xs text-warm-gray-500 font-medium">{currentProposal?.grantAgency}</span>
-              <span className="text-[10px] text-warm-gray-400">•</span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="text-xs text-warm-gray-400">•</span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 Live Sync Active
               </span>
@@ -1097,7 +1097,7 @@ export default function ProposalWritingWorkspace({ userName }) {
                     style={{ width: `${currentProposal?.progress || 0}%` }}
                   />
                 </div>
-                <p className="text-[10px] text-warm-gray-400 mt-1">
+                <p className="text-xs text-warm-gray-400 mt-1">
                   {currentProposal?.sections?.filter(s => s.status === 'Approved').length || 0} / {currentProposal?.sections?.length || 0} approved
                 </p>
               </div>
@@ -1143,7 +1143,7 @@ export default function ProposalWritingWorkspace({ userName }) {
                   ? `Officially Endorsed & Dispatched to Agency: Confirmation Ref #${currentProposal?.agencySubmission?.agencySubmissionId || 'N/A'}`
                   : 'Proposal Submitted to Organization Admin (Institutional Compliance & Clearance Phase)'}
               </p>
-              <p className="text-[11px] opacity-80 mt-0.5 leading-relaxed">
+              <p className="text-xs opacity-80 mt-0.5 leading-relaxed">
                 {currentProposal?.status === 'Awarded'
                   ? `Sanctioned Amount: ₹${Number(currentProposal?.awardDetails?.sanctionedAmount || 0).toLocaleString()} | Tenure: ${currentProposal?.awardDetails?.durationMonths || 36} months. Congratulations to the project team!`
                   : currentProposal?.status === 'Under Evaluation'
@@ -1159,7 +1159,7 @@ export default function ProposalWritingWorkspace({ userName }) {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-            <span className="px-2.5 py-1 rounded-[8px] bg-white/80 border border-current font-mono text-[10px] font-bold">
+            <span className="px-2.5 py-1 rounded-[8px] bg-white/80 border border-current font-mono text-xs font-bold">
               {currentProposal?.status}
             </span>
             <button
@@ -1212,11 +1212,11 @@ export default function ProposalWritingWorkspace({ userName }) {
                       <span className="font-heading font-bold text-sm text-warm-gray-900">
                         {sec.title}
                       </span>
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${statusColor(sec.status)}`}>
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusColor(sec.status)}`}>
                         {sec.status}
                       </span>
                       {commentCount > 0 && (
-                        <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-800 rounded-full flex items-center gap-1">
+                        <span className="px-2 py-0.5 text-xs font-bold bg-amber-100 text-amber-800 rounded-full flex items-center gap-1">
                           💬 {commentCount} comments
                         </span>
                       )}
@@ -1280,10 +1280,10 @@ export default function ProposalWritingWorkspace({ userName }) {
         {/* ── Left: Section Selector (3 cols) ── */}
         <div className="lg:col-span-3 bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-soft overflow-hidden">
           <div className="p-4 border-b border-warm-gray-200/60 bg-cream/30 flex items-center justify-between">
-            <p className="text-[10px] font-bold text-warm-gray-500 uppercase tracking-wider">
+            <p className="text-xs font-bold text-warm-gray-500 uppercase tracking-wider">
               My Assigned Sections ({myAssignedSections.length})
             </p>
-            <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">
+            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">
               Assigned to Me
             </span>
           </div>
@@ -1321,16 +1321,16 @@ export default function ProposalWritingWorkspace({ userName }) {
                     <div className="flex items-start justify-between gap-2 mb-1">
                       <span className="font-semibold leading-tight">{sec.title}</span>
                       {commentCount > 0 && (
-                        <span className="px-1.5 py-0.5 text-[9px] font-bold bg-amber-100 text-amber-800 rounded-full flex-shrink-0 flex items-center gap-0.5">
+                        <span className="px-1.5 py-0.5 text-xs font-bold bg-amber-100 text-amber-800 rounded-full flex-shrink-0 flex items-center gap-0.5">
                           💬 {commentCount}
                         </span>
                       )}
                     </div>
                     <div className="flex items-center justify-between mt-1">
-                      <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded-full border ${statusColor(sec.status)}`}>
+                      <span className={`px-1.5 py-0.5 text-xs font-bold rounded-full border ${statusColor(sec.status)}`}>
                         {sec.status}
                       </span>
-                      <span className="text-[9px] text-warm-gray-500 truncate max-w-[110px]">
+                      <span className="text-xs text-warm-gray-500 truncate max-w-[110px]">
                         👤 Assigned to Me
                       </span>
                     </div>
@@ -1490,7 +1490,7 @@ export default function ProposalWritingWorkspace({ userName }) {
             )}
 
             <div className="flex-1" />
-            {lastSavedTime && <span className="text-[11px] text-warm-gray-400 font-medium italic">Saved at {lastSavedTime}</span>}
+            {lastSavedTime && <span className="text-xs text-warm-gray-400 font-medium italic">Saved at {lastSavedTime}</span>}
           </div>
 
           {/* Editor / Live Preview Container */}
@@ -1555,11 +1555,11 @@ export default function ProposalWritingWorkspace({ userName }) {
               >
                 <span>{tab.label}</span>
                 {tab.unread > 0 && activeRightTab !== tab.key ? (
-                  <span className="px-1.5 py-0.2 text-[9px] bg-red-500 text-white rounded-full font-bold animate-pulse">
+                  <span className="px-1.5 py-0.2 text-xs bg-red-500 text-white rounded-full font-bold animate-pulse">
                     +{tab.unread}
                   </span>
                 ) : tab.badge > 0 ? (
-                  <span className="px-1.5 py-0.2 text-[9px] bg-purple-100 text-purple-800 rounded-full font-bold">
+                  <span className="px-1.5 py-0.2 text-xs bg-purple-100 text-purple-800 rounded-full font-bold">
                     {tab.badge}
                   </span>
                 ) : null}
@@ -1574,10 +1574,10 @@ export default function ProposalWritingWorkspace({ userName }) {
                 <p className="font-bold text-purple-900 mb-0.5 flex items-center gap-1.5">
                   <span>✨</span> GrantOS AI Research Assistant
                 </p>
-                <p className="text-[11px] text-purple-900 font-semibold leading-snug truncate">
+                <p className="text-xs text-purple-900 font-semibold leading-snug truncate">
                   Target: <span className="text-purple-700">{currentProposal?.grantTitle || 'Research Grant'}</span>
                 </p>
-                <p className="text-[10px] text-purple-600 mt-0.5">
+                <p className="text-xs text-purple-600 mt-0.5">
                   Agency: {currentProposal?.grantAgency || 'Funding Agency'} &nbsp;•&nbsp; Section: "{currentSection?.title}"
                 </p>
               </div>
@@ -1625,27 +1625,27 @@ export default function ProposalWritingWorkspace({ userName }) {
               {/* AI Result */}
               {aiResult && (
                 <div className="space-y-2 p-3 bg-purple-50/50 border border-purple-200 rounded-[12px]">
-                  <p className="font-bold text-purple-900 text-[11px]">AI Generated Output:</p>
-                  <div className="max-h-[200px] overflow-y-auto text-[11px] text-warm-gray-700 bg-white p-3 rounded-[8px] border border-warm-gray-200 font-mono leading-relaxed whitespace-pre-wrap">
+                  <p className="font-bold text-purple-900 text-xs">AI Generated Output:</p>
+                  <div className="max-h-[200px] overflow-y-auto text-xs text-warm-gray-700 bg-white p-3 rounded-[8px] border border-warm-gray-200 font-mono leading-relaxed whitespace-pre-wrap">
                     {aiResult}
                   </div>
                   {isAssignedToUser(currentSection) ? (
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleInsertAi('append')}
-                        className="flex-1 py-1.5 bg-purple-600 text-white rounded-[8px] font-bold text-[11px] hover:bg-purple-700 transition-colors cursor-pointer"
+                        className="flex-1 py-1.5 bg-purple-600 text-white rounded-[8px] font-bold text-xs hover:bg-purple-700 transition-colors cursor-pointer"
                       >
                         + Append to Editor
                       </button>
                       <button
                         onClick={() => handleInsertAi('replace')}
-                        className="py-1.5 px-3 bg-warm-gray-200 text-warm-gray-800 rounded-[8px] font-bold text-[11px] hover:bg-warm-gray-300 transition-colors cursor-pointer"
+                        className="py-1.5 px-3 bg-warm-gray-200 text-warm-gray-800 rounded-[8px] font-bold text-xs hover:bg-warm-gray-300 transition-colors cursor-pointer"
                       >
                         Replace All
                       </button>
                     </div>
                   ) : (
-                    <p className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded-[8px] border border-amber-200 italic text-center">
+                    <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded-[8px] border border-amber-200 italic text-center">
                       🔒 Read-only section. Only the assigned writer ({currentSection?.assignedToName}) can insert text.
                     </p>
                   )}
@@ -1658,8 +1658,8 @@ export default function ProposalWritingWorkspace({ userName }) {
           {activeRightTab === 'comments' && (
             <div className="p-4 flex flex-col h-[500px] text-xs">
               <div className="flex items-center justify-between pb-2 mb-2 border-b border-warm-gray-200/50">
-                <span className="font-bold text-warm-gray-700 text-[11px]">💬 Proposal Discussion</span>
-                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                <span className="font-bold text-warm-gray-700 text-xs">💬 Proposal Discussion</span>
+                <span className="inline-flex items-center gap-1 text-xs text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   Instant Live Sync
                 </span>
@@ -1669,7 +1669,7 @@ export default function ProposalWritingWorkspace({ userName }) {
                   <div className="text-center text-warm-gray-400 py-12">
                     <span className="text-3xl block mb-2">💬</span>
                     <p className="font-semibold">No team messages yet</p>
-                    <p className="text-[10px] mt-1">Start a discussion with all team members working on this proposal.</p>
+                    <p className="text-xs mt-1">Start a discussion with all team members working on this proposal.</p>
                   </div>
                 ) : (
                   currentProposal.comments.map((c, i) => (
@@ -1684,17 +1684,17 @@ export default function ProposalWritingWorkspace({ userName }) {
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-1.5">
                           <span className="font-bold text-warm-gray-900">{c.senderName}</span>
-                          <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
+                          <span className={`px-1.5 py-0.2 rounded-full text-xs font-bold ${
                             c.senderRole === 'org_admin' ? 'bg-amber-200 text-amber-900' : 'bg-purple-100 text-purple-800'
                           }`}>
                             {c.senderRole === 'org_admin' ? 'Admin' : 'Team'}
                           </span>
                         </div>
-                        <span className="text-[9px] text-warm-gray-400">
+                        <span className="text-xs text-warm-gray-400">
                           {new Date(c.createdAt).toLocaleDateString()} {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
-                      <p className="text-[11px] leading-relaxed text-warm-gray-700">{c.text}</p>
+                      <p className="text-xs leading-relaxed text-warm-gray-700">{c.text}</p>
                     </div>
                   ))
                 )}
@@ -1725,7 +1725,7 @@ export default function ProposalWritingWorkspace({ userName }) {
             <div className="p-4 space-y-4 text-xs">
               <div className="p-3 rounded-[12px] bg-blue-50 border border-blue-200">
                 <p className="font-bold text-blue-900 mb-0.5">📋 Section Writing Guide</p>
-                <p className="text-[11px] text-blue-700/80 leading-snug">
+                <p className="text-xs text-blue-700/80 leading-snug">
                   Follow these guidelines from {currentProposal?.grantAgency || 'the funding agency'} for "{currentSection?.title}".
                 </p>
               </div>
@@ -1733,14 +1733,14 @@ export default function ProposalWritingWorkspace({ userName }) {
               <div className="bg-white p-4 rounded-[12px] border border-warm-gray-200 space-y-3">
                 <div>
                   <p className="font-bold text-warm-gray-800 mb-1.5">Template Outline & Requirements:</p>
-                  <div className="text-[11px] text-warm-gray-600 leading-relaxed whitespace-pre-line bg-cream/50 p-3 rounded-[8px] border border-warm-gray-200/60">
+                  <div className="text-xs text-warm-gray-600 leading-relaxed whitespace-pre-line bg-cream/50 p-3 rounded-[8px] border border-warm-gray-200/60">
                     {currentSection?.starterGuide || '• No specific guidance available for this section.'}
                   </div>
                 </div>
 
                 <div className="pt-2 border-t border-warm-gray-200/60">
                   <p className="font-bold text-warm-gray-800 mb-1">Section Details:</p>
-                  <div className="space-y-1 text-[11px] text-warm-gray-600">
+                  <div className="space-y-1 text-xs text-warm-gray-600">
                     <p>📏 Word Limit: <span className="font-semibold text-warm-gray-900">{currentSection?.wordCountLimit || 500} words</span></p>
                     <p>👤 Assigned to: <span className="font-semibold text-warm-gray-900">{currentSection?.assignedToName || userName}</span></p>
                     <p>📊 Status: <span className={`font-semibold ${sectionStatus === 'Ready for Review' ? 'text-green-700' : 'text-amber-700'}`}>{sectionStatus}</span></p>
@@ -1878,7 +1878,7 @@ export default function ProposalWritingWorkspace({ userName }) {
           <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-2xl w-full max-w-4xl p-6 sm:p-8 animate-fade-in max-h-[90vh] flex flex-col z-10 my-auto">
             <div className="flex items-center justify-between pb-4 border-b border-warm-gray-200/60 mb-4">
               <div>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-300">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-900 border border-purple-300">
                   {isProposalLocked ? `Official Dossier (${currentProposal.status})` : 'PI Master Compiled Document'}
                 </span>
                 <h2 className="font-heading text-xl font-bold text-warm-gray-900 mt-1">{currentProposal.title}</h2>
@@ -1893,7 +1893,7 @@ export default function ProposalWritingWorkspace({ userName }) {
             {currentProposal.agencySubmission?.agencySubmissionId && (
               <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-[12px] text-xs text-blue-900 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-xs">
                 <span>🏛️ <strong>Official Agency Reference ID:</strong> <span className="font-mono font-bold text-blue-800">{currentProposal.agencySubmission.agencySubmissionId}</span></span>
-                <span className="text-[11px] text-blue-700">Dispatched by {currentProposal.agencySubmission.submittedByName || 'Admin'} on {new Date(currentProposal.agencySubmission.submittedAt).toLocaleDateString()}</span>
+                <span className="text-xs text-blue-700">Dispatched by {currentProposal.agencySubmission.submittedByName || 'Admin'} on {new Date(currentProposal.agencySubmission.submittedAt).toLocaleDateString()}</span>
               </div>
             )}
 
@@ -1904,7 +1904,7 @@ export default function ProposalWritingWorkspace({ userName }) {
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-heading font-bold text-sm text-purple-950">{sec.title}</h3>
                     <div className="flex items-center gap-2">
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${statusColor(sec.status)}`}>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${statusColor(sec.status)}`}>
                         {sec.status} &nbsp;•&nbsp; Writer: {sec.assignedToName || 'Unassigned'}
                       </span>
                       {isPI && !isProposalLocked && sec.status !== 'Approved' && (
@@ -1912,7 +1912,7 @@ export default function ProposalWritingWorkspace({ userName }) {
                           type="button"
                           onClick={() => handleApproveSection(sec._id)}
                           disabled={approvingSectionId === sec._id}
-                          className="px-2.5 py-1 rounded-[8px] bg-green-600 hover:bg-green-700 text-white font-bold text-[10px] transition-all cursor-pointer shadow-soft flex items-center gap-1 disabled:opacity-50"
+                          className="px-2.5 py-1 rounded-[8px] bg-green-600 hover:bg-green-700 text-white font-bold text-xs transition-all cursor-pointer shadow-soft flex items-center gap-1 disabled:opacity-50"
                         >
                           <span>✓</span> {approvingSectionId === sec._id ? 'Approving...' : 'Approve'}
                         </button>
@@ -1974,7 +1974,7 @@ export default function ProposalWritingWorkspace({ userName }) {
             <div className="flex items-center justify-between pb-4 border-b border-warm-gray-200/60 mb-4">
               <div>
                 <div className="flex items-center gap-2 mb-1.5">
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${statusColor(reviewSectionModal.status)}`}>
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusColor(reviewSectionModal.status)}`}>
                     {reviewSectionModal.status}
                   </span>
                   <span className="text-xs text-warm-gray-400">•</span>

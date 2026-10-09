@@ -50,10 +50,11 @@ function buildGrantText(grantDoc) {
   const parts = [
     grantDoc.title || '',
     grantDoc.description || '',
-    grantDoc.eligibilityText || '',
+    grantDoc.eligibilityText || grantDoc.eligibilityRulesText || '',
     Array.isArray(grantDoc.focusAreas) ? grantDoc.focusAreas.join(', ') : '',
-    grantDoc.categoryRaw || '',
-    grantDoc.grantType || '',
+    Array.isArray(grantDoc.researchAreas) ? grantDoc.researchAreas.join(', ') : '',
+    grantDoc.categoryRaw || grantDoc.category || '',
+    grantDoc.grantType || grantDoc.fundingType || '',
   ];
   return parts.filter(Boolean).join(' ').trim();
 }

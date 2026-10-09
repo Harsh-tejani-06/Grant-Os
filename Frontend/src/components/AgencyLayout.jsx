@@ -75,7 +75,7 @@ export default function AgencyLayout() {
               <span className="font-heading text-lg font-bold text-warm-gray-900 tracking-tight leading-none">
                 Grant<span className="text-amber">OS</span>
               </span>
-              <span className="text-[10px] font-semibold tracking-wider text-amber uppercase mt-0.5">
+              <span className="text-xs font-semibold tracking-wider text-amber uppercase mt-0.5">
                 Agency Portal
               </span>
             </div>
@@ -105,10 +105,10 @@ export default function AgencyLayout() {
         {/* Setup progress footer */}
         <div className="px-4 py-4 border-t border-warm-gray-200/70">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-warm-gray-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-warm-gray-400">
               Setup Progress
             </span>
-            <span className="text-[11px] font-bold text-amber">
+            <span className="text-xs font-bold text-amber">
               {checklistDone}/{checklistTotal}
             </span>
           </div>
@@ -120,7 +120,7 @@ export default function AgencyLayout() {
           </div>
           <NavLink
             to="/agency/dashboard/profile"
-            className="text-[11px] font-semibold text-amber hover:underline mt-2 inline-block"
+            className="text-xs font-semibold text-amber hover:underline mt-2 inline-block"
           >
             Complete setup →
           </NavLink>
@@ -158,7 +158,7 @@ export default function AgencyLayout() {
                   <p className="text-xs font-bold text-warm-gray-900 leading-tight truncate max-w-[160px]">
                     {displayName}
                   </p>
-                  <p className="text-[11px] text-warm-gray-500 truncate max-w-[160px]">
+                  <p className="text-xs text-warm-gray-500 truncate max-w-[160px]">
                     {contactEmail || 'agency@partner.gov.in'}
                   </p>
                 </div>

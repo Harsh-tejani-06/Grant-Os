@@ -135,31 +135,31 @@ export default function AgencyGrantCallsPage() {
               </div>
 
               <h3 className="font-heading text-lg font-bold text-warm-gray-900 mb-1">{prog.title}</h3>
-              {prog.shortTitle && <p className="text-[11px] text-warm-gray-400 mb-2 font-mono">{prog.shortTitle}</p>}
+              {prog.shortTitle && <p className="text-xs text-warm-gray-400 mb-2 font-mono">{prog.shortTitle}</p>}
               <p className="text-xs text-warm-gray-500 mb-4">{prog.category || 'No category yet'} • {prog.fundingType}</p>
 
               <div className="grid grid-cols-2 gap-3 p-3.5 rounded-[12px] bg-cream border border-warm-gray-200 mb-3 text-xs">
                 <div>
-                  <span className="text-warm-gray-400 block text-[11px]">Funding</span>
+                  <span className="text-warm-gray-400 block text-xs">Funding</span>
                   <strong className="text-warm-gray-900 font-semibold text-sm">{prog.budget || '—'}</strong>
                 </div>
                 <div>
-                  <span className="text-warm-gray-400 block text-[11px]">Submissions</span>
+                  <span className="text-warm-gray-400 block text-xs">Submissions</span>
                   <strong className="text-warm-gray-900 font-semibold text-sm">{prog.applicationsCount || 0} Proposals</strong>
                 </div>
                 <div>
-                  <span className="text-warm-gray-400 block text-[11px]">Submission Deadline</span>
+                  <span className="text-warm-gray-400 block text-xs">Submission Deadline</span>
                   <span className="text-warm-gray-700 font-medium">{formatDate(prog.deadline)}</span>
                 </div>
                 <div>
-                  <span className="text-warm-gray-400 block text-[11px]">Match Filter</span>
+                  <span className="text-warm-gray-400 block text-xs">Match Filter</span>
                   <span className="text-emerald-700 font-medium">AI Active</span>
                 </div>
               </div>
 
               {prog.evaluationCriteria?.length > 0 && (
                 <div className="mb-3">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-warm-gray-400 block mb-1.5">
+                  <span className="text-xs font-bold uppercase tracking-wider text-warm-gray-400 block mb-1.5">
                     Evaluation Criteria
                   </span>
                   <ul className="text-xs text-warm-gray-700 space-y-0.5">

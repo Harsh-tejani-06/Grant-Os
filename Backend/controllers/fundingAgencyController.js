@@ -3,6 +3,7 @@ const FundingAgency = require('../models/FundingAgency');
 const GrantProgram = require('../models/GrantProgram');
 const Proposal = require('../models/Proposal');
 const User = require('../models/User');
+const { embedGrantText } = require('../utils/embeddings');
 
 // Helper: ensure the logged-in user has an approved funding agency profile,
 // and return it. Sends the appropriate error response itself if not.
@@ -252,6 +253,15 @@ const createGrantProgram = async (req, res) => {
       fundingAgency: agency._id,
       createdBy: req.user._id,
     });
+
+    // Pre-compute embedding for grant discovery (fire-and-forget; non-blocking)
+    embedGrantText(grant)
+      .then(({ embedding, hash }) => {
+        grant.embedding = embedding;
+        grant.embeddingContentHash = hash;
+        return grant.save();
+      })
+      .catch((err) => console.error('Grant embedding computation failed (non-fatal):', err.message));
 
     res.status(201).json({
       success: true,

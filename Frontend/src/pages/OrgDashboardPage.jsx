@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import api from '../api'
 import { socket, joinOrgRoom, leaveOrgRoom } from '../socket'
+import GrantDiscoveryModule from '../components/GrantDiscoveryModule'
 
 const LeafIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
@@ -9,6 +10,114 @@ const LeafIcon = () => (
     <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
   </svg>
 )
+
+const TreasuryIcon = ({ className = "w-5 h-5" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M3 21h18M3 10h18M5 10v11M19 10v11M9 10v11M15 10v11M12 3l9 7H3l9-7z" />
+  </svg>
+)
+
+const TrophyIcon = ({ className = "w-5 h-5" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 4h16v6a7 7 0 0 1-14 0V4z" />
+    <path d="M12 17v4M8 21h8" />
+  </svg>
+)
+
+const DocumentTextIcon = ({ className = "w-5 h-5" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="16" y1="13" x2="8" y2="13" />
+    <line x1="16" y1="17" x2="8" y2="17" />
+    <polyline points="10 9 9 9 8 9" />
+  </svg>
+)
+
+const TrackingChartIcon = ({ className = "w-5 h-5" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <line x1="18" y1="20" x2="18" y2="10" />
+    <line x1="12" y1="20" x2="12" y2="4" />
+    <line x1="6" y1="20" x2="6" y2="14" />
+    <line x1="2" y1="20" x2="22" y2="20" />
+  </svg>
+)
+
+const UsersIcon = ({ className = "w-5 h-5" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+  </svg>
+)
+
+const ClockIcon = ({ className = "w-5 h-5" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+  </svg>
+)
+
+const TrendingUpIcon = ({ className = "w-5 h-5" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+    <polyline points="17 6 23 6 23 12" />
+  </svg>
+)
+
+const CompassIcon = ({ className = "w-5 h-5" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="12" cy="12" r="10" />
+    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+  </svg>
+)
+
+const ShieldCheckIcon = ({ className = "w-5 h-5" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    <polyline points="9 12 11 14 15 10" />
+  </svg>
+)
+
+const FlameIcon = ({ className = "w-4 h-4" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+  </svg>
+)
+
+const SparklesIcon = ({ className = "w-4 h-4" }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+    <path d="M5 3v4M3 5h4M19 17v4M17 19h4" />
+  </svg>
+)
+
+const SparklineSvg = ({ data = [], color = "#059669", className = "w-16 h-6" }) => {
+  if (!data || data.length === 0 || data.every(v => v === 0)) {
+    return (
+      <svg viewBox="0 0 80 24" fill="none" className={className}>
+        <line x1="0" y1="18" x2="80" y2="18" stroke={color} strokeWidth="1.5" strokeDasharray="3 3" opacity="0.4" />
+      </svg>
+    )
+  }
+  const max = Math.max(...data, 1)
+  const min = Math.min(...data, 0)
+  const range = max - min || 1
+  const points = data.map((val, idx) => {
+    const x = data.length === 1 ? 40 : (idx / (data.length - 1)) * 76 + 2
+    const y = 20 - ((val - min) / range) * 16
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  })
+  const polylineStr = points.join(' ')
+  const areaStr = `0,24 ${polylineStr} 80,24`
+  return (
+    <svg viewBox="0 0 80 24" fill="none" className={className}>
+      <polygon points={areaStr} fill={color} fillOpacity="0.15" />
+      <polyline points={polylineStr} stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
 
 // ─── Task type config ───
 const TASK_TYPES = [
@@ -18,13 +127,13 @@ const TASK_TYPES = [
 
 // ─── Sidebar nav items ───
 const NAV_ITEMS = [
-  { key: 'home', label: 'Dashboard', icon: '🏠' },
-  { key: 'grants', label: 'Grant Discovery', icon: '🔍' },
-  { key: 'proposals', label: 'Proposal Management', icon: '📝' },
-  { key: 'tracking', label: 'Proposal Tracking', icon: '📊' },
-  { key: 'team', label: 'Team Management', icon: '👥' },
-  { key: 'deadlines', label: 'Deadline Alerts', icon: '🔔' },
-  { key: 'analytics', label: 'Analytics', icon: '📈' },
+  { key: 'home', label: 'Dashboard', icon: <TreasuryIcon className="w-4 h-4" /> },
+  { key: 'grants', label: 'Grant Discovery', icon: <CompassIcon className="w-4 h-4" /> },
+  { key: 'proposals', label: 'Proposal Management', icon: <DocumentTextIcon className="w-4 h-4" /> },
+  { key: 'tracking', label: 'Proposal Tracking', icon: <TrackingChartIcon className="w-4 h-4" /> },
+  { key: 'team', label: 'Team Management', icon: <UsersIcon className="w-4 h-4" /> },
+  { key: 'deadlines', label: 'Deadline Alerts', icon: <ClockIcon className="w-4 h-4" /> },
+  { key: 'analytics', label: 'Analytics', icon: <TrendingUpIcon className="w-4 h-4" /> },
 ]
 
 const GRANT_CATEGORIES = [
@@ -97,7 +206,7 @@ const GOV_STATUS_OPTIONS = [
 ]
 
 function formatGovGrantType(type) {
-  if (!type) return ''
+  if (!type || typeof type !== 'string') return ''
   return type
     .split('_')
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -105,7 +214,7 @@ function formatGovGrantType(type) {
 }
 
 function formatGovApplicantType(type) {
-  if (!type) return ''
+  if (!type || typeof type !== 'string') return ''
   return type
     .split('_')
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -129,20 +238,6 @@ const daysUntil = (dateValue) => {
 
 const grantDocumentUrl = (doc) =>
   doc?.fileUrl ? `${api.defaults.baseURL?.replace(/\/api\/?$/, '') || ''}${doc.fileUrl}` : null
-
-const MOCK_APPLICATIONS = [
-  { id: 1, title: 'UGC Major Research Project', status: 'Submitted', date: '2026-07-20', amount: '₹25,00,000' },
-  { id: 2, title: 'DST INSPIRE Fellowship', status: 'Under Review', date: '2026-07-10', amount: '₹35,000/mo' },
-  { id: 3, title: 'ICSSR Doctoral Fellowship', status: 'Approved', date: '2026-06-15', amount: '₹8,00,000' },
-]
-
-const MOCK_DEADLINES = [
-  { id: 1, title: 'UGC Major Research Project', date: '2026-09-15', daysLeft: 44, priority: 'medium' },
-  { id: 2, title: 'CSIR Senior Research Fellowship', date: '2026-08-20', daysLeft: 18, priority: 'high' },
-  { id: 3, title: 'ICSSR Research Fellowship', date: '2026-08-30', daysLeft: 28, priority: 'high' },
-  { id: 4, title: 'DST SERB Core Research Grant', date: '2026-10-01', daysLeft: 60, priority: 'low' },
-  { id: 5, title: 'AICTE Research Promotion', date: '2026-09-30', daysLeft: 59, priority: 'low' },
-]
 
 // ─── Pre-Submission Compliance Checklist Items ───
 const COMPLIANCE_CHECKLIST_ITEMS = [
@@ -266,36 +361,36 @@ function GovGrantDetailPanel({ grant, onClose, onApply, applyLoading, applySucce
                 {grant.title}
               </h2>
               <span
-                className={`flex-shrink-0 px-2.5 py-1 rounded-full text-[11px] font-bold border ${grant.displayStatus === 'Open'
-                    ? 'bg-green-50 text-green-600 border-green-200'
+                className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-bold border ${grant.displayStatus === 'Open'
+                    ? 'bg-green-50 text-green-700 border-green-200'
                     : grant.displayStatus === 'Closing Soon'
-                      ? 'bg-orange-50 text-orange-600 border-orange-200'
-                      : 'bg-red-50 text-red-600 border-red-200'
+                      ? 'bg-orange-50 text-orange-700 border-orange-200'
+                      : 'bg-red-50 text-red-700 border-red-200'
                   }`}
               >
                 {grant.displayStatus}
               </span>
             </div>
-            <p className="text-sm text-warm-gray-500">{grant.agencyName}</p>
+            <p className="text-sm font-medium text-slate-600">{grant.agencyName}</p>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
             {grant.fundingDisplay && (
-              <div className="bg-cream rounded-[12px] p-3.5 border border-warm-gray-200/40">
-                <p className="text-[10px] uppercase tracking-wider text-warm-gray-400 font-semibold mb-1">Funding</p>
-                <p className="text-sm font-bold text-warm-gray-900">{grant.fundingDisplay}</p>
+              <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200/80">
+                <p className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">Funding</p>
+                <p className="text-base font-bold text-slate-900">{grant.fundingDisplay}</p>
               </div>
             )}
             {grant.deadlineDisplay && (
-              <div className="bg-cream rounded-[12px] p-3.5 border border-warm-gray-200/40">
-                <p className="text-[10px] uppercase tracking-wider text-warm-gray-400 font-semibold mb-1">Deadline</p>
-                <p className="text-sm font-bold text-warm-gray-900">{grant.deadlineDisplay}</p>
+              <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200/80">
+                <p className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">Deadline</p>
+                <p className="text-base font-bold text-slate-900">{grant.deadlineDisplay}</p>
               </div>
             )}
             {grant.durationDisplay && (
-              <div className="bg-cream rounded-[12px] p-3.5 border border-warm-gray-200/40">
-                <p className="text-[10px] uppercase tracking-wider text-warm-gray-400 font-semibold mb-1">Duration</p>
-                <p className="text-sm font-bold text-warm-gray-900">{grant.durationDisplay}</p>
+              <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200/80">
+                <p className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">Duration</p>
+                <p className="text-base font-bold text-slate-900">{grant.durationDisplay}</p>
               </div>
             )}
           </div>
@@ -456,18 +551,29 @@ function GovGrantDetailPanel({ grant, onClose, onApply, applyLoading, applySucce
 export default function OrgAdminDashboard() {
   const navigate = useNavigate()
   const location = useLocation()
-  const [activeSection, setActiveSection] = useState(location.state?.section || 'home')
 
-  useEffect(() => {
-    if (location.state?.section) {
-      setActiveSection(location.state.section)
-    }
-  }, [location.state?.section])
+  // Derive active section from URL path
+  const VALID_SECTIONS = ['home', 'grants', 'proposals', 'tracking', 'team', 'deadlines', 'analytics']
+  const pathSegment = location.pathname.replace(/^\/org\/dashboard\/?/, '').split('/')[0] || 'home'
+  const activeSection = VALID_SECTIONS.includes(pathSegment) ? pathSegment : 'home'
+
+  // Navigate to a section by updating the URL
+  const navigateToSection = (section) => {
+    const path = section === 'home' ? '/org/dashboard' : `/org/dashboard/${section}`
+    navigate(path, { replace: false })
+  }
 
   const [orgName, setOrgName] = useState('')
   const [userName, setUserName] = useState('')
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Executive Dynamic Dashboard state
+  const [dashboardTimeFilter, setDashboardTimeFilter] = useState('all') // 'all' | '30d' | '90d' | 'ytd'
+  const [pipelineFilterStage, setPipelineFilterStage] = useState('all') // 'all' | stage key
+  const [dashboardSearchQuery, setDashboardSearchQuery] = useState('')
+  const [deadlineUrgencyFilter, setDeadlineUrgencyFilter] = useState('all') // 'all' | 'critical' | 'upcoming'
+  const [dashboardViewTab, setDashboardViewTab] = useState('pipeline') // 'pipeline' | 'agencies' | 'workload'
 
   // Team management state
   const [members, setMembers] = useState([])
@@ -952,7 +1058,7 @@ export default function OrgAdminDashboard() {
     if (govDebounceRef.current) clearTimeout(govDebounceRef.current)
     govDebounceRef.current = setTimeout(() => {
       fetchGovGrants(1)
-    }, 300)
+    }, govSearch ? 300 : 0)
     return () => {
       if (govDebounceRef.current) clearTimeout(govDebounceRef.current)
     }
@@ -1011,18 +1117,34 @@ export default function OrgAdminDashboard() {
   const fetchGovGrants = async (page = 1) => {
     setGovLoading(true)
     try {
-      const params = { page, limit: 20 }
+      const params = { page, limit: 20, govPage: page }
       if (govSearch.trim()) params.search = govSearch.trim()
       if (govCategory !== 'all') params.category = govCategory
       if (govStatus !== 'all') params.status = govStatus
 
       const res = await api.get('/org/grants/discover', { params })
-      if (res.data.success) {
-        setGovGrants(res.data.grants)
-        setGovPagination(res.data.pagination)
+      if (res.data && res.data.success) {
+        const govData = res.data.government || {}
+        const grantsList = Array.isArray(govData.grants)
+          ? govData.grants
+          : (Array.isArray(res.data.grants) ? res.data.grants : [])
+        const total = govData.total ?? res.data.pagination?.total ?? grantsList.length
+        const totalPages = govData.totalPages ?? res.data.pagination?.totalPages ?? Math.max(1, Math.ceil(total / 20))
+        const currentPage = govData.page ?? res.data.pagination?.page ?? page
+
+        setGovGrants(grantsList)
+        setGovPagination({
+          page: currentPage,
+          limit: res.data.pagination?.limit || 20,
+          total,
+          totalPages,
+        })
+      } else {
+        setGovGrants([])
       }
     } catch (err) {
       console.error('Failed to fetch government grants:', err)
+      setGovGrants([])
     } finally {
       setGovLoading(false)
     }
@@ -1043,7 +1165,7 @@ export default function OrgAdminDashboard() {
       })
       if (res.data.success) {
         setGovApplySuccess(true)
-        setGovGrants((prev) => prev.map((g) => (g._id === grant._id ? { ...g, hasApplied: true } : g)))
+        setGovGrants((prev) => (Array.isArray(prev) ? prev.map((g) => (g._id === grant._id ? { ...g, hasApplied: true } : g)) : []))
         setSelectedGovGrant((prev) => (prev ? { ...prev, hasApplied: true } : prev))
         fetchOrgProposals()
       }
@@ -1257,10 +1379,10 @@ export default function OrgAdminDashboard() {
       })
     }
 
-    const piMember = findMember(['investigator', 'pi', 'thorne']) || members[0]
-    const researcherMember = findMember(['researcher', 'research', 'rostova']) || members[1] || members[0]
-    const financeMember = findMember(['finance', 'patel']) || members[2] || members[0]
-    const complianceMember = findMember(['compliance', 'jenkins']) || members[3] || members[0]
+    const piMember = findMember(['investigator', 'pi', 'lead', 'director', 'professor']) || members[0]
+    const researcherMember = findMember(['researcher', 'research', 'scientist', 'fellow']) || members[1] || members[0]
+    const financeMember = findMember(['finance', 'budget', 'treasury', 'admin']) || members[2] || members[0]
+    const complianceMember = findMember(['compliance', 'legal', 'regulatory', 'coordinator']) || members[3] || members[0]
 
     const assignmentsMap = {
       sec_1: piMember,
@@ -1362,7 +1484,7 @@ export default function OrgAdminDashboard() {
       setSelectedTasks(cleanTasks.length > 0 ? cleanTasks : ['proposal_writing'])
     } else {
       const searchKey = (member.jobTitle || member.fullName || '').toLowerCase()
-      if (searchKey.includes('investigator') || searchKey.includes('pi') || searchKey.includes('thorne')) {
+      if (searchKey.includes('investigator') || searchKey.includes('pi') || searchKey.includes('lead') || searchKey.includes('director')) {
         setSelectedTasks(['proposal_writing', 'grant_discovery'])
       } else {
         setSelectedTasks(['proposal_writing'])
@@ -2147,7 +2269,7 @@ This is with reference to the research project proposal titled:
 "${proposal?.title || 'N/A'}"
 Grant Call: ${proposal?.grantTitle || 'Core Research Project'}
 Lead Principal Investigator: ${proposal?.sections?.[0]?.assignedToName || 'Principal Investigator'}
-Total Requested Budget: ${proposal?.fundingAmount || '₹25,00,000'}
+Total Requested Budget: ${proposal?.fundingAmount || 'Unspecified'}
 
 The aforementioned research proposal was officially endorsed, cleared with institutional compliances, and submitted on ${subDate} (Confirmation Ref ID: ${proposal?.agencySubmission?.agencySubmissionId || 'Dispatched'}).
 
@@ -2172,8 +2294,8 @@ Official Seal & Endorsement`
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-cream flex items-center justify-center">
-        <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center">
+        <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -2183,43 +2305,43 @@ Official Seal & Endorsement`
   const selectedProposalObj = orgProposals.find((p) => p._id === selectedProposalId) || orgProposals[0]
 
   return (
-    <div className="min-h-screen bg-cream flex">
+    <div className="min-h-screen bg-[#f8fafc] flex">
       {/* ─── Sidebar ─── */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-surface-elevated border-r border-warm-gray-200/60 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200/80 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full">
-          <div className="p-6 border-b border-warm-gray-200/60">
-            <Link to="/" className="flex items-center gap-2 group" id="admin-dash-logo">
-              <div className="w-9 h-9 bg-primary rounded-[10px] flex items-center justify-center text-white transition-transform duration-300 group-hover:scale-105">
+          <div className="p-6 border-b border-slate-200/80">
+            <Link to="/" className="flex items-center gap-2.5 group" id="admin-dash-logo">
+              <div className="w-9 h-9 bg-emerald-800 rounded-[12px] flex items-center justify-center text-white transition-transform duration-300 group-hover:scale-105 shadow-sm">
                 <LeafIcon />
               </div>
-              <span className="font-heading text-xl font-semibold text-warm-gray-900 tracking-tight">
-                Grant<span className="text-primary">OS</span>
+              <span className="font-heading text-xl font-bold text-slate-900 tracking-tight">
+                Grant<span className="text-emerald-600 font-extrabold">OS</span>
               </span>
             </Link>
             {orgName && (
-              <p className="text-xs text-warm-gray-500 mt-2 truncate">{orgName}</p>
+              <p className="text-xs text-slate-500 font-medium mt-2 truncate">{orgName}</p>
             )}
           </div>
 
-          <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+          <nav className="flex-1 p-3.5 space-y-1 overflow-y-auto">
             {NAV_ITEMS.map((item) => (
               <button
                 key={item.key}
-                onClick={() => { setActiveSection(item.key); setSidebarOpen(false) }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-[12px] text-sm font-medium transition-all duration-200 cursor-pointer ${activeSection === item.key
-                  ? 'bg-primary text-white shadow-soft'
-                  : 'text-warm-gray-600 hover:bg-warm-gray-50 hover:text-warm-gray-900'
+                onClick={() => { navigateToSection(item.key); setSidebarOpen(false) }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-[12px] text-sm font-medium transition-all duration-200 cursor-pointer ${activeSection === item.key
+                  ? 'bg-emerald-900 text-white shadow-xs font-semibold ring-1 ring-emerald-800'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                   }`}
               >
-                <span className="text-lg">{item.icon}</span>
-                {item.label}
+                <span className="w-5 h-5 flex items-center justify-center shrink-0">{item.icon}</span>
+                <span className="truncate">{item.label}</span>
                 {item.key === 'team' && memberCounts.pending > 0 && (
-                  <span className="ml-auto px-2 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold">
+                  <span className="ml-auto px-2.5 py-0.5 rounded-full bg-rose-500 text-white text-xs font-bold shadow-xs">
                     {memberCounts.pending}
                   </span>
                 )}
                 {item.key === 'deadlines' && deadlineMetrics.criticalAlertsCount > 0 && (
-                  <span className="ml-auto px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-bold animate-pulse shadow-xs">
+                  <span className="ml-auto px-2.5 py-0.5 rounded-full bg-rose-500 text-white text-xs font-bold animate-pulse shadow-xs">
                     {deadlineMetrics.criticalAlertsCount}
                   </span>
                 )}
@@ -2227,19 +2349,19 @@ Official Seal & Endorsement`
             ))}
           </nav>
 
-          <div className="p-4 border-t border-warm-gray-200/60">
+          <div className="p-4 border-t border-slate-200/80">
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-9 h-9 rounded-full bg-primary-50 flex items-center justify-center text-primary font-bold text-sm">
+              <div className="w-9 h-9 rounded-full bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-800 font-bold text-sm shrink-0">
                 {userName.charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-warm-gray-900 truncate">{userName}</p>
-                <p className="text-xs text-warm-gray-500">Org Admin</p>
+                <p className="text-sm font-semibold text-slate-900 truncate">{userName}</p>
+                <p className="text-xs font-medium text-slate-500">Org Administrator</p>
               </div>
             </div>
             <button
               onClick={handleLogout}
-              className="w-full px-4 py-2 rounded-[10px] text-sm text-warm-gray-500 hover:text-warm-gray-700 hover:bg-warm-gray-50 transition-colors cursor-pointer"
+              className="w-full px-4 py-2 rounded-[10px] text-xs font-semibold text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
             >
               Sign Out
             </button>
@@ -2253,464 +2375,997 @@ Official Seal & Endorsement`
 
       {/* ─── Main Content ─── */}
       <main className="flex-1 lg:ml-64">
-        <header className="lg:hidden sticky top-0 z-30 bg-surface-elevated border-b border-warm-gray-200/60 px-4 py-3 flex items-center justify-between">
-          <button onClick={() => setSidebarOpen(true)} className="p-2 text-warm-gray-600 cursor-pointer">
+        <header className="lg:hidden sticky top-0 z-30 bg-white border-b border-slate-200/80 px-4 py-3 flex items-center justify-between">
+          <button onClick={() => setSidebarOpen(true)} className="p-2 text-slate-600 cursor-pointer">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
               <line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <span className="font-heading font-semibold text-warm-gray-900">Grant<span className="text-primary">OS</span></span>
+          <span className="font-heading font-bold text-slate-900">Grant<span className="text-emerald-600 font-extrabold">OS</span></span>
           <div className="w-8" />
         </header>
 
         <div className="p-6 lg:p-10 max-w-7xl mx-auto">
           {/* ═══════════════════════════════════ HOME ═══════════════════════════════════ */}
-          {activeSection === 'home' && (
-            <div className="animate-fade-up">
-              <div className="mb-8">
-                <h1 className="font-heading text-3xl sm:text-4xl font-bold text-warm-gray-900 mb-2">
-                  Welcome back, {userName.split(' ')[0]} 👋
-                </h1>
-                <p className="text-warm-gray-500">Here's your organization overview for today</p>
-              </div>
+          {activeSection === 'home' && (() => {
+            /* ── Dynamic Computations with Period Filtering ── */
+            const now = Date.now()
+            const filteredProposals = orgProposals.filter((p) => {
+              if (dashboardTimeFilter === 'all') return true
+              const d = new Date(p.createdAt || p.updatedAt).getTime()
+              const days = dashboardTimeFilter === '30d' ? 30 : dashboardTimeFilter === '90d' ? 90 : 365
+              return now - d <= days * 24 * 60 * 60 * 1000
+            })
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
-                {[
-                  { label: 'Team Members', value: memberCounts.total, icon: '👥', accent: 'bg-blue-50 text-blue-600' },
-                  { label: 'Pending Requests', value: memberCounts.pending, icon: '⏳', accent: 'bg-amber-50 text-amber' },
-                  { label: 'Open Grant Calls', value: openGrants.length, icon: '📋', accent: 'bg-green-50 text-green-600' },
-                  { label: 'Total Funding', value: '₹33L', icon: '💰', accent: 'bg-purple-50 text-purple-600' },
-                ].map((stat, i) => (
+            const totalPipeline = filteredProposals.reduce((sum, p) => sum + parseAmountToNumber(p.fundingAmount), 0)
+            const awardedProposals = filteredProposals.filter((p) => ['Awarded', 'Accepted'].includes(p.status))
+            const totalAwarded = awardedProposals.reduce(
+              (sum, p) => sum + (parseAmountToNumber(p.awardDetails?.sanctionedAmount) || parseAmountToNumber(p.fundingAmount)),
+              0
+            )
+            const activeProposals = filteredProposals.filter((p) => !['Awarded', 'Accepted', 'Rejected'].includes(p.status))
+
+            const draftProposals = filteredProposals.filter((p) => ['Draft', 'In Progress'].includes(p.status))
+            const reviewProposals = filteredProposals.filter((p) => ['Under Review', 'Submitted to Admin'].includes(p.status))
+            const submittedProposals = filteredProposals.filter((p) =>
+              ['Submitted to Agency', 'Submitted', 'Under Evaluation'].includes(p.status)
+            )
+            const revisionProposals = filteredProposals.filter((p) => p.status === 'Revisions Requested')
+            const rejectedProposals = filteredProposals.filter((p) => p.status === 'Rejected')
+
+            const draftCount = draftProposals.length
+            const reviewCount = reviewProposals.length
+            const submittedCount = submittedProposals.length
+            const revisionsCount = revisionProposals.length
+            const awardedCount = awardedProposals.length
+            const rejectedCount = rejectedProposals.length
+            const decided = awardedCount + rejectedCount
+            const winRate = decided > 0 ? Math.round((awardedCount / decided) * 100) : awardedCount > 0 ? 100 : 0
+
+            // Section completion health metrics
+            let totalSecs = 0,
+              approvedSecs = 0,
+              inProgressSecs = 0
+            filteredProposals.forEach((p) => {
+              ;(p.sections || []).forEach((s) => {
+                totalSecs++
+                if (s.status === 'Approved') approvedSecs++
+                else if (s.status === 'In Progress') inProgressSecs++
+              })
+            })
+            const overallProgress = totalSecs > 0 ? Math.round((approvedSecs / totalSecs) * 100) : 0
+
+            // Action Required Items: only when critical deadline comes in deadline alerts
+            const criticalDeadlines = allAlerts.filter((a) => a.urgency === 'critical')
+            const actionItemsCount = criticalDeadlines.length
+
+            // Stage map for interactive funnel filtering
+            const stageConfigMap = {
+              all: { label: 'All Proposals', proposals: filteredProposals, badgeBg: 'bg-slate-100 text-slate-800 border-slate-200' },
+              draft: { label: 'Drafting', proposals: draftProposals, badgeBg: 'bg-slate-100 text-slate-700 border-slate-200' },
+              review: { label: 'Internal Review', proposals: reviewProposals, badgeBg: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+              submitted: {
+                label: 'Submitted to Agency',
+                proposals: submittedProposals,
+                badgeBg: 'bg-blue-50 text-blue-700 border-blue-200',
+              },
+              revisions: {
+                label: 'Revisions Requested',
+                proposals: revisionProposals,
+                badgeBg: 'bg-amber-50 text-amber-700 border-amber-200',
+              },
+              awarded: {
+                label: 'Awarded & Sanctioned',
+                proposals: awardedProposals,
+                badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+              },
+              rejected: { label: 'Archived / Rejected', proposals: rejectedProposals, badgeBg: 'bg-rose-50 text-rose-700 border-rose-200' },
+            }
+
+            const currentStageObj = stageConfigMap[pipelineFilterStage] || stageConfigMap.all
+            const displayedProposals = (currentStageObj.proposals || []).filter((p) => {
+              if (!dashboardSearchQuery.trim()) return true
+              const q = dashboardSearchQuery.toLowerCase().trim()
+              const matchTitle = (p.title || '').toLowerCase().includes(q)
+              const matchGrant = (p.grantTitle || '').toLowerCase().includes(q)
+              const matchAgency = (p.grantAgency || '').toLowerCase().includes(q)
+              return matchTitle || matchGrant || matchAgency
+            })
+
+            // Filtered deadlines by urgency toggle
+            const displayedDeadlines = allAlerts
+              .filter((a) => a.type === 'grant_deadline' && a.urgency !== 'passed' && a.urgency !== 'completed')
+              .filter((a) => {
+                if (deadlineUrgencyFilter === 'critical') return a.urgency === 'critical' || a.daysLeft <= 7
+                if (deadlineUrgencyFilter === 'upcoming') return a.urgency === 'upcoming'
+                return true
+              })
+              .slice(0, 5)
+
+            // Team workload computations
+            const memberWorkload = verifiedMembers
+              .map((m) => {
+                let assigned = 0,
+                  completed = 0
+                orgProposals.forEach((p) => {
+                  ;(p.sections || []).forEach((s) => {
+                    const matchId = s.assignedTo === m._id || s.assignedTo?._id === m._id
+                    const matchName =
+                      s.assignedToName &&
+                      m.fullName &&
+                      s.assignedToName.trim().toLowerCase() === m.fullName.trim().toLowerCase()
+                    if (matchId || matchName) {
+                      assigned++
+                      if (s.status === 'Approved') completed++
+                    }
+                  })
+                })
+                return {
+                  ...m,
+                  assigned,
+                  completed,
+                  completion: assigned > 0 ? Math.round((completed / assigned) * 100) : 0,
+                }
+              })
+              .sort((a, b) => b.assigned - a.assigned)
+
+            // Funding agency portfolio breakdown
+            const agencyBreakdown = {}
+            filteredProposals.forEach((p) => {
+              const agency = (p.grantAgency || 'Independent / Unassigned').trim()
+              if (!agencyBreakdown[agency]) agencyBreakdown[agency] = { name: agency, count: 0, value: 0, awarded: 0 }
+              agencyBreakdown[agency].count++
+              agencyBreakdown[agency].value += parseAmountToNumber(p.fundingAmount)
+              if (['Awarded', 'Accepted'].includes(p.status)) agencyBreakdown[agency].awarded++
+            })
+            const topAgencies = Object.values(agencyBreakdown)
+              .sort((a, b) => b.value - a.value)
+              .slice(0, 5)
+
+            // Time greeting
+            const hour = new Date().getHours()
+            const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+
+            return (
+              <div className="animate-fade-up space-y-8">
+                {/* ─── 1. Executive Command Header ─── */}
+                <div className="relative overflow-hidden rounded-[24px] bg-gradient-to-br from-[#062c1e] via-[#093a27] to-[#031d14] p-7 sm:p-9 text-white shadow-xl border border-emerald-800/40">
+                  <div className="absolute -top-28 -right-28 w-96 h-96 bg-emerald-400/10 rounded-full blur-3xl pointer-events-none" />
+                  <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-teal-300/10 rounded-full blur-3xl pointer-events-none" />
+
+                  <div className="relative z-10">
+                    <div className="flex items-start justify-between flex-wrap gap-5">
+                      <div className="space-y-2">
+                        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 text-xs sm:text-sm font-semibold backdrop-blur-sm">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+                          </span>
+                          <span>{orgName || 'GrantOS Command Center'} • Real-Time Sync</span>
+                        </div>
+                        <h1 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold text-white tracking-tight leading-tight">
+                          {greeting}, {userName ? userName.split(' ')[0] : 'Administrator'} 👋
+                        </h1>
+                        <p className="text-emerald-100/90 text-sm sm:text-base max-w-2xl leading-relaxed">
+                          Executive oversight for research applications, team distribution, and institutional capital.
+                          Currently monitoring {filteredProposals.length} active proposal{filteredProposals.length !== 1 ? 's' : ''}.
+                        </p>
+                      </div>
+
+                      {/* Header Controls: Time Filter Deck */}
+                      <div className="flex items-center gap-3">
+                        {/* Dynamic Time Filter Deck */}
+                        <div className="flex items-center bg-black/40 backdrop-blur-md p-1.5 rounded-[14px] border border-white/10 text-xs sm:text-sm">
+                          {[
+                            { id: 'all', label: 'All Time' },
+                            { id: 'ytd', label: 'YTD 2026' },
+                            { id: '90d', label: '90 Days' },
+                            { id: '30d', label: '30 Days' },
+                          ].map((t) => (
+                            <button
+                              key={t.id}
+                              onClick={() => setDashboardTimeFilter(t.id)}
+                              className={`px-3.5 py-1.5 rounded-[10px] font-semibold transition-all cursor-pointer ${
+                                dashboardTimeFilter === t.id
+                                  ? 'bg-emerald-500 text-slate-950 font-bold shadow-xs'
+                                  : 'text-emerald-100/70 hover:text-white hover:bg-white/10'
+                              }`}
+                            >
+                              {t.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ─── 2. Five Dynamic KPI Scorecards ─── */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                  {/* Card 1: Total Pipeline */}
                   <div
-                    key={stat.label}
-                    className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-6 hover:shadow-medium hover:-translate-y-0.5 transition-all duration-300 animate-fade-up"
-                    style={{ animationDelay: `${0.1 * (i + 1)}s` }}
+                    onClick={() => {
+                      setPipelineFilterStage('all')
+                      navigateToSection('home')
+                    }}
+                    className="bg-white rounded-[20px] border border-slate-200/80 p-5 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.06)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group"
                   >
-                    <div className="flex items-center justify-between mb-3">
-                      <span className={`w-10 h-10 rounded-[10px] flex items-center justify-center text-lg ${stat.accent}`}>
-                        {stat.icon}
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="w-10 h-10 rounded-[12px] bg-emerald-50 text-emerald-700 border border-emerald-200/80 flex items-center justify-center group-hover:scale-105 transition-transform">
+                        <TreasuryIcon className="w-5 h-5 text-emerald-600" />
+                      </div>
+                      <SparklineSvg data={[draftCount, reviewCount, submittedCount, revisionsCount, awardedCount]} color="#059669" className="w-16 h-6" />
+                    </div>
+                    <p className="text-3xl font-extrabold font-heading text-slate-900 tracking-tight leading-none mb-1.5">
+                      {formatCurrency(totalPipeline)}
+                    </p>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Pipeline</p>
+                    <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-600">
+                      <span>{activeProposals.length} active in flight</span>
+                      <span className="inline-flex items-center gap-1 text-emerald-700 font-bold">{overallProgress > 0 ? `${overallProgress}% clearance` : (activeProposals.length > 0 ? `${activeProposals.length} in flight` : 'Ready')}</span>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Awarded Capital */}
+                  <div
+                    onClick={() => navigateToSection('tracking')}
+                    className="bg-white rounded-[20px] border border-slate-200/80 p-5 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.06)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="w-10 h-10 rounded-[12px] bg-amber-50 text-amber-700 border border-amber-200/80 flex items-center justify-center group-hover:scale-105 transition-transform">
+                        <TrophyIcon className="w-5 h-5 text-amber-600" />
+                      </div>
+                      <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                        {winRate}% Win Rate
                       </span>
                     </div>
-                    <p className="font-heading text-2xl font-bold text-warm-gray-900">{stat.value}</p>
-                    <p className="text-sm text-warm-gray-500 mt-1">{stat.label}</p>
+                    <p className="text-3xl font-extrabold font-heading text-slate-900 tracking-tight leading-none mb-1.5">
+                      {formatCurrency(totalAwarded)}
+                    </p>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sanctioned Capital</p>
+                    <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-600">
+                      <span>{awardedCount} sanctioned grant{awardedCount !== 1 ? 's' : ''}</span>
+                      <span className="text-amber-800 font-bold">Verified</span>
+                    </div>
                   </div>
-                ))}
-              </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-heading font-bold text-warm-gray-900">Pending Member Requests</h3>
-                    {memberCounts.pending > 0 && (
-                      <button onClick={() => setActiveSection('team')} className="text-sm text-primary font-semibold hover:text-primary-dark transition-colors cursor-pointer">
-                        View All →
-                      </button>
-                    )}
+                  {/* Card 3: In-Flight Proposals */}
+                  <div
+                    onClick={() => {
+                      setPipelineFilterStage('all')
+                      navigateToSection('home')
+                    }}
+                    className="bg-white rounded-[20px] border border-slate-200/80 p-5 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.06)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="w-10 h-10 rounded-[12px] bg-indigo-50 text-indigo-700 border border-indigo-200/80 flex items-center justify-center group-hover:scale-105 transition-transform">
+                        <DocumentTextIcon className="w-5 h-5 text-indigo-600" />
+                      </div>
+                      <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                        {activeProposals.length} In Flight
+                      </span>
+                    </div>
+                    <p className="text-3xl font-extrabold font-heading text-slate-900 tracking-tight leading-none mb-1.5">
+                      {filteredProposals.length}
+                    </p>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Proposals</p>
+                    <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-medium text-slate-600">
+                      <span>{draftCount} Draft</span>
+                      <span>•</span>
+                      <span>{reviewCount} Review</span>
+                      <span>•</span>
+                      <span>{submittedCount} Agency</span>
+                    </div>
                   </div>
-                  {pendingMembers.length === 0 ? (
-                    <p className="text-sm text-warm-gray-400 py-4 text-center">No pending requests 🎉</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {pendingMembers.slice(0, 3).map((m) => (
-                        <div key={m._id} className="flex items-center justify-between p-3 rounded-[10px] bg-cream border border-warm-gray-200/60">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center text-amber font-bold text-xs">
-                              {m.fullName.charAt(0)}
+
+                  {/* Card 4: Team Capacity */}
+                  <div
+                    onClick={() => navigateToSection('team')}
+                    className="bg-white rounded-[20px] border border-slate-200/80 p-5 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.06)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="w-10 h-10 rounded-[12px] bg-purple-50 text-purple-700 border border-purple-200/80 flex items-center justify-center group-hover:scale-105 transition-transform">
+                        <UsersIcon className="w-5 h-5 text-purple-600" />
+                      </div>
+                      {pendingMembers.length > 0 ? (
+                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-700 border border-rose-200 animate-pulse">
+                          {pendingMembers.length} Pending
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-3xl font-extrabold font-heading text-slate-900 tracking-tight leading-none mb-1.5">
+                      {verifiedMembers.length}
+                    </p>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Team Researchers</p>
+                    <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-600">
+                      <span>{memberWorkload.filter((m) => m.assigned > 0).length} assigned</span>
+                      <span className="text-purple-800 font-bold">
+                        {Math.min(
+                          100,
+                          Math.round((memberWorkload.filter((m) => m.assigned > 0).length / Math.max(1, verifiedMembers.length)) * 100)
+                        )}
+                        % Loaded
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Card 5: Open Grants Radar */}
+                  <div
+                    onClick={() => navigateToSection('grants')}
+                    className="bg-white rounded-[20px] border border-slate-200/80 p-5 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.06)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="w-10 h-10 rounded-[12px] bg-sky-50 text-sky-700 border border-sky-200/80 flex items-center justify-center group-hover:scale-105 transition-transform">
+                        <CompassIcon className="w-5 h-5 text-sky-600" />
+                      </div>
+                      <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-sky-100 text-sky-800 border border-sky-200">
+                        Radar
+                      </span>
+                    </div>
+                    <p className="text-3xl font-extrabold font-heading text-slate-900 tracking-tight leading-none mb-1.5">
+                      {openGrants.length}
+                    </p>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Open Opportunities</p>
+                    <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-600">
+                      <span>Active Mandates</span>
+                      <span className="text-sky-700 font-bold">Explore →</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ─── 3. Action Required: Only shown when critical deadline comes in deadline alerts ─── */}
+                {criticalDeadlines.length > 0 && (
+                  <div className="bg-gradient-to-r from-amber-50/90 via-rose-50/50 to-amber-50/90 rounded-[22px] border border-amber-200 p-6 shadow-sm animate-fade-in">
+                    <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-full bg-rose-500 text-white flex items-center justify-center font-bold text-sm shadow-xs">
+                          <FlameIcon className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h2 className="font-heading text-lg font-bold text-slate-900 leading-tight">
+                            Action Required Today
+                          </h2>
+                          <p className="text-sm text-amber-900 font-medium">
+                            {criticalDeadlines.length} critical deadline alert{criticalDeadlines.length !== 1 ? 's' : ''} in Deadline Alerts requiring immediate attention
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setDeadlineTab('critical')
+                          navigateToSection('deadlines')
+                        }}
+                        className="px-3.5 py-1.5 rounded-full bg-rose-100 hover:bg-rose-200 text-rose-900 border border-rose-300 text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
+                      >
+                        <span>🚨 View in Deadline Alerts ({criticalDeadlines.length}) →</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                      {criticalDeadlines.map((d) => (
+                        <div
+                          key={d.id}
+                          className="bg-white rounded-[16px] p-4 border border-rose-200/80 shadow-xs flex items-center justify-between gap-3 hover:border-rose-300 hover:shadow-sm transition-all"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                              <span className={`px-2 py-0.5 rounded text-xs font-bold ${d.badgeColor || 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                                {d.urgencyLabel}
+                              </span>
+                              {d.type === 'grant_deadline' && (
+                                <span className="text-[11px] font-semibold text-slate-500">
+                                  Call Deadline
+                                </span>
+                              )}
+                              {d.type === 'agency_followup' && (
+                                <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                                  Agency Review
+                                </span>
+                              )}
+                              {d.type === 'custom_reminder' && (
+                                <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200">
+                                  Scheduled Alert
+                                </span>
+                              )}
                             </div>
-                            <div>
-                              <p className="text-sm font-semibold text-warm-gray-800">{m.fullName}</p>
-                              <p className="text-xs text-warm-gray-500">{m.email}</p>
-                            </div>
+                            <p className="text-sm font-bold text-slate-900 truncate" title={d.title}>
+                              {d.title}
+                            </p>
+                            <p className="text-xs text-slate-500 font-medium truncate mt-0.5">
+                              {d.agency || d.grantTitle || 'Official Record'}
+                              {d.piName ? ` • ${d.piName}` : d.recipientName ? ` • ${d.recipientName}` : ''}
+                            </p>
                           </div>
-                          <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber text-[10px] font-bold border border-amber/15">Pending</span>
+                          <button
+                            onClick={() => {
+                              if (d.proposalId && (d.type === 'grant_deadline' || d.type === 'agency_followup')) {
+                                setSelectedProposalId(d.proposalId)
+                                navigateToSection('proposals')
+                              } else {
+                                setDeadlineTab('critical')
+                                navigateToSection('deadlines')
+                              }
+                            }}
+                            className="px-3.5 py-2 rounded-[10px] bg-rose-600 hover:bg-rose-700 text-white text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 shadow-xs"
+                          >
+                            Action
+                          </button>
                         </div>
                       ))}
                     </div>
-                  )}
-                </div>
-
-                <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-heading font-bold text-warm-gray-900">Upcoming Deadlines</h3>
-                    <button onClick={() => setActiveSection('deadlines')} className="text-sm text-primary font-semibold hover:text-primary-dark transition-colors cursor-pointer">
-                      View All →
-                    </button>
                   </div>
-                  <div className="space-y-3">
-                    {MOCK_DEADLINES.slice(0, 3).map((d) => (
-                      <div key={d.id} className="flex items-center justify-between p-3 rounded-[10px] bg-cream border border-warm-gray-200/60">
-                        <div>
-                          <p className="text-sm font-semibold text-warm-gray-800">{d.title}</p>
-                          <p className="text-xs text-warm-gray-500">{d.date}</p>
-                        </div>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${d.priority === 'high'
-                          ? 'bg-red-50 text-red-600 border-red-200'
-                          : d.priority === 'medium'
-                            ? 'bg-amber-50 text-amber border-amber/15'
-                            : 'bg-green-50 text-green-600 border-green-200'
-                          }`}>
-                          {d.daysLeft}d left
+                )}
+
+                {/* ─── 4. Interactive Proposal Pipeline Funnel & Stage Drilldown ─── */}
+                <div className="bg-white rounded-[24px] border border-slate-200/80 shadow-[0_4px_24px_-4px_rgba(15,23,42,0.06)] p-6 sm:p-8">
+                  {/* Funnel Top Bar */}
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <h2 className="font-heading text-2xl font-bold text-slate-900 tracking-tight">
+                          Proposal Lifecycle Funnel
+                        </h2>
+                      </div>
+                      <p className="text-sm text-slate-600">
+                        Click any lifecycle stage to filter and inspect proposals directly.
+                      </p>
+                    </div>
+
+                    {/* Section Completion Dial */}
+                    <div className="flex items-center gap-3.5 bg-slate-50 px-4.5 py-3 rounded-[16px] border border-slate-200/70">
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-slate-900">{overallProgress}% Section Health</p>
+                        <p className="text-xs text-slate-500 font-medium mt-0.5">
+                          {approvedSecs} Approved • {inProgressSecs} Writing
+                        </p>
+                      </div>
+                      <div className="w-13 h-13 relative flex items-center justify-center shrink-0">
+                        <svg className="w-13 h-13 -rotate-90" viewBox="0 0 36 36">
+                          <path
+                            className="text-slate-200"
+                            strokeWidth="3.5"
+                            stroke="currentColor"
+                            fill="none"
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                          />
+                          <path
+                            className="text-emerald-500 transition-all duration-1000 ease-out"
+                            strokeDasharray={`${overallProgress}, 100`}
+                            strokeWidth="3.5"
+                            strokeLinecap="round"
+                            stroke="currentColor"
+                            fill="none"
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                          />
+                        </svg>
+                        <span className="absolute text-xs font-extrabold text-slate-900 font-heading">
+                          {overallProgress}%
                         </span>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ═══════════════════════════════════ GRANTS ═══════════════════════════════════ */}
-          {activeSection === 'grants' && (
-            <div className="animate-fade-up">
-              <div className="mb-8">
-                <h1 className="font-heading text-3xl font-bold text-warm-gray-900 mb-2">Grant Discovery</h1>
-                <p className="text-warm-gray-500">Browse open calls from GrantOS funding agencies and government/other sources</p>
-              </div>
-
-              {/* Source toggle */}
-              <div className="flex items-center gap-2 mb-6 border-b border-warm-gray-200/60 pb-3">
-                <button
-                  onClick={() => setGrantSource('agency')}
-                  className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer border ${grantSource === 'agency'
-                    ? 'bg-primary text-white border-primary shadow-soft'
-                    : 'bg-white text-warm-gray-700 border-warm-gray-200 hover:bg-warm-gray-50'
-                    }`}
-                >
-                  🏛️ GrantOS Funding Agencies ({openGrants.length})
-                </button>
-                <button
-                  onClick={() => setGrantSource('scraped')}
-                  className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer border ${grantSource === 'scraped'
-                    ? 'bg-primary text-white border-primary shadow-soft'
-                    : 'bg-white text-warm-gray-700 border-warm-gray-200 hover:bg-warm-gray-50'
-                    }`}
-                >
-                  🏢 Government & Other Sources{govPagination.total > 0 ? ` (${govPagination.total})` : ''}
-                </button>
-              </div>
-
-              {/* Search & Filters */}
-              <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-6 mb-6">
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <div className="flex-1 relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-warm-gray-400">🔍</span>
-                    <input
-                      type="text"
-                      value={grantSource === 'agency' ? grantSearch : govSearch}
-                      onChange={(e) =>
-                        grantSource === 'agency' ? setGrantSearch(e.target.value) : setGovSearch(e.target.value)
-                      }
-                      placeholder={
-                        grantSource === 'agency'
-                          ? 'Search grants by name, agency, or category...'
-                          : 'Search grants by name, agency, or keyword...'
-                      }
-                      className="w-full pl-11 pr-4 py-3 rounded-[12px] bg-cream border border-warm-gray-200 text-warm-gray-900 placeholder:text-warm-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-                      id="grant-search-input"
-                    />
+                    </div>
                   </div>
 
-                  {grantSource === 'agency' ? (
-                    <div className="flex gap-2">
-                      <select
-                        value={grantCategoryFilter}
-                        onChange={(e) => setGrantCategoryFilter(e.target.value)}
-                        className="px-4 py-3 rounded-[12px] bg-cream border border-warm-gray-200 text-warm-gray-600 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
-                        id="grant-category-filter"
-                      >
-                        <option>All Categories</option>
-                        {GRANT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                      <select
-                        value={grantFundingTypeFilter}
-                        onChange={(e) => setGrantFundingTypeFilter(e.target.value)}
-                        className="px-4 py-3 rounded-[12px] bg-cream border border-warm-gray-200 text-warm-gray-600 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
-                        id="grant-funding-type-filter"
-                      >
-                        <option>All Types</option>
-                        {GRANT_FUNDING_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <select
-                        value={govCategory}
-                        onChange={(e) => setGovCategory(e.target.value)}
-                        className="px-4 py-3 rounded-[12px] bg-cream border border-warm-gray-200 text-warm-gray-600 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
-                        id="gov-category-filter"
-                      >
-                        {GOV_GRANT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                      </select>
-                      <select
-                        value={govStatus}
-                        onChange={(e) => setGovStatus(e.target.value)}
-                        className="px-4 py-3 rounded-[12px] bg-cream border border-warm-gray-200 text-warm-gray-600 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
-                        id="gov-status-filter"
-                      >
-                        {GOV_STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                      </select>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* ─── GrantOS Funding Agency grants ─── */}
-              {grantSource === 'agency' && (
-                <>
-                  {grantsLoading && (
-                    <div className="flex justify-center py-16">
-                      <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
-                    </div>
-                  )}
-
-                  {!grantsLoading && openGrants.length === 0 && (
-                    <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-12 text-center">
-                      <span className="text-4xl block mb-3">📭</span>
-                      <p className="text-warm-gray-500">No open grant calls available right now.</p>
-                      <p className="text-sm text-warm-gray-400 mt-1">Check back later — funding agencies publish new calls regularly.</p>
-                    </div>
-                  )}
-
-                  {!grantsLoading && openGrants.length > 0 && filteredGrants.length === 0 && (
-                    <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-12 text-center">
-                      <p className="text-warm-gray-500">No grants match your search or filters.</p>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                    {filteredGrants.map((grant, i) => {
-                      const daysLeft = daysUntil(grant.deadline)
-                      const isClosingSoon = daysLeft !== null && daysLeft <= 14 && daysLeft >= 0
-                      const docUrl = grantDocumentUrl(grant.document)
-
+                  {/* Interactive Stage Pill Deck (Click to Filter) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+                    {[
+                      {
+                        key: 'all',
+                        label: 'All Stages',
+                        count: filteredProposals.length,
+                        sum: totalPipeline,
+                        color: 'from-slate-700 to-slate-900',
+                      },
+                      {
+                        key: 'draft',
+                        label: 'Drafting',
+                        count: draftCount,
+                        sum: draftProposals.reduce((s, p) => s + parseAmountToNumber(p.fundingAmount), 0),
+                        color: 'from-slate-500 to-slate-600',
+                      },
+                      {
+                        key: 'review',
+                        label: 'Internal Review',
+                        count: reviewCount,
+                        sum: reviewProposals.reduce((s, p) => s + parseAmountToNumber(p.fundingAmount), 0),
+                        color: 'from-indigo-600 to-indigo-700',
+                      },
+                      {
+                        key: 'submitted',
+                        label: 'Agency Review',
+                        count: submittedCount,
+                        sum: submittedProposals.reduce((s, p) => s + parseAmountToNumber(p.fundingAmount), 0),
+                        color: 'from-blue-600 to-blue-700',
+                      },
+                      {
+                        key: 'revisions',
+                        label: 'Revisions',
+                        count: revisionsCount,
+                        sum: revisionProposals.reduce((s, p) => s + parseAmountToNumber(p.fundingAmount), 0),
+                        color: 'from-amber-500 to-amber-600',
+                      },
+                      {
+                        key: 'awarded',
+                        label: 'Awarded',
+                        count: awardedCount,
+                        sum: totalAwarded,
+                        color: 'from-emerald-600 to-teal-700',
+                      },
+                    ].map((stage) => {
+                      const isActive = pipelineFilterStage === stage.key
                       return (
-                        <div
-                          key={grant._id}
-                          className="group bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-6 hover:shadow-medium hover:-translate-y-0.5 transition-all duration-300 animate-fade-up"
-                          style={{ animationDelay: `${0.1 * (i + 1)}s` }}
+                        <button
+                          key={stage.key}
+                          onClick={() => setPipelineFilterStage(stage.key)}
+                          className={`p-4 rounded-[16px] text-left transition-all duration-200 cursor-pointer border relative overflow-hidden group ${
+                            isActive
+                              ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-emerald-500/50 -translate-y-0.5'
+                              : 'bg-slate-50/80 hover:bg-slate-100 text-slate-800 border-slate-200/80'
+                          }`}
                         >
-                          <div className="flex items-start justify-between mb-3">
-                            <div>
-                              <span className="text-[10px] font-mono font-bold text-primary bg-primary-50 px-2 py-0.5 rounded-full border border-primary/15">
-                                {grant.displayId}
-                              </span>
-                              <h3 className="font-heading text-base font-bold text-warm-gray-900 group-hover:text-primary transition-colors mt-1.5 mb-1">
-                                {grant.title}
-                              </h3>
-                              <p className="text-xs text-warm-gray-500">
-                                {grant.fundingAgency?.agencyName || 'Funding Agency'}
-                              </p>
-                            </div>
-                            {isClosingSoon && (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border bg-red-50 text-red-600 border-red-200 flex-shrink-0">
-                                Closing Soon
-                              </span>
-                            )}
-                          </div>
-
-                          {grant.description && (
-                            <p className="text-xs text-warm-gray-600 leading-relaxed mb-3 line-clamp-2">{grant.description}</p>
-                          )}
-
-                          <div className="flex items-center gap-4 mb-3 flex-wrap">
-                            <span className="text-sm font-bold text-warm-gray-900">{grant.budget || '—'}</span>
-                            <span className="text-xs text-warm-gray-400">•</span>
-                            <span className="text-xs text-warm-gray-500">
-                              Deadline: {formatGrantDate(grant.deadline)}
-                              {daysLeft !== null && daysLeft >= 0 && ` (${daysLeft}d left)`}
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span
+                              className={`text-xs font-bold uppercase tracking-wider ${
+                                isActive ? 'text-emerald-300' : 'text-slate-500'
+                              }`}
+                            >
+                              {stage.label}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
+                              }`}
+                            >
+                              {stage.count}
                             </span>
                           </div>
-
-                          <div className="flex items-center justify-between mb-4">
-                            <span className="px-2.5 py-1 rounded-full bg-cream text-warm-gray-600 text-xs font-medium border border-warm-gray-200/60">
-                              {grant.category || 'Uncategorized'}
-                            </span>
-                            <span className="text-[11px] text-warm-gray-400">{grant.fundingType}</span>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-2 pt-3 border-t border-warm-gray-100">
-                            <button
-                              onClick={() => setViewAgencyGrant(grant)}
-                              className="py-2 rounded-[10px] text-xs font-semibold text-warm-gray-700 bg-cream hover:bg-warm-gray-100 border border-warm-gray-200 transition-all cursor-pointer"
-                            >
-                              🏛️ View Agency
-                            </button>
-                            <button
-                              onClick={() => setViewGrantDetails(grant)}
-                              className="py-2 rounded-[10px] text-xs font-semibold text-warm-gray-700 bg-cream hover:bg-warm-gray-100 border border-warm-gray-200 transition-all cursor-pointer"
-                            >
-                              📄 View Details
-                            </button>
-                          </div>
-                          <button
-                            onClick={() => handleStartProposalForGrant(grant)}
-                            className="w-full mt-2 py-2.5 rounded-[10px] text-xs font-bold text-white bg-primary hover:bg-primary-dark shadow-soft transition-all cursor-pointer"
-                          >
-                            ✏️ Write Proposal
-                          </button>
-                          {docUrl && (
-                            <a
-                              href={docUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="block text-center mt-2 text-[11px] font-semibold text-primary hover:underline"
-                            >
-                              📎 Download Guidelines Document
-                            </a>
-                          )}
-                        </div>
+                          <p className={`text-base font-extrabold truncate ${isActive ? 'text-white' : 'text-slate-900'}`}>
+                            {formatCurrency(stage.sum)}
+                          </p>
+                        </button>
                       )
                     })}
                   </div>
-                </>
-              )}
 
-              {/* ─── Government & Other Sources (same data/UI as GrantDiscoveryPage) ─── */}
-              {grantSource === 'scraped' && (
-                <>
-                  {!govLoading && (
-                    <div className="flex items-center justify-between mb-4">
-                      <p className="text-sm text-warm-gray-500">
-                        Showing <span className="font-semibold text-warm-gray-700">{govGrants.length}</span> of{' '}
-                        <span className="font-semibold text-warm-gray-700">{govPagination.total}</span> grants
-                      </p>
-                      {govPagination.totalPages > 1 && (
-                        <p className="text-sm text-warm-gray-400">
-                          Page {govPagination.page} of {govPagination.totalPages}
-                        </p>
+                  {/* Filter Toolbar & Live Search */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-5 pt-3.5 border-t border-slate-100">
+                    <div className="relative flex-1 max-w-md">
+                      <input
+                        type="text"
+                        value={dashboardSearchQuery}
+                        onChange={(e) => setDashboardSearchQuery(e.target.value)}
+                        placeholder="Search proposals by title, grant program, agency..."
+                        className="w-full pl-10 pr-9 py-2.5 rounded-[12px] bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                      />
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        className="w-4.5 h-4.5 text-slate-400 absolute left-3.5 top-3 pointer-events-none"
+                      >
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                      </svg>
+                      {dashboardSearchQuery && (
+                        <button
+                          onClick={() => setDashboardSearchQuery('')}
+                          className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 text-sm font-bold cursor-pointer"
+                        >
+                          ✕
+                        </button>
                       )}
                     </div>
-                  )}
 
-                  {govLoading && (
-                    <div className="flex items-center justify-center py-20">
-                      <div className="text-center">
-                        <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                        <p className="text-warm-gray-500 text-sm">Discovering matching grants...</p>
-                      </div>
+                    <div className="flex items-center gap-2 justify-end text-sm text-slate-600">
+                      <span>
+                        Showing <strong className="text-slate-900">{displayedProposals.length}</strong> in{' '}
+                        <strong className="text-slate-900">{currentStageObj.label}</strong>
+                      </span>
+                      {pipelineFilterStage !== 'all' && (
+                        <button
+                          onClick={() => setPipelineFilterStage('all')}
+                          className="text-emerald-700 hover:underline font-bold ml-1 cursor-pointer"
+                        >
+                          Reset Filter
+                        </button>
+                      )}
                     </div>
-                  )}
+                  </div>
 
-                  {!govLoading && govGrants.length === 0 && (
-                    <div className="text-center py-20">
-                      <div className="w-16 h-16 bg-warm-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <span className="text-3xl">🔍</span>
+                  {/* Proposals Showcase Grid */}
+                  {displayedProposals.length === 0 ? (
+                    <div className="text-center py-12 bg-slate-50/50 rounded-[18px] border border-dashed border-slate-200">
+                      <div className="w-12 h-12 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-3 text-lg">
+                        <DocumentTextIcon className="w-6 h-6 text-slate-400" />
                       </div>
-                      <h3 className="font-heading text-xl font-bold text-warm-gray-900 mb-2">No grants found</h3>
-                      <p className="text-warm-gray-500 text-sm max-w-md mx-auto">
-                        Try adjusting your search terms or filters to discover more grants.
+                      <p className="text-base font-bold text-slate-800 mb-1">
+                        No proposals found {pipelineFilterStage !== 'all' ? `in stage "${currentStageObj.label}"` : ''}
+                      </p>
+                      <p className="text-sm text-slate-500 max-w-sm mx-auto">
+                        {dashboardSearchQuery
+                          ? 'Try modifying your search keywords or resetting filters.'
+                          : 'Proposals matching this stage will appear here.'}
                       </p>
                     </div>
+                  ) : (
+                    <div className="max-h-[580px] overflow-y-auto pr-2 custom-scrollbar">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {displayedProposals.map((p) => {
+                        const statusConfig = {
+                          Draft: { bg: 'bg-slate-100 text-slate-700 border-slate-200', dot: 'bg-slate-400' },
+                          'In Progress': { bg: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
+                          'Under Review': { bg: 'bg-purple-50 text-purple-700 border-purple-200', dot: 'bg-purple-500' },
+                          'Submitted to Admin': {
+                            bg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+                            dot: 'bg-indigo-500',
+                          },
+                          'Submitted to Agency': {
+                            bg: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+                            dot: 'bg-cyan-500',
+                          },
+                          'Under Evaluation': {
+                            bg: 'bg-violet-50 text-violet-700 border-violet-200',
+                            dot: 'bg-violet-500',
+                          },
+                          'Revisions Requested': {
+                            bg: 'bg-amber-50 text-amber-700 border-amber-200',
+                            dot: 'bg-amber-500 animate-pulse',
+                          },
+                          Awarded: { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
+                          Accepted: { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
+                          Rejected: { bg: 'bg-rose-50 text-rose-700 border-rose-200', dot: 'bg-rose-500' },
+                        }
+                        const sc = statusConfig[p.status] || statusConfig.Draft
+                        const approvedInProposal = (p.sections || []).filter((s) => s.status === 'Approved').length
+                        const totalInProposal = (p.sections || []).length || 1
+                        const secPct = Math.round((approvedInProposal / totalInProposal) * 100)
+
+                        return (
+                          <div
+                            key={p._id}
+                            className="bg-white rounded-[18px] p-4.5 border border-slate-200/90 hover:border-emerald-500/50 hover:shadow-md transition-all duration-200 flex flex-col justify-between group"
+                          >
+                            <div>
+                              <div className="flex items-center justify-between gap-2 mb-2.5">
+                                <span
+                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${sc.bg}`}
+                                >
+                                  <span className={`w-2 h-2 rounded-full ${sc.dot}`} />
+                                  {p.status}
+                                </span>
+                                {p.fundingAmount && (
+                                  <span className="text-xs font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-full">
+                                    {p.fundingAmount}
+                                  </span>
+                                )}
+                              </div>
+
+                              <h3
+                                onClick={() => {
+                                  setSelectedProposalId(p._id)
+                                  navigateToSection('proposals')
+                                }}
+                                className="font-heading text-base font-bold text-slate-900 group-hover:text-emerald-700 transition-colors line-clamp-1 cursor-pointer"
+                                title={p.title}
+                              >
+                                {p.title}
+                              </h3>
+                              <p className="text-xs text-slate-500 font-medium truncate mt-1">
+                                {p.grantAgency || 'Independent Grant Call'}
+                              </p>
+
+                              {/* Progress Track */}
+                              <div className="mt-3.5">
+                                <div className="flex items-center justify-between text-xs text-slate-600 font-semibold mb-1.5">
+                                  <span>Dossier Sections</span>
+                                  <span>
+                                    {approvedInProposal}/{totalInProposal} done ({secPct}%)
+                                  </span>
+                                </div>
+                                <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                                    style={{ width: `${secPct}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Card Actions */}
+                            <div className="mt-4.5 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                              <button
+                                onClick={() => {
+                                  setSelectedProposalId(p._id)
+                                  navigateToSection('proposals')
+                                }}
+                                className="text-sm font-bold text-emerald-700 hover:text-emerald-800 transition-colors cursor-pointer"
+                              >
+                                Open Editor →
+                              </button>
+                              <button
+                                onClick={() => navigateToSection('tracking')}
+                                className="text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                              >
+                                Track Stage
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                      </div>
+                    </div>
                   )}
 
-                  {!govLoading && govGrants.length > 0 && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                      {govGrants.map((grant, i) => (
-                        <div
-                          key={grant._id}
-                          onClick={() => handleSelectGovGrant(grant)}
-                          className="group bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-6 hover:shadow-medium hover:-translate-y-0.5 transition-all duration-300 cursor-pointer animate-fade-up"
-                          style={{ animationDelay: `${0.05 * (i + 1)}s` }}
-                        >
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="min-w-0 flex-1 mr-3">
-                              <h3 className="font-heading text-base font-bold text-warm-gray-900 group-hover:text-primary transition-colors mb-1 line-clamp-2">
-                                {grant.title}
-                              </h3>
-                              <p className="text-xs text-warm-gray-500 truncate">{grant.agencyName}</p>
-                            </div>
-                            <span
-                              className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold border ${grant.displayStatus === 'Open'
-                                ? 'bg-green-50 text-green-600 border-green-200'
-                                : grant.displayStatus === 'Closing Soon'
-                                  ? 'bg-orange-50 text-orange-600 border-orange-200'
-                                  : 'bg-red-50 text-red-600 border-red-200'
-                                }`}
+                  {displayedProposals.length > 6 && (
+                    <div className="flex items-center justify-between text-xs text-slate-500 mt-4 pt-3 border-t border-slate-100 flex-wrap gap-2">
+                      <span>Showing {displayedProposals.length} proposals in this stage (scroll above to view all)</span>
+                      <button
+                        onClick={() => navigateToSection('proposals')}
+                        className="text-xs font-bold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
+                      >
+                        Open Proposal Management →
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* ─── 5. Two-Column Intelligence: Deadlines Radar & Team Capacity ─── */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Left Column: Deadlines Radar */}
+                  <div className="bg-white rounded-[24px] border border-slate-200/80 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.06)] p-6 sm:p-7">
+                    <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <ClockIcon className="w-5 h-5 text-amber-600" />
+                        <div>
+                          <h2 className="font-heading text-xl font-bold text-slate-900 leading-tight">
+                            Deadline Alerts Radar
+                          </h2>
+                          <p className="text-sm text-slate-500 mt-0.5">Impending submission windows</p>
+                        </div>
+                      </div>
+
+                      {/* Urgency Filter */}
+                      <div className="flex items-center bg-slate-100 p-1 rounded-[10px] text-xs">
+                        {[
+                          { id: 'all', label: 'All' },
+                          { id: 'critical', label: 'Critical' },
+                          { id: 'upcoming', label: 'Upcoming' },
+                        ].map((btn) => (
+                          <button
+                            key={btn.id}
+                            onClick={() => setDeadlineUrgencyFilter(btn.id)}
+                            className={`px-3 py-1.5 rounded-[8px] font-semibold transition-all cursor-pointer ${
+                              deadlineUrgencyFilter === btn.id
+                                ? 'bg-white text-slate-900 shadow-xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            {btn.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {displayedDeadlines.length === 0 ? (
+                      <div className="text-center py-8 bg-slate-50/50 rounded-[16px] border border-dashed border-slate-200">
+                        <ShieldCheckIcon className="w-8 h-8 mx-auto text-emerald-500 mb-2" />
+                        <p className="text-sm font-bold text-slate-800">No deadlines in this filter</p>
+                        <p className="text-xs text-slate-500 mt-0.5">All active proposals are within comfortable margins</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {displayedDeadlines.map((d) => {
+                          const isCrit = d.urgency === 'critical' || d.daysLeft <= 3
+                          return (
+                            <div
+                              key={d.id}
+                              className="p-4 rounded-[16px] bg-slate-50/80 hover:bg-slate-50 border border-slate-200/80 transition-all flex items-center justify-between gap-3 group"
                             >
-                              {grant.displayStatus}
-                            </span>
-                          </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-bold text-slate-900 truncate group-hover:text-emerald-700 transition-colors">
+                                  {d.title}
+                                </p>
+                                <div className="flex items-center gap-2 text-xs text-slate-500 font-medium mt-1">
+                                  <span>{d.agency}</span>
+                                  <span>•</span>
+                                  <span>
+                                    {new Date(d.targetDate).toLocaleDateString('en-IN', {
+                                      day: '2-digit',
+                                      month: 'short',
+                                      year: 'numeric',
+                                    })}
+                                  </span>
+                                </div>
+                              </div>
+                              <span
+                                className={`px-3 py-1.5 rounded-full text-xs font-bold border shrink-0 ${
+                                  isCrit
+                                    ? 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse'
+                                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                                }`}
+                              >
+                                {isCrit ? '🚨 ' : '⏰ '}
+                                {d.daysLeft}d left
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
 
-                          <div className="flex items-center gap-4 mb-4">
-                            {grant.fundingDisplay && (
-                              <>
-                                <span className="text-sm font-bold text-warm-gray-900">{grant.fundingDisplay}</span>
-                                <span className="text-xs text-warm-gray-400">•</span>
-                              </>
-                            )}
-                            {grant.deadlineDisplay && (
-                              <span className="text-xs text-warm-gray-500">Deadline: {grant.deadlineDisplay}</span>
-                            )}
-                            {!grant.fundingDisplay && !grant.deadlineDisplay && (
-                              <span className="text-xs text-warm-gray-400 italic">Details not available</span>
-                            )}
-                          </div>
+                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-sm">
+                      <span className="text-slate-500 font-medium">Automated reminder dispatch active</span>
+                      <button
+                        onClick={() => navigateToSection('deadlines')}
+                        className="font-bold text-emerald-700 hover:underline cursor-pointer"
+                      >
+                        All Alerts →
+                      </button>
+                    </div>
+                  </div>
 
-                          <div className="flex items-center justify-between">
-                            <span className="px-2.5 py-1 rounded-full bg-cream text-warm-gray-600 text-xs font-medium border border-warm-gray-200/60">
-                              {grant.categoryRaw || formatGovGrantType(grant.grantType)}
-                            </span>
-                            <div className="flex items-center gap-2">
-                              {grant.hasApplied && (
-                                <span className="px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-[10px] font-bold border border-green-200">
-                                  ✓ Applied
+                  {/* Right Column: Team Capacity & Workload Balance */}
+                  <div className="bg-white rounded-[24px] border border-slate-200/80 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.06)] p-6 sm:p-7">
+                    <div className="flex items-center justify-between mb-5">
+                      <div className="flex items-center gap-2.5">
+                        <UsersIcon className="w-5 h-5 text-purple-600" />
+                        <div>
+                          <h2 className="font-heading text-xl font-bold text-slate-900 leading-tight">
+                            Team Capacity & Workload
+                          </h2>
+                          <p className="text-sm text-slate-500 mt-0.5">Researcher assignment balance</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => navigateToSection('team')}
+                        className="text-sm font-bold text-emerald-700 hover:underline cursor-pointer"
+                      >
+                        Manage Team →
+                      </button>
+                    </div>
+
+                    {memberWorkload.length === 0 ? (
+                      <div className="text-center py-8 bg-slate-50/50 rounded-[16px] border border-dashed border-slate-200">
+                        <UsersIcon className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+                        <p className="text-sm font-bold text-slate-800">No member section assignments</p>
+                        <p className="text-xs text-slate-500 mt-0.5">Assign sections in Proposal Management</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {memberWorkload.slice(0, 5).map((m) => {
+                          const loadStatus =
+                            m.assigned === 0
+                              ? { label: 'Available', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
+                              : m.assigned <= 3
+                              ? { label: 'Optimal', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' }
+                              : { label: 'High Load', color: 'bg-amber-50 text-amber-700 border-amber-200' }
+
+                          return (
+                            <div
+                              key={m._id}
+                              className="p-3.5 rounded-[16px] bg-slate-50/80 border border-slate-200/80 flex items-center justify-between gap-3"
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-100 to-teal-200 text-emerald-900 font-bold text-xs flex items-center justify-center shrink-0">
+                                  {m.fullName
+                                    .split(' ')
+                                    .map((n) => n[0])
+                                    .join('')
+                                    .slice(0, 2)}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-bold text-slate-900 truncate">{m.fullName}</p>
+                                  <p className="text-xs text-slate-500 font-medium truncate mt-0.5">{m.jobTitle || m.email}</p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2.5 shrink-0">
+                                <span className="text-xs font-bold text-slate-700">
+                                  {m.completed}/{m.assigned} done
                                 </span>
-                              )}
-                              <div className="w-16 h-1.5 rounded-full bg-warm-gray-100 overflow-hidden">
+                                <span
+                                  className={`px-2.5 py-1 rounded-full text-xs font-bold border ${loadStatus.color}`}
+                                >
+                                  {loadStatus.label}
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-sm">
+                      <span className="text-slate-500 font-medium">{verifiedMembers.length} verified researchers in roster</span>
+                      <button
+                        onClick={() => navigateToSection('team')}
+                        className="font-bold text-emerald-700 hover:underline cursor-pointer"
+                      >
+                        Assign Tasks →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ─── 6. Funding Agency Portfolio Breakdown ─── */}
+                <div className="bg-white rounded-[24px] border border-slate-200/80 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.06)] p-6 sm:p-7">
+                  <div className="flex items-center justify-between mb-5">
+                    <div>
+                      <h2 className="font-heading text-xl font-bold text-slate-900 leading-tight">
+                        Funding Agency Portfolio
+                      </h2>
+                      <p className="text-sm text-slate-500 mt-0.5">Capital distribution across grant mandates</p>
+                    </div>
+                    <button
+                      onClick={() => navigateToSection('analytics')}
+                      className="text-sm font-bold text-emerald-700 hover:underline cursor-pointer"
+                    >
+                      Full Analytics Report →
+                    </button>
+                  </div>
+
+                  {topAgencies.length === 0 ? (
+                    <div className="text-center py-8 bg-slate-50/50 rounded-[16px] border border-dashed border-slate-200">
+                      <p className="text-sm font-bold text-slate-800">No agency distribution data</p>
+                      <p className="text-xs text-slate-500 mt-0.5">Create proposals with grant calls to view stats</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3.5">
+                      {topAgencies.map((ag) => {
+                        const maxVal = topAgencies[0]?.value || 1
+                        const barPct = Math.max(8, (ag.value / maxVal) * 100)
+                        return (
+                          <div
+                            key={ag.name}
+                            className="p-4 rounded-[16px] bg-slate-50/80 border border-slate-200/80 transition-all"
+                          >
+                            <div className="flex items-center justify-between mb-2.5">
+                              <p className="text-sm font-bold text-slate-900 truncate flex-1">{ag.name}</p>
+                              <div className="flex items-center gap-2.5 shrink-0 ml-2">
+                                {ag.awarded > 0 && (
+                                  <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
+                                    🏆 {ag.awarded} Sanctioned
+                                  </span>
+                                )}
+                                <span className="text-xs text-slate-600 font-semibold">
+                                  {ag.count} proposal{ag.count > 1 ? 's' : ''}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="flex-1 h-2.5 rounded-full bg-slate-200/80 overflow-hidden">
                                 <div
-                                  className="h-full rounded-full bg-primary transition-all duration-500"
-                                  style={{ width: `${grant.matchPercentage}%` }}
+                                  className="h-full rounded-full bg-gradient-to-r from-emerald-600 to-teal-500 transition-all duration-700"
+                                  style={{ width: `${barPct}%` }}
                                 />
                               </div>
-                              <span className="text-xs font-bold text-primary min-w-[32px] text-right">
-                                {grant.matchPercentage}%
+                              <span className="text-sm font-extrabold text-slate-900 min-w-[75px] text-right">
+                                {formatCurrency(ag.value)}
                               </span>
                             </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Pagination */}
-                  {!govLoading && govPagination.totalPages > 1 && (
-                    <div className="flex items-center justify-center gap-2 mt-8">
-                      <button
-                        onClick={() => fetchGovGrants(govPagination.page - 1)}
-                        disabled={govPagination.page <= 1}
-                        className="px-4 py-2 rounded-[10px] text-sm font-medium bg-surface-elevated border border-warm-gray-200/60 text-warm-gray-600 hover:bg-warm-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                      >
-                        ← Previous
-                      </button>
-                      {Array.from({ length: Math.min(5, govPagination.totalPages) }, (_, i) => {
-                        const start = Math.max(1, Math.min(govPagination.page - 2, govPagination.totalPages - 4))
-                        const pageNum = start + i
-                        if (pageNum > govPagination.totalPages) return null
-                        return (
-                          <button
-                            key={pageNum}
-                            onClick={() => fetchGovGrants(pageNum)}
-                            className={`w-10 h-10 rounded-[10px] text-sm font-semibold transition-colors cursor-pointer ${pageNum === govPagination.page
-                              ? 'bg-primary text-white shadow-soft'
-                              : 'bg-surface-elevated border border-warm-gray-200/60 text-warm-gray-600 hover:bg-warm-gray-50'
-                              }`}
-                          >
-                            {pageNum}
-                          </button>
                         )
                       })}
-                      <button
-                        onClick={() => fetchGovGrants(govPagination.page + 1)}
-                        disabled={govPagination.page >= govPagination.totalPages}
-                        className="px-4 py-2 rounded-[10px] text-sm font-medium bg-surface-elevated border border-warm-gray-200/60 text-warm-gray-600 hover:bg-warm-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                      >
-                        Next →
-                      </button>
                     </div>
                   )}
-                </>
-              )}
-            </div>
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* ═══════════════════════════════════ GRANTS ═══════════════════════════════════ */}
+          {activeSection === 'grants' && (
+            <GrantDiscoveryModule
+              embedded={true}
+              userRole="org_admin"
+              onProposalCreated={fetchOrgProposals}
+            />
           )}
 
           {/* ═══════════════════════════════════ PROPOSAL TRACKING DASHBOARD ═══════════════════════════════════ */}
@@ -2718,30 +3373,30 @@ Official Seal & Endorsement`
             <div className="animate-fade-up space-y-6">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-900 border border-purple-200">
                       Lifecycle Monitor
                     </span>
-                    <span className="text-xs text-warm-gray-400">•</span>
-                    <span className="text-xs text-warm-gray-500 font-medium">Post-Submission Command Center</span>
+                    <span className="text-sm text-slate-400">•</span>
+                    <span className="text-xs text-slate-600 font-semibold uppercase tracking-wider">Post-Submission Command Center</span>
                   </div>
-                  <h1 className="font-heading text-2xl sm:text-3xl font-bold text-warm-gray-900">
+                  <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-slate-900">
                     Proposal Tracking Dashboard
                   </h1>
-                  <p className="text-xs text-warm-gray-500 mt-1 max-w-2xl leading-relaxed">
+                  <p className="text-sm text-slate-600 mt-1.5 max-w-2xl leading-relaxed">
                     Track the progress of all grant proposals dispatched to funding agencies. Monitor peer review stages, manage referee queries, follow up on decision deadlines, and log official sanction awards.
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2.5 self-start md:self-auto shrink-0">
-                  <div className="bg-warm-gray-200/80 p-1 rounded-[12px] flex items-center shadow-inner">
+                  <div className="bg-slate-200/80 p-1 rounded-xl flex items-center shadow-inner">
                     <button
                       type="button"
                       onClick={() => setTrackingView('kanban')}
-                      className={`px-3.5 py-2 rounded-[9px] text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                         trackingView === 'kanban'
                           ? 'bg-white text-purple-900 shadow-soft'
-                          : 'text-warm-gray-600 hover:text-warm-gray-900'
+                          : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
                       <span>☷</span> Kanban Board
@@ -2749,10 +3404,10 @@ Official Seal & Endorsement`
                     <button
                       type="button"
                       onClick={() => setTrackingView('table')}
-                      className={`px-3.5 py-2 rounded-[9px] text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                         trackingView === 'table'
                           ? 'bg-white text-purple-900 shadow-soft'
-                          : 'text-warm-gray-600 hover:text-warm-gray-900'
+                          : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
                       <span>☰</span> Dense Table
@@ -2762,7 +3417,7 @@ Official Seal & Endorsement`
                   <button
                     type="button"
                     onClick={() => fetchOrgProposals()}
-                    className="p-2.5 rounded-[12px] bg-white hover:bg-warm-gray-50 border border-warm-gray-200 text-warm-gray-700 shadow-xs cursor-pointer transition-colors"
+                    className="p-2.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 shadow-xs cursor-pointer transition-colors"
                     title="Refresh Proposals"
                   >
                     <span>🔄</span>
@@ -2772,50 +3427,50 @@ Official Seal & Endorsement`
 
               {/* KPI bar */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 relative overflow-hidden">
+                <div className="bg-surface-elevated rounded-2xl border border-slate-200/80 shadow-soft p-5 relative overflow-hidden">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-warm-gray-600 uppercase tracking-wider">Active Pipeline</span>
-                    <span className="w-8 h-8 rounded-[8px] bg-blue-50 text-blue-700 flex items-center justify-center text-sm font-bold">🏛️</span>
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Active Pipeline</span>
+                    <span className="w-9 h-9 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center text-base font-bold">🏛️</span>
                   </div>
-                  <p className="font-heading text-2xl font-bold text-warm-gray-900">{trackingMetrics.totalDispatched}</p>
-                  <p className="text-[11px] text-warm-gray-500 mt-1">Dispatched to Funding Agencies</p>
+                  <p className="font-heading text-3xl font-extrabold text-slate-900">{trackingMetrics.totalDispatched}</p>
+                  <p className="text-xs text-slate-500 font-medium mt-1">Dispatched to Funding Agencies</p>
                   <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 to-indigo-500" />
                 </div>
 
-                <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 relative overflow-hidden">
+                <div className="bg-surface-elevated rounded-2xl border border-slate-200/80 shadow-soft p-5 relative overflow-hidden">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-warm-gray-600 uppercase tracking-wider">Requested Pipeline</span>
-                    <span className="w-8 h-8 rounded-[8px] bg-purple-50 text-purple-700 flex items-center justify-center text-sm font-bold">💰</span>
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Requested Pipeline</span>
+                    <span className="w-9 h-9 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center text-base font-bold">💰</span>
                   </div>
-                  <p className="font-heading text-2xl font-bold text-purple-950">{formatCurrency(trackingMetrics.totalRequestedVal)}</p>
-                  <p className="text-[11px] text-warm-gray-500 mt-1">Total grant funds requested</p>
+                  <p className="font-heading text-3xl font-extrabold text-purple-950">{formatCurrency(trackingMetrics.totalRequestedVal)}</p>
+                  <p className="text-xs text-slate-500 font-medium mt-1">Total grant funds requested</p>
                   <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 to-fuchsia-500" />
                 </div>
 
-                <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 relative overflow-hidden">
+                <div className="bg-surface-elevated rounded-2xl border border-slate-200/80 shadow-soft p-5 relative overflow-hidden">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-warm-gray-600 uppercase tracking-wider">Sanctioned & Won</span>
-                    <span className="w-8 h-8 rounded-[8px] bg-emerald-50 text-emerald-700 flex items-center justify-center text-sm font-bold">🏆</span>
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sanctioned & Won</span>
+                    <span className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center text-base font-bold">🏆</span>
                   </div>
-                  <p className="font-heading text-2xl font-bold text-emerald-900">{formatCurrency(trackingMetrics.totalAwardedVal)}</p>
-                  <p className="text-[11px] text-emerald-700 font-semibold mt-1">
+                  <p className="font-heading text-3xl font-extrabold text-emerald-900">{formatCurrency(trackingMetrics.totalAwardedVal)}</p>
+                  <p className="text-xs text-emerald-700 font-bold mt-1">
                     {trackingMetrics.awardedCount} Grants Won &nbsp;•&nbsp; {trackingMetrics.winRate}% Success Rate
                   </p>
                   <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-500" />
                 </div>
 
-                <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 relative overflow-hidden">
+                <div className="bg-surface-elevated rounded-2xl border border-slate-200/80 shadow-soft p-5 relative overflow-hidden">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-warm-gray-600 uppercase tracking-wider">Under Evaluation</span>
-                    <span className="w-8 h-8 rounded-[8px] bg-amber-50 text-amber-700 flex items-center justify-center text-sm font-bold">🔍</span>
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Under Evaluation</span>
+                    <span className="w-9 h-9 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center text-base font-bold">🔍</span>
                   </div>
-                  <p className="font-heading text-2xl font-bold text-warm-gray-900">{trackingMetrics.underReviewCount}</p>
-                  <p className="text-[11px] text-warm-gray-500 mt-1 flex items-center gap-1.5">
+                  <p className="font-heading text-3xl font-extrabold text-slate-900">{trackingMetrics.underReviewCount}</p>
+                  <p className="text-xs text-slate-600 font-medium mt-1 flex items-center gap-1.5">
                     {trackingMetrics.revisionsCount > 0 && (
                       <span className="text-amber-800 font-bold">⚠️ {trackingMetrics.revisionsCount} Query</span>
                     )}
                     {trackingMetrics.overdueCount > 0 && (
-                      <span className="text-red-700 font-bold">• 🔴 {trackingMetrics.overdueCount} Overdue</span>
+                      <span className="text-rose-700 font-bold">• 🔴 {trackingMetrics.overdueCount} Overdue</span>
                     )}
                     {trackingMetrics.revisionsCount === 0 && trackingMetrics.overdueCount === 0 && (
                       <span>Active peer review scoring</span>
@@ -2826,20 +3481,20 @@ Official Seal & Endorsement`
               </div>
 
               {/* Search & Filter */}
-              <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-4 flex flex-col md:flex-row items-center justify-between gap-3">
+              <div className="bg-surface-elevated rounded-2xl border border-slate-200/80 shadow-soft p-4 flex flex-col md:flex-row items-center justify-between gap-3">
                 <div className="flex-1 w-full relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-warm-gray-400 text-sm">🔍</span>
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
                   <input
                     type="text"
                     value={trackingSearch}
                     onChange={(e) => setTrackingSearch(e.target.value)}
                     placeholder="Search by Proposal Title, Principal Investigator, Agency, or Agency Ref ID..."
-                    className="w-full pl-10 pr-4 py-2 rounded-[10px] border border-warm-gray-200 bg-cream/40 text-xs font-medium text-warm-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all placeholder:text-warm-gray-400"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all placeholder:text-slate-400"
                   />
                   {trackingSearch && (
                     <button
                       onClick={() => setTrackingSearch('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-gray-400 hover:text-warm-gray-700 text-xs cursor-pointer font-bold"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-sm cursor-pointer font-bold"
                     >
                       ✕
                     </button>
@@ -2850,7 +3505,7 @@ Official Seal & Endorsement`
                   <select
                     value={trackingAgencyFilter}
                     onChange={(e) => setTrackingAgencyFilter(e.target.value)}
-                    className="flex-1 md:flex-none px-3 py-2 rounded-[10px] border border-warm-gray-200 bg-white text-xs font-semibold text-warm-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500/20 cursor-pointer"
+                    className="flex-1 md:flex-none px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500/20 cursor-pointer"
                   >
                     <option value="all">All Agencies</option>
                     <option value="DST">DST / SERB</option>
@@ -2865,7 +3520,7 @@ Official Seal & Endorsement`
                   <select
                     value={trackingStageFilter}
                     onChange={(e) => setTrackingStageFilter(e.target.value)}
-                    className="flex-1 md:flex-none px-3 py-2 rounded-[10px] border border-warm-gray-200 bg-white text-xs font-semibold text-warm-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500/20 cursor-pointer"
+                    className="flex-1 md:flex-none px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500/20 cursor-pointer"
                   >
                     <option value="all">All Stages ({trackedProposals.length})</option>
                     {TRACKING_STAGES.map((s) => (
@@ -2883,26 +3538,26 @@ Official Seal & Endorsement`
                     return (
                       <div
                         key={stage.key}
-                        className="bg-surface-elevated rounded-[18px] border border-warm-gray-200/80 shadow-soft flex flex-col min-h-[580px]"
+                        className="bg-surface-elevated rounded-2xl border border-slate-200/80 shadow-soft flex flex-col min-h-[580px]"
                       >
-                        <div className={`p-3.5 border-b rounded-t-[18px] ${stage.color} flex items-center justify-between`}>
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="text-base">{stage.icon}</span>
-                            <h3 className="font-heading font-bold text-xs truncate">{stage.label}</h3>
+                        <div className={`p-4 border-b rounded-t-2xl ${stage.color} flex items-center justify-between`}>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-lg">{stage.icon}</span>
+                            <h3 className="font-heading font-bold text-sm truncate text-slate-900">{stage.label}</h3>
                           </div>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shadow-xs ${stage.headerBadge}`}>
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold shadow-xs ${stage.headerBadge}`}>
                             {stageProposals.length}
                           </span>
                         </div>
-                        <p className="px-3.5 py-2 text-[10px] text-warm-gray-500 border-b border-warm-gray-100 bg-cream/20 leading-tight">
+                        <p className="px-4 py-2.5 text-xs text-slate-600 border-b border-slate-100 bg-slate-50/60 leading-relaxed font-medium">
                           {stage.description}
                         </p>
 
-                        <div className="p-3 space-y-3 flex-1 overflow-y-auto max-h-[750px]">
+                        <div className="p-3.5 space-y-3 flex-1 overflow-y-auto max-h-[750px]">
                           {stageProposals.length === 0 ? (
-                            <div className="py-12 px-4 text-center text-warm-gray-400">
-                              <span className="text-2xl block mb-1 opacity-50">{stage.icon}</span>
-                              <p className="text-xs font-medium">No proposals in this stage</p>
+                            <div className="py-12 px-4 text-center text-slate-400">
+                              <span className="text-3xl block mb-2 opacity-50">{stage.icon}</span>
+                              <p className="text-sm font-medium">No proposals in this stage</p>
                             </div>
                           ) : (
                             stageProposals.map((prop) => {
@@ -2912,57 +3567,57 @@ Official Seal & Endorsement`
                               return (
                                 <div
                                   key={prop._id}
-                                  className="bg-white rounded-[14px] border border-warm-gray-200/90 shadow-soft p-3.5 hover:shadow-medium hover:border-purple-300 transition-all duration-200 group"
+                                  className="bg-white rounded-xl border border-slate-200 shadow-soft p-4 hover:shadow-medium hover:border-purple-300 transition-all duration-200 group"
                                 >
-                                  <div className="flex items-center justify-between gap-1.5 mb-2">
-                                    <span className="px-2 py-0.5 rounded-[6px] font-mono text-[9px] font-bold bg-slate-100 text-slate-800 border border-slate-200 truncate max-w-[130px]" title={prop.agencySubmission?.agencySubmissionId || 'No Ref ID'}>
+                                  <div className="flex items-center justify-between gap-2 mb-2">
+                                    <span className="px-2.5 py-1 rounded-md font-mono text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200 truncate max-w-[140px]" title={prop.agencySubmission?.agencySubmissionId || 'No Ref ID'}>
                                       {prop.agencySubmission?.agencySubmissionId || 'Ref: Recorded'}
                                     </span>
-                                    <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold border shrink-0 ${timeline.color}`}>
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold border shrink-0 ${timeline.color}`}>
                                       {timeline.label}
                                     </span>
                                   </div>
 
-                                  <h4 className="font-heading font-bold text-xs text-warm-gray-900 group-hover:text-purple-900 transition-colors line-clamp-2 leading-snug mb-1">
+                                  <h4 className="font-heading font-bold text-sm text-slate-900 group-hover:text-purple-900 transition-colors line-clamp-2 leading-snug mb-1">
                                     {prop.title}
                                   </h4>
-                                  <p className="text-[11px] text-warm-gray-500 truncate mb-2">
+                                  <p className="text-xs text-slate-600 font-medium truncate mb-2.5">
                                     {prop.grantAgency || 'Funding Agency'}{prop.grantTitle ? ` • ${prop.grantTitle}` : ''}
                                   </p>
 
-                                  <div className="p-2 rounded-[8px] bg-cream/40 border border-warm-gray-200/50 space-y-1 mb-2.5 text-[11px]">
+                                  <div className="p-3 rounded-lg bg-slate-50/80 border border-slate-200/70 space-y-1.5 mb-3 text-xs">
                                     <div className="flex items-center justify-between">
-                                      <span className="text-warm-gray-500">Requested:</span>
-                                      <strong className="text-warm-gray-900">{prop.fundingAmount || '₹25,00,000'}</strong>
+                                      <span className="text-slate-500 font-medium">Requested:</span>
+                                      <strong className="text-slate-900 font-bold">{prop.fundingAmount || '—'}</strong>
                                     </div>
                                     {prop.status === 'Awarded' && prop.awardDetails?.sanctionedAmount && (
-                                      <div className="flex items-center justify-between text-emerald-800 font-bold border-t border-emerald-100 pt-1">
+                                      <div className="flex items-center justify-between text-emerald-800 font-bold border-t border-emerald-100 pt-1.5">
                                         <span>Sanctioned:</span>
                                         <span>🏆 {prop.awardDetails.sanctionedAmount}</span>
                                       </div>
                                     )}
                                     <div className="flex items-center justify-between pt-0.5">
-                                      <span className="text-warm-gray-500 truncate">Lead PI:</span>
-                                      <span className="font-semibold text-warm-gray-800 truncate max-w-[110px]">
-                                        {prop.sections?.[0]?.assignedToName || 'PI Thorne'}
+                                      <span className="text-slate-500 font-medium truncate">Lead PI:</span>
+                                      <span className="font-bold text-slate-800 truncate max-w-[120px]">
+                                        {prop.sections?.[0]?.assignedToName || 'Lead PI Unassigned'}
                                       </span>
                                     </div>
                                   </div>
 
-                                  <div className="flex items-center justify-between text-[10px] text-warm-gray-500 mb-3 pt-1 border-t border-warm-gray-100">
-                                    <span className="flex items-center gap-1 font-semibold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                                  <div className="flex items-center justify-between text-xs text-slate-600 mb-3 pt-1 border-t border-slate-100">
+                                    <span className="flex items-center gap-1 font-bold text-teal-800 bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-200">
                                       ✓ {checklistCleared}/6 Pre-submission
                                     </span>
-                                    <span className="text-warm-gray-400">
+                                    <span className="text-slate-500 font-medium">
                                       {prop.agencySubmission?.submittedAt ? new Date(prop.agencySubmission.submittedAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'Dispatched'}
                                     </span>
                                   </div>
 
-                                  <div className="flex items-center justify-between gap-1.5 pt-2 border-t border-warm-gray-100">
+                                  <div className="flex items-center justify-between gap-1.5 pt-2 border-t border-slate-100">
                                     <select
                                       value={stage.aliases.includes(prop.status) ? stage.key : prop.status}
                                       onChange={(e) => handleOpenStatusChange(prop, e.target.value)}
-                                      className="px-2 py-1 rounded-[6px] border border-warm-gray-200 bg-warm-gray-50 text-[10px] font-bold text-warm-gray-700 focus:outline-none cursor-pointer"
+                                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 focus:outline-none cursor-pointer"
                                       title="Update Tracking Stage"
                                     >
                                       <option value="Submitted to Agency">Submitted</option>
@@ -2979,7 +3634,7 @@ Official Seal & Endorsement`
                                           setPingPiModal(prop)
                                           setPingPiMessage('')
                                         }}
-                                        className="p-1.5 rounded-[6px] bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-[11px] font-bold cursor-pointer transition-colors"
+                                        className="p-2 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold cursor-pointer transition-colors"
                                         title="Ping PI with status update or referee feedback"
                                       >
                                         💬
@@ -2987,7 +3642,7 @@ Official Seal & Endorsement`
                                       <button
                                         type="button"
                                         onClick={() => handleExportPDF(prop)}
-                                        className="p-1.5 rounded-[6px] bg-warm-gray-50 hover:bg-warm-gray-100 text-warm-gray-700 border border-warm-gray-200 text-[11px] font-bold cursor-pointer transition-colors"
+                                        className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold cursor-pointer transition-colors"
                                         title="Download Dossier PDF"
                                       >
                                         📄
@@ -2995,7 +3650,7 @@ Official Seal & Endorsement`
                                       <button
                                         type="button"
                                         onClick={() => setTimelineModal(prop)}
-                                        className="p-1.5 rounded-[6px] bg-warm-gray-50 hover:bg-warm-gray-100 text-warm-gray-700 border border-warm-gray-200 text-[11px] font-bold cursor-pointer transition-colors"
+                                        className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold cursor-pointer transition-colors"
                                         title="View Stage Progression Audit"
                                       >
                                         🕒
@@ -3012,26 +3667,26 @@ Official Seal & Endorsement`
                   })}
                 </div>
               ) : (
-                <div className="bg-surface-elevated rounded-[18px] border border-warm-gray-200/80 shadow-soft overflow-hidden animate-fade-in">
+                <div className="bg-surface-elevated rounded-2xl border border-slate-200/80 shadow-soft overflow-hidden animate-fade-in">
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-xs">
+                    <table className="w-full text-left border-collapse text-sm">
                       <thead>
-                        <tr className="bg-cream/60 border-b border-warm-gray-200/80 text-[11px] font-bold text-warm-gray-600 uppercase tracking-wider">
-                          <th className="py-3.5 px-4">Proposal & Agency Ref ID</th>
-                          <th className="py-3.5 px-4">Agency & Grant Call</th>
-                          <th className="py-3.5 px-4">Principal Investigator</th>
-                          <th className="py-3.5 px-4">Requested</th>
-                          <th className="py-3.5 px-4">Sanctioned</th>
-                          <th className="py-3.5 px-4">Timeline / Flag</th>
-                          <th className="py-3.5 px-4">Compliance</th>
-                          <th className="py-3.5 px-4">Current Status</th>
-                          <th className="py-3.5 px-4 text-right">Actions</th>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                          <th className="py-4 px-4">Proposal & Agency Ref ID</th>
+                          <th className="py-4 px-4">Agency & Grant Call</th>
+                          <th className="py-4 px-4">Principal Investigator</th>
+                          <th className="py-4 px-4">Requested</th>
+                          <th className="py-4 px-4">Sanctioned</th>
+                          <th className="py-4 px-4">Timeline / Flag</th>
+                          <th className="py-4 px-4">Compliance</th>
+                          <th className="py-4 px-4">Current Status</th>
+                          <th className="py-4 px-4 text-right">Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-warm-gray-200/60 font-sans">
+                      <tbody className="divide-y divide-slate-200/70 font-sans">
                         {trackedProposals.length === 0 ? (
                           <tr>
-                            <td colSpan="9" className="py-12 text-center text-warm-gray-500 font-medium">
+                            <td colSpan="9" className="py-12 text-center text-slate-500 font-medium">
                               No proposals match your search or filter criteria.
                             </td>
                           </tr>
@@ -3041,50 +3696,50 @@ Official Seal & Endorsement`
                             const checklist = prop.preSubmissionChecklist || {}
                             const checklistCleared = Object.values(checklist).filter(v => v === true).length
                             return (
-                              <tr key={prop._id} className="hover:bg-cream/30 transition-colors">
-                                <td className="py-3.5 px-4">
-                                  <p className="font-heading font-bold text-warm-gray-900 line-clamp-1 max-w-[220px]" title={prop.title}>
+                              <tr key={prop._id} className="hover:bg-slate-50/70 transition-colors">
+                                <td className="py-4 px-4">
+                                  <p className="font-heading font-bold text-slate-900 line-clamp-1 max-w-[220px]" title={prop.title}>
                                     {prop.title}
                                   </p>
-                                  <span className="font-mono text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                                  <span className="font-mono text-xs font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200 inline-block mt-1">
                                     {prop.agencySubmission?.agencySubmissionId || 'Ref: Dispatched'}
                                   </span>
                                 </td>
-                                <td className="py-3.5 px-4 text-warm-gray-700 font-medium">
-                                  <p className="font-bold text-warm-gray-900">{prop.grantAgency || 'Funding Agency'}</p>
-                                  <p className="text-[11px] text-warm-gray-500 truncate max-w-[150px]">{prop.grantTitle}</p>
+                                <td className="py-4 px-4 text-slate-700 font-medium">
+                                  <p className="font-bold text-slate-900">{prop.grantAgency || 'Funding Agency'}</p>
+                                  <p className="text-xs text-slate-500 font-medium truncate max-w-[150px] mt-0.5">{prop.grantTitle}</p>
                                 </td>
-                                <td className="py-3.5 px-4 text-warm-gray-800">
-                                  <p className="font-semibold">{prop.sections?.[0]?.assignedToName || 'PI Thorne'}</p>
-                                  <p className="text-[10px] text-warm-gray-400">Lead Investigator</p>
+                                <td className="py-4 px-4 text-slate-800">
+                                  <p className="font-bold text-slate-900">{prop.sections?.[0]?.assignedToName || 'Lead PI Unassigned'}</p>
+                                  <p className="text-xs text-slate-500 font-medium">Lead Investigator</p>
                                 </td>
-                                <td className="py-3.5 px-4 font-bold text-warm-gray-900">
-                                  {prop.fundingAmount || '₹25,00,000'}
+                                <td className="py-4 px-4 font-bold text-slate-900">
+                                  {prop.fundingAmount || '—'}
                                 </td>
-                                <td className="py-3.5 px-4">
+                                <td className="py-4 px-4">
                                   {prop.awardDetails?.sanctionedAmount ? (
-                                    <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                    <span className="font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 text-xs">
                                       🏆 {prop.awardDetails.sanctionedAmount}
                                     </span>
                                   ) : (
-                                    <span className="text-warm-gray-400 italic">Pending</span>
+                                    <span className="text-slate-400 italic text-xs font-medium">Pending</span>
                                   )}
                                 </td>
-                                <td className="py-3.5 px-4">
-                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${timeline.color}`}>
+                                <td className="py-4 px-4">
+                                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${timeline.color}`}>
                                     {timeline.label}
                                   </span>
                                 </td>
-                                <td className="py-3.5 px-4">
-                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
+                                <td className="py-4 px-4">
+                                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200">
                                     ✓ {checklistCleared}/6 Pre-submission
                                   </span>
                                 </td>
-                                <td className="py-3.5 px-4">
+                                <td className="py-4 px-4">
                                   <select
                                     value={prop.status}
                                     onChange={(e) => handleOpenStatusChange(prop, e.target.value)}
-                                    className="px-2.5 py-1 rounded-[8px] border border-warm-gray-200 bg-white text-xs font-bold text-warm-gray-800 focus:outline-none cursor-pointer shadow-xs"
+                                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none cursor-pointer shadow-xs"
                                   >
                                     <option value="Submitted to Agency">Submitted to Agency</option>
                                     <option value="Under Evaluation">Under Evaluation</option>
@@ -3093,7 +3748,7 @@ Official Seal & Endorsement`
                                     <option value="Rejected">Rejected</option>
                                   </select>
                                 </td>
-                                <td className="py-3.5 px-4 text-right">
+                                <td className="py-4 px-4 text-right">
                                   <div className="flex items-center justify-end gap-1.5">
                                     <button
                                       type="button"
@@ -3250,7 +3905,7 @@ Official Seal & Endorsement`
                                 {m.assignedTasks.map((t) => {
                                   const taskInfo = TASK_TYPES.find((tt) => tt.key === t)
                                   return taskInfo ? (
-                                    <span key={t} className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border ${taskInfo.color}`}>
+                                    <span key={t} className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${taskInfo.color}`}>
                                       {taskInfo.icon} {taskInfo.label}
                                     </span>
                                   ) : null
@@ -3273,7 +3928,7 @@ Official Seal & Endorsement`
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-200">
                       Real-Time Alert Engine
                     </span>
                     <span className="text-xs text-warm-gray-400">•</span>
@@ -3303,7 +3958,7 @@ Official Seal & Endorsement`
                     <span className="w-8 h-8 rounded-[8px] bg-rose-50 text-rose-700 flex items-center justify-center text-sm font-bold">🚨</span>
                   </div>
                   <p className="font-heading text-2xl font-bold text-rose-700">{deadlineMetrics.criticalAlertsCount}</p>
-                  <p className="text-[11px] text-warm-gray-500 mt-1">&lt;7 days to deadline or query pending</p>
+                  <p className="text-xs text-warm-gray-500 mt-1">&lt;7 days to deadline or query pending</p>
                   <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 to-red-600" />
                 </div>
 
@@ -3313,7 +3968,7 @@ Official Seal & Endorsement`
                     <span className="w-8 h-8 rounded-[8px] bg-amber-50 text-amber-800 flex items-center justify-center text-sm font-bold">⚠️</span>
                   </div>
                   <p className="font-heading text-2xl font-bold text-amber-800">{deadlineMetrics.upcomingCount}</p>
-                  <p className="text-[11px] text-warm-gray-500 mt-1">Due in 7 to 30 days (Active drafting)</p>
+                  <p className="text-xs text-warm-gray-500 mt-1">Due in 7 to 30 days (Active drafting)</p>
                   <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-amber-500" />
                 </div>
 
@@ -3323,7 +3978,7 @@ Official Seal & Endorsement`
                     <span className="w-8 h-8 rounded-[8px] bg-purple-50 text-purple-700 flex items-center justify-center text-sm font-bold">🔴</span>
                   </div>
                   <p className="font-heading text-2xl font-bold text-purple-900">{deadlineMetrics.overdueFollowupCount}</p>
-                  <p className="text-[11px] text-warm-gray-500 mt-1">&gt;90d in agency review (Enquiry due)</p>
+                  <p className="text-xs text-warm-gray-500 mt-1">&gt;90d in agency review (Enquiry due)</p>
                   <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-indigo-600" />
                 </div>
 
@@ -3333,7 +3988,7 @@ Official Seal & Endorsement`
                     <span className="w-8 h-8 rounded-[8px] bg-emerald-50 text-emerald-700 flex items-center justify-center text-sm font-bold">📅</span>
                   </div>
                   <p className="font-heading text-2xl font-bold text-emerald-800">{deadlineMetrics.activeRemindersCount}</p>
-                  <p className="text-[11px] text-warm-gray-500 mt-1">Active team reminders & audits</p>
+                  <p className="text-xs text-warm-gray-500 mt-1">Active team reminders & audits</p>
                   <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
                 </div>
               </div>
@@ -3433,11 +4088,11 @@ Official Seal & Endorsement`
 
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${alert.badgeColor}`}>
+                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${alert.badgeColor}`}>
                               {alert.urgencyLabel}
                             </span>
 
-                            <span className="px-2 py-0.5 rounded-[6px] text-[10px] font-semibold bg-cream border border-warm-gray-200 text-warm-gray-600">
+                            <span className="px-2 py-0.5 rounded-[6px] text-xs font-semibold bg-cream border border-warm-gray-200 text-warm-gray-600">
                               {alert.type === 'grant_deadline'
                                 ? 'Grant Call Deadline'
                                 : alert.type === 'agency_followup'
@@ -3446,7 +4101,7 @@ Official Seal & Endorsement`
                             </span>
 
                             {alert.agency && (
-                              <span className="text-[11px] font-bold text-warm-gray-700">
+                              <span className="text-xs font-bold text-warm-gray-700">
                                 {alert.agency}
                               </span>
                             )}
@@ -3473,7 +4128,7 @@ Official Seal & Endorsement`
                               </span>
                             )}
                             {alert.refId && (
-                              <span className="font-mono text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">
+                              <span className="font-mono text-xs bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">
                                 Ref #{alert.refId}
                               </span>
                             )}
@@ -3487,7 +4142,7 @@ Official Seal & Endorsement`
                                   style={{ width: `${alert.progress}%` }}
                                 />
                               </div>
-                              <span className="text-[10px] text-warm-gray-400 font-bold shrink-0">
+                              <span className="text-xs text-warm-gray-400 font-bold shrink-0">
                                 {alert.approvedSections}/{alert.totalSections} sections approved
                               </span>
                             </div>
@@ -3508,7 +4163,7 @@ Official Seal & Endorsement`
                               type="button"
                               onClick={() => {
                                 setSelectedProposalId(alert.proposalId)
-                                setActiveSection('proposals')
+                                navigateToSection('proposals')
                               }}
                               className="px-3 py-1.5 rounded-[10px] bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 font-bold text-xs transition-all cursor-pointer flex items-center gap-1 shadow-xs"
                             >
@@ -3559,7 +4214,7 @@ Official Seal & Endorsement`
                             )}
                             <button
                               type="button"
-                              onClick={() => setActiveSection('tracking')}
+                              onClick={() => navigateToSection('tracking')}
                               className="px-3 py-1.5 rounded-[10px] bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-bold text-xs transition-all cursor-pointer flex items-center gap-1 shadow-xs"
                             >
                               <span>📊</span> Tracking Board
@@ -3611,7 +4266,7 @@ Official Seal & Endorsement`
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20">
                       Institutional Intelligence Suite
                     </span>
                     <span className="text-xs text-warm-gray-400">•</span>
@@ -3661,13 +4316,13 @@ Official Seal & Endorsement`
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 relative overflow-hidden">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-bold text-warm-gray-600 uppercase tracking-wider">Pipeline Capital</span>
+                    <span className="text-xs font-bold text-warm-gray-600 uppercase tracking-wider">Pipeline Capital</span>
                     <span className="w-8 h-8 rounded-[8px] bg-emerald-50 text-emerald-700 flex items-center justify-center text-sm font-bold">💰</span>
                   </div>
                   <p className="font-heading text-2xl font-bold text-warm-gray-900">
                     {formatCurrency(analyticsData.totalPipelineValue)}
                   </p>
-                  <p className="text-[11px] text-warm-gray-500 mt-1">
+                  <p className="text-xs text-warm-gray-500 mt-1">
                     {analyticsData.totalProposals} Active Grant Proposals
                   </p>
                   <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
@@ -3675,13 +4330,13 @@ Official Seal & Endorsement`
 
                 <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 relative overflow-hidden">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-bold text-warm-gray-600 uppercase tracking-wider">Awarded Capital</span>
+                    <span className="text-xs font-bold text-warm-gray-600 uppercase tracking-wider">Awarded Capital</span>
                     <span className="w-8 h-8 rounded-[8px] bg-amber-50 text-amber-800 flex items-center justify-center text-sm font-bold">🏆</span>
                   </div>
                   <p className="font-heading text-2xl font-bold text-amber-700">
                     {formatCurrency(analyticsData.totalAwardedValue)}
                   </p>
-                  <p className="text-[11px] text-warm-gray-500 mt-1">
+                  <p className="text-xs text-warm-gray-500 mt-1">
                     {analyticsData.countAwarded} Grants Sanctioned
                   </p>
                   <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-yellow-500" />
@@ -3689,13 +4344,13 @@ Official Seal & Endorsement`
 
                 <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 relative overflow-hidden">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-bold text-warm-gray-600 uppercase tracking-wider">Win Rate</span>
+                    <span className="text-xs font-bold text-warm-gray-600 uppercase tracking-wider">Win Rate</span>
                     <span className="w-8 h-8 rounded-[8px] bg-purple-50 text-purple-700 flex items-center justify-center text-sm font-bold">🎯</span>
                   </div>
                   <p className="font-heading text-2xl font-bold text-purple-800">
                     {analyticsData.winRate}%
                   </p>
-                  <p className="text-[11px] text-warm-gray-500 mt-1">
+                  <p className="text-xs text-warm-gray-500 mt-1">
                     {analyticsData.countAwarded} Won • {analyticsData.countRejected} Declined
                   </p>
                   <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-indigo-600" />
@@ -3703,13 +4358,13 @@ Official Seal & Endorsement`
 
                 <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 relative overflow-hidden">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-bold text-warm-gray-600 uppercase tracking-wider">In Peer Review</span>
+                    <span className="text-xs font-bold text-warm-gray-600 uppercase tracking-wider">In Peer Review</span>
                     <span className="w-8 h-8 rounded-[8px] bg-blue-50 text-blue-700 flex items-center justify-center text-sm font-bold">🔍</span>
                   </div>
                   <p className="font-heading text-2xl font-bold text-blue-900">
                     {formatCurrency(analyticsData.totalUnderReviewValue)}
                   </p>
-                  <p className="text-[11px] text-warm-gray-500 mt-1">
+                  <p className="text-xs text-warm-gray-500 mt-1">
                     {analyticsData.countUnderReview + analyticsData.countRevisions} Proposals In Agency Evaluation
                   </p>
                   <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-cyan-500" />
@@ -3717,13 +4372,13 @@ Official Seal & Endorsement`
 
                 <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-5 relative overflow-hidden">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-bold text-warm-gray-600 uppercase tracking-wider">Writing Clearance</span>
+                    <span className="text-xs font-bold text-warm-gray-600 uppercase tracking-wider">Writing Clearance</span>
                     <span className="w-8 h-8 rounded-[8px] bg-rose-50 text-rose-700 flex items-center justify-center text-sm font-bold">⚡</span>
                   </div>
                   <p className="font-heading text-2xl font-bold text-rose-700">
                     {analyticsData.overallWritingProgress}%
                   </p>
-                  <p className="text-[11px] text-warm-gray-500 mt-1">
+                  <p className="text-xs text-warm-gray-500 mt-1">
                     {analyticsData.approvedSections}/{analyticsData.totalSections} Sections Approved
                   </p>
                   <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 to-pink-500" />
@@ -3743,7 +4398,7 @@ Official Seal & Endorsement`
                       <h4 className="font-heading font-bold text-xs text-warm-gray-900 leading-snug">
                         {ins.title}
                       </h4>
-                      <p className="text-[11px] text-warm-gray-500 mt-0.5 leading-relaxed">
+                      <p className="text-xs text-warm-gray-500 mt-0.5 leading-relaxed">
                         {ins.desc}
                       </p>
                     </div>
@@ -3825,7 +4480,7 @@ Official Seal & Endorsement`
                         <div>
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-base">{stg.icon}</span>
-                            <span className="text-[10px] font-bold uppercase tracking-wider opacity-75">
+                            <span className="text-xs font-bold uppercase tracking-wider opacity-75">
                               {stg.badge}
                             </span>
                           </div>
@@ -3843,7 +4498,7 @@ Official Seal & Endorsement`
                         </div>
 
                         <div className="mt-3 pt-3 border-t border-black/5">
-                          <p className="text-[11px] font-mono font-bold text-warm-gray-800 truncate">
+                          <p className="text-xs font-mono font-bold text-warm-gray-800 truncate">
                             {stg.amount > 0 ? formatCurrency(stg.amount) : `${stg.count} Projects`}
                           </p>
                           <div className="w-full h-1.5 rounded-full bg-black/10 overflow-hidden mt-1.5">
@@ -3866,11 +4521,11 @@ Official Seal & Endorsement`
                       <h3 className="font-heading font-bold text-sm text-warm-gray-900 flex items-center gap-2">
                         <span>🏛️</span> Funding Partner Capital Allocation
                       </h3>
-                      <p className="text-[11px] text-warm-gray-500 mt-0.5">
+                      <p className="text-xs text-warm-gray-500 mt-0.5">
                         Portfolio capital requested and sanctioned broken down by funding agency.
                       </p>
                     </div>
-                    <span className="px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 text-[10px] font-bold border border-purple-200">
+                    <span className="px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 text-xs font-bold border border-purple-200">
                       {analyticsData.sortedAgencies.length} Partner Agencies
                     </span>
                   </div>
@@ -3895,7 +4550,7 @@ Official Seal & Endorsement`
                                 <span className="font-bold text-xs text-warm-gray-900">
                                   {agency.name}
                                 </span>
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-cream text-warm-gray-600 border border-warm-gray-200">
+                                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-cream text-warm-gray-600 border border-warm-gray-200">
                                   {agency.count} {agency.count === 1 ? 'Proposal' : 'Proposals'}
                                 </span>
                               </div>
@@ -3903,7 +4558,7 @@ Official Seal & Endorsement`
                                 <span className="font-mono font-bold text-xs text-warm-gray-900">
                                   {formatCurrency(agency.totalRequested)}
                                 </span>
-                                <span className="text-[10px] text-warm-gray-400 ml-1.5">
+                                <span className="text-xs text-warm-gray-400 ml-1.5">
                                   ({agencySharePct}%)
                                 </span>
                               </div>
@@ -3916,7 +4571,7 @@ Official Seal & Endorsement`
                               />
                             </div>
 
-                            <div className="flex items-center justify-between text-[11px] text-warm-gray-500 pt-1">
+                            <div className="flex items-center justify-between text-xs text-warm-gray-500 pt-1">
                               <span>
                                 Sanctioned Value: <strong className="text-emerald-700">{agency.totalAwarded > 0 ? formatCurrency(agency.totalAwarded) : '₹0'}</strong>
                               </span>
@@ -3943,7 +4598,7 @@ Official Seal & Endorsement`
                       <h3 className="font-heading font-bold text-sm text-warm-gray-900 flex items-center gap-2">
                         <span>⚡</span> 17-Section Template Writing Velocity
                       </h3>
-                      <p className="text-[11px] text-warm-gray-500 mt-0.5">
+                      <p className="text-xs text-warm-gray-500 mt-0.5">
                         Aggregate clearance status across all institutional proposal sections.
                       </p>
                     </div>
@@ -3976,7 +4631,7 @@ Official Seal & Endorsement`
                           <span className="font-heading text-3xl font-bold text-warm-gray-900">
                             {analyticsData.overallWritingProgress}%
                           </span>
-                          <span className="text-[10px] font-bold text-warm-gray-400 uppercase tracking-wider">
+                          <span className="text-xs font-bold text-warm-gray-400 uppercase tracking-wider">
                             Clearance
                           </span>
                         </div>
@@ -3985,40 +4640,40 @@ Official Seal & Endorsement`
 
                     <div className="grid grid-cols-2 gap-2.5 mt-2">
                       <div className="p-2.5 rounded-[10px] bg-emerald-50/70 border border-emerald-200">
-                        <span className="text-[10px] font-bold text-emerald-800 uppercase block">Approved</span>
+                        <span className="text-xs font-bold text-emerald-800 uppercase block">Approved</span>
                         <p className="font-heading font-bold text-lg text-emerald-950 mt-0.5">
                           {analyticsData.approvedSections}
                         </p>
-                        <span className="text-[10px] text-emerald-700">Signed off by Admin / PI</span>
+                        <span className="text-xs text-emerald-700">Signed off by Admin / PI</span>
                       </div>
 
                       <div className="p-2.5 rounded-[10px] bg-purple-50/70 border border-purple-200">
-                        <span className="text-[10px] font-bold text-purple-800 uppercase block">Ready for Review</span>
+                        <span className="text-xs font-bold text-purple-800 uppercase block">Ready for Review</span>
                         <p className="font-heading font-bold text-lg text-purple-950 mt-0.5">
                           {analyticsData.reviewSections}
                         </p>
-                        <span className="text-[10px] text-purple-700">Awaiting internal sign-off</span>
+                        <span className="text-xs text-purple-700">Awaiting internal sign-off</span>
                       </div>
 
                       <div className="p-2.5 rounded-[10px] bg-amber-50/70 border border-amber-200">
-                        <span className="text-[10px] font-bold text-amber-800 uppercase block">In Progress</span>
+                        <span className="text-xs font-bold text-amber-800 uppercase block">In Progress</span>
                         <p className="font-heading font-bold text-lg text-amber-950 mt-0.5">
                           {analyticsData.inProgressSections}
                         </p>
-                        <span className="text-[10px] text-amber-700">Active faculty drafting</span>
+                        <span className="text-xs text-amber-700">Active faculty drafting</span>
                       </div>
 
                       <div className="p-2.5 rounded-[10px] bg-slate-50/70 border border-slate-200">
-                        <span className="text-[10px] font-bold text-slate-700 uppercase block">Not Started</span>
+                        <span className="text-xs font-bold text-slate-700 uppercase block">Not Started</span>
                         <p className="font-heading font-bold text-lg text-slate-900 mt-0.5">
                           {analyticsData.notStartedSections}
                         </p>
-                        <span className="text-[10px] text-slate-500">Unallocated or blank</span>
+                        <span className="text-xs text-slate-500">Unallocated or blank</span>
                       </div>
                     </div>
                   </div>
 
-                  <p className="text-[11px] text-warm-gray-400 text-center mt-4 pt-3 border-t border-warm-gray-100">
+                  <p className="text-xs text-warm-gray-400 text-center mt-4 pt-3 border-t border-warm-gray-100">
                     Proposals require 100% of statutory compliance checklists verified prior to agency dispatch.
                   </p>
                 </div>
@@ -4047,7 +4702,7 @@ Official Seal & Endorsement`
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
-                        <tr className="bg-cream/60 border-b border-warm-gray-200 text-[11px] font-bold text-warm-gray-600 uppercase tracking-wider">
+                        <tr className="bg-cream/60 border-b border-warm-gray-200 text-xs font-bold text-warm-gray-600 uppercase tracking-wider">
                           <th className="py-3 px-4">Faculty Investigator</th>
                           <th className="py-3 px-4">Designation / Role</th>
                           <th className="py-3 px-4 text-center">Authored Proposals</th>
@@ -4067,7 +4722,7 @@ Official Seal & Endorsement`
                                 </div>
                                 <div>
                                   <p className="font-bold text-warm-gray-900">{faculty.name}</p>
-                                  <p className="text-[11px] text-warm-gray-400 font-mono">{faculty.email}</p>
+                                  <p className="text-xs text-warm-gray-400 font-mono">{faculty.email}</p>
                                 </div>
                               </div>
                             </td>
@@ -4079,7 +4734,7 @@ Official Seal & Endorsement`
                             </td>
                             <td className="py-3.5 px-4">
                               <div className="max-w-[140px]">
-                                <div className="flex items-center justify-between text-[10px] font-bold text-warm-gray-600 mb-1">
+                                <div className="flex items-center justify-between text-xs font-bold text-warm-gray-600 mb-1">
                                   <span>{faculty.approvedSectionsCount} of {faculty.assignedSectionsCount}</span>
                                   <span>{faculty.assignedSectionsCount > 0 ? Math.round((faculty.approvedSectionsCount / faculty.assignedSectionsCount) * 100) : 0}%</span>
                                 </div>
@@ -4098,7 +4753,7 @@ Official Seal & Endorsement`
                             </td>
                             <td className="py-3.5 px-4 text-center">
                               {faculty.awardsWon > 0 ? (
-                                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 font-bold text-[10px] border border-emerald-300 flex items-center justify-center gap-1 w-fit mx-auto">
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 font-bold text-xs border border-emerald-300 flex items-center justify-center gap-1 w-fit mx-auto">
                                   <span>🏆</span> {faculty.awardsWon}
                                 </span>
                               ) : (
@@ -4108,7 +4763,7 @@ Official Seal & Endorsement`
                             <td className="py-3.5 px-4 text-right">
                               <button
                                 type="button"
-                                onClick={() => setActiveSection('proposals')}
+                                onClick={() => navigateToSection('proposals')}
                                 className="px-3 py-1 rounded-[8px] bg-white hover:bg-cream text-warm-gray-700 border border-warm-gray-200 text-xs font-semibold transition-all cursor-pointer shadow-2xs"
                               >
                                 View Proposals
@@ -4203,15 +4858,15 @@ Official Seal & Endorsement`
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
                             17-Section Master Template
                           </span>
                           {selectedProposalObj.status === 'Submitted to Agency' ? (
-                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-soft">
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-soft">
                               🏛️ Submitted to Agency (Ref: {selectedProposalObj.agencySubmission?.agencySubmissionId || 'Dispatched'})
                             </span>
                           ) : selectedProposalObj.status === 'Submitted to Admin' ? (
-                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-green-50 text-green-700 border border-green-200 shadow-soft animate-pulse">
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-50 text-green-700 border border-green-200 shadow-soft animate-pulse">
                               ✓ Final Proposal Submitted by PI
                             </span>
                           ) : null}
@@ -4268,7 +4923,7 @@ Official Seal & Endorsement`
                             <p className="text-xs text-amber-800 mt-1 font-medium leading-relaxed">
                               {pdfNotSubmittedMsg}
                             </p>
-                            <p className="text-[11px] text-amber-700 mt-1">
+                            <p className="text-xs text-amber-700 mt-1">
                               Current Status: <span className="font-semibold">{selectedProposalObj.status || 'In Progress'}</span> ({selectedProposalObj.progress || 0}% sections approved)
                             </p>
                           </div>
@@ -4292,7 +4947,7 @@ Official Seal & Endorsement`
                               <h3 className="font-heading text-sm font-bold text-warm-gray-900">
                                 Institutional Pre-Submission Compliance Checklist
                               </h3>
-                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                                 {COMPLIANCE_CHECKLIST_ITEMS.filter((item) => selectedProposalObj.preSubmissionChecklist?.[item.key]).length} of {COMPLIANCE_CHECKLIST_ITEMS.length} Verified
                               </span>
                             </div>
@@ -4360,17 +5015,17 @@ Official Seal & Endorsement`
                                       {item.label}
                                     </span>
                                     {item.mandatory && !isChecked && (
-                                      <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-100 text-amber-900 border border-amber-200 shrink-0">
+                                      <span className="px-1.5 py-0.2 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-200 shrink-0">
                                         Mandatory
                                       </span>
                                     )}
                                     {isChecked && (
-                                      <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
+                                      <span className="px-1.5 py-0.2 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
                                         ✓ Verified
                                       </span>
                                     )}
                                   </div>
-                                  <p className="text-[11px] text-warm-gray-500 mt-1 leading-snug">
+                                  <p className="text-xs text-warm-gray-500 mt-1 leading-snug">
                                     {item.description}
                                   </p>
                                 </div>
@@ -4385,18 +5040,18 @@ Official Seal & Endorsement`
                               <p className="font-bold flex items-center gap-1.5 text-emerald-900">
                                 <span>🏛️</span> Official Agency Submission Record (Permanent Dossier Lock)
                               </p>
-                              <p className="text-[11px] text-emerald-800">
+                              <p className="text-xs text-emerald-800">
                                 Agency Reference ID: <strong className="font-mono bg-white px-2 py-0.5 rounded border border-emerald-300 font-bold">{selectedProposalObj.agencySubmission.agencySubmissionId}</strong>
                                 {selectedProposalObj.agencySubmission.submittedByName && <> &nbsp;•&nbsp; Submitted by: <strong>{selectedProposalObj.agencySubmission.submittedByName}</strong></>}
                                 {selectedProposalObj.agencySubmission.submittedAt && <> &nbsp;•&nbsp; Timestamp: {new Date(selectedProposalObj.agencySubmission.submittedAt).toLocaleString()}</>}
                               </p>
                               {selectedProposalObj.agencySubmission.receiptNote && (
-                                <p className="text-[11px] text-emerald-700 italic mt-0.5">
+                                <p className="text-xs text-emerald-700 italic mt-0.5">
                                   Notes: "{selectedProposalObj.agencySubmission.receiptNote}"
                                 </p>
                               )}
                             </div>
-                            <span className="px-2.5 py-1 rounded-[8px] bg-white border border-emerald-300 text-emerald-800 text-[10px] font-bold shrink-0">
+                            <span className="px-2.5 py-1 rounded-[8px] bg-white border border-emerald-300 text-emerald-800 text-xs font-bold shrink-0">
                               🔒 Dossier Read-Only
                             </span>
                           </div>
@@ -4422,7 +5077,7 @@ Official Seal & Endorsement`
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <span className="font-bold text-sm text-warm-gray-900">{sec.title}</span>
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${sec.status === 'Ready for Review' ? 'bg-green-50 text-green-700 border-green-200 animate-pulse'
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${sec.status === 'Ready for Review' ? 'bg-green-50 text-green-700 border-green-200 animate-pulse'
                                 : sec.status === 'Approved' ? 'bg-blue-50 text-blue-700 border-blue-200'
                                   : sec.status === 'In Progress' ? 'bg-amber-50 text-amber-700 border-amber-200'
                                     : 'bg-warm-gray-50 text-warm-gray-600 border-warm-gray-200'
@@ -4521,53 +5176,53 @@ Official Seal & Endorsement`
 
                   <div className="grid grid-cols-2 gap-3 text-xs mb-4">
                     <div>
-                      <span className="block text-warm-gray-400 uppercase tracking-wider font-bold text-[10px] mb-0.5">Agency Type</span>
+                      <span className="block text-slate-500 uppercase tracking-wider font-bold text-xs mb-0.5">Agency Type</span>
                       <span className="text-warm-gray-800 font-semibold">{AGENCY_TYPE_LABELS[agency.agencyType] || agency.agencyType || '—'}</span>
                     </div>
                     <div>
-                      <span className="block text-warm-gray-400 uppercase tracking-wider font-bold text-[10px] mb-0.5">Established</span>
+                      <span className="block text-slate-500 uppercase tracking-wider font-bold text-xs mb-0.5">Established</span>
                       <span className="text-warm-gray-800 font-semibold">{agency.establishedYear || '—'}</span>
                     </div>
                     {agency.organizationType && (
                       <div>
-                        <span className="block text-warm-gray-400 uppercase tracking-wider font-bold text-[10px] mb-0.5">Organization Type</span>
+                        <span className="block text-slate-500 uppercase tracking-wider font-bold text-xs mb-0.5">Organization Type</span>
                         <span className="text-warm-gray-800 font-semibold">{agency.organizationType}</span>
                       </div>
                     )}
                     {agency.ownershipType && (
                       <div>
-                        <span className="block text-warm-gray-400 uppercase tracking-wider font-bold text-[10px] mb-0.5">Ownership</span>
+                        <span className="block text-slate-500 uppercase tracking-wider font-bold text-xs mb-0.5">Ownership</span>
                         <span className="text-warm-gray-800 font-semibold">{agency.ownershipType}</span>
                       </div>
                     )}
                   </div>
 
-                  <span className="inline-block px-2.5 py-1 rounded-full text-[10px] font-bold border bg-green-50 text-green-700 border-green-200 mb-4">
+                  <span className="inline-block px-2.5 py-1 rounded-full text-xs font-bold border bg-green-50 text-green-700 border-green-200 mb-4">
                     ✓ Verified Funding Agency
                   </span>
 
                   {agency.description && (
                     <div className="mb-4">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">About</p>
+                      <p className="text-xs font-bold uppercase tracking-wider text-warm-gray-400 mb-1">About</p>
                       <p className="text-sm text-warm-gray-700 leading-relaxed">{agency.description}</p>
                     </div>
                   )}
                   {agency.mission && (
                     <div className="mb-4">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Mission</p>
+                      <p className="text-xs font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Mission</p>
                       <p className="text-sm text-warm-gray-700 leading-relaxed">{agency.mission}</p>
                     </div>
                   )}
                   {agency.vision && (
                     <div className="mb-4">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Vision</p>
+                      <p className="text-xs font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Vision</p>
                       <p className="text-sm text-warm-gray-700 leading-relaxed">{agency.vision}</p>
                     </div>
                   )}
 
                   {agency.headquarters && (
                     <div className="mb-4">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Headquarters</p>
+                      <p className="text-xs font-bold uppercase tracking-wider text-warm-gray-400 mb-1">Headquarters</p>
                       <p className="text-sm text-warm-gray-700">
                         {[agency.headquarters.city, agency.headquarters.state, agency.headquarters.country].filter(Boolean).join(', ') || '—'}
                       </p>
@@ -4607,7 +5262,7 @@ Official Seal & Endorsement`
                 <>
                   <div className="flex items-start justify-between mb-1 pb-4 border-b border-warm-gray-200/60">
                     <div>
-                      <span className="text-[10px] font-mono font-bold text-primary bg-primary-50 px-2 py-0.5 rounded-full border border-primary/15">{g.displayId}</span>
+                      <span className="text-xs font-mono font-bold text-primary bg-primary-50 px-2 py-0.5 rounded-full border border-primary/15">{g.displayId}</span>
                       <h2 className="font-heading text-xl font-bold text-warm-gray-900 mt-2">{g.title}</h2>
                       {g.shortTitle && <p className="text-xs text-warm-gray-400 font-mono mt-0.5">{g.shortTitle}</p>}
                       <p className="text-xs text-warm-gray-500 mt-1">{g.fundingAgency?.agencyName || 'Funding Agency'}</p>
@@ -4644,7 +5299,7 @@ Official Seal & Endorsement`
                       <GrantSection icon="🔬" title="Research Areas">
                         <div className="flex flex-wrap gap-1.5">
                           {g.researchAreas.map((r) => (
-                            <span key={r} className="px-2.5 py-1 rounded-full bg-amber-50 text-amber text-[11px] font-semibold border border-amber/15">{r}</span>
+                            <span key={r} className="px-2.5 py-1 rounded-full bg-amber-50 text-amber text-xs font-semibold border border-amber/15">{r}</span>
                           ))}
                         </div>
                       </GrantSection>
@@ -4681,13 +5336,13 @@ Official Seal & Endorsement`
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {g.allowableExpenses && (
                             <div className="p-3 rounded-[10px] bg-green-50 border border-green-200">
-                              <p className="text-[10px] font-bold uppercase tracking-wider text-green-700 mb-1">Allowable</p>
+                              <p className="text-xs font-bold uppercase tracking-wider text-green-700 mb-1">Allowable</p>
                               <p className="text-xs text-warm-gray-700 whitespace-pre-line">{g.allowableExpenses}</p>
                             </div>
                           )}
                           {g.nonAllowableExpenses && (
                             <div className="p-3 rounded-[10px] bg-red-50 border border-red-200">
-                              <p className="text-[10px] font-bold uppercase tracking-wider text-red-700 mb-1">Not Allowable</p>
+                              <p className="text-xs font-bold uppercase tracking-wider text-red-700 mb-1">Not Allowable</p>
                               <p className="text-xs text-warm-gray-700 whitespace-pre-line">{g.nonAllowableExpenses}</p>
                             </div>
                           )}
@@ -4842,7 +5497,7 @@ Official Seal & Endorsement`
               </div>
 
               {newProposalData.grantProgramId && (
-                <p className="text-[11px] text-warm-gray-400">
+                <p className="text-xs text-warm-gray-400">
                   Eligibility for this grant call will be checked automatically when you create the proposal.
                 </p>
               )}
@@ -4929,14 +5584,14 @@ Official Seal & Endorsement`
             <p className="text-sm text-warm-gray-500 mb-4">Select tasks for <strong>{taskModalMember.fullName}</strong></p>
 
             <div className="mb-5 p-3 rounded-[12px] bg-cream/70 border border-warm-gray-200/60 space-y-1.5">
-              <p className="text-[10px] font-bold text-warm-gray-500 uppercase tracking-wider">Quick Role Presets:</p>
+              <p className="text-xs font-bold text-warm-gray-500 uppercase tracking-wider">Quick Role Presets:</p>
               <div className="flex flex-wrap gap-1.5">
                 {Object.keys(ROLE_PRESETS).map((pName) => (
                   <button
                     key={pName}
                     type="button"
                     onClick={() => applyRolePreset(pName)}
-                    className="px-2.5 py-1 rounded-[8px] bg-white border border-warm-gray-200 hover:border-purple-300 hover:bg-purple-50 text-[11px] font-semibold text-warm-gray-800 transition-all cursor-pointer shadow-soft"
+                    className="px-2.5 py-1 rounded-[8px] bg-white border border-warm-gray-200 hover:border-purple-300 hover:bg-purple-50 text-xs font-semibold text-warm-gray-800 transition-all cursor-pointer shadow-soft"
                   >
                     {pName}
                   </button>
@@ -5001,7 +5656,7 @@ Official Seal & Endorsement`
           <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-medium w-full max-w-4xl p-6 sm:p-8 animate-fade-up max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between pb-4 border-b border-warm-gray-200/60 mb-4">
               <div>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-300">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-900 border border-purple-300">
                   PDF Document Preview
                 </span>
                 <h2 className="font-heading text-xl font-bold text-warm-gray-900 mt-1">{selectedProposalObj.title}</h2>
@@ -5016,7 +5671,7 @@ Official Seal & Endorsement`
               <>
                 <div className="flex-1 overflow-y-auto p-6 sm:p-10 bg-white rounded-[16px] border border-slate-300 shadow-medium mb-6 font-serif text-slate-900 leading-relaxed text-xs">
                   <div className="text-center pb-8 border-b-2 border-double border-indigo-950 mb-8">
-                    <p className="text-[11px] font-bold uppercase tracking-[2.5px] text-indigo-700 mb-3 font-sans">
+                    <p className="text-xs font-bold uppercase tracking-[2.5px] text-indigo-700 mb-3 font-sans">
                       OFFICIAL RESEARCH PROPOSAL
                     </p>
                     <h1 className="font-heading text-2xl font-bold text-slate-900 mb-6 leading-snug">
@@ -5038,7 +5693,7 @@ Official Seal & Endorsement`
                     </div>
                   </div>
 
-                  <div className="flex justify-between text-[11px] text-slate-500 border-b border-slate-200 pb-2 mb-8 font-sans">
+                  <div className="flex justify-between text-xs text-slate-500 border-b border-slate-200 pb-2 mb-8 font-sans">
                     <span>Official Research Proposal Submission</span>
                     <span>Ref: {selectedProposalObj.agencySubmission?.agencySubmissionId || selectedProposalObj.grantTitle || selectedProposalObj.title}</span>
                   </div>
@@ -5129,7 +5784,7 @@ Official Seal & Endorsement`
               <p className="font-bold flex items-center gap-1.5 mb-1">
                 <span>✓</span> Statutory Clearance Verified
               </p>
-              <p className="text-[11px] text-emerald-800">
+              <p className="text-xs text-emerald-800">
                 Institutional Endorsement Letter has been confirmed. By proceeding, you certify that this research proposal is legally submitted on behalf of <strong>{orgName || 'the Institution'}</strong>. All 17 sections will be permanently locked.
               </p>
             </div>
@@ -5149,7 +5804,7 @@ Official Seal & Endorsement`
                   placeholder="e.g., UGC/2026/MRP-8841 or DST/SERB/CRG/0921"
                   className="w-full px-3.5 py-2.5 rounded-[10px] border border-warm-gray-200 bg-white text-xs font-mono font-bold text-warm-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                 />
-                <p className="text-[10px] text-warm-gray-500 mt-1">
+                <p className="text-xs text-warm-gray-500 mt-1">
                   Generated by the funding agency's portal upon online application or physical docket dispatch.
                 </p>
               </div>
@@ -5295,7 +5950,7 @@ Official Seal & Endorsement`
                             <div key={prop.proposalId} className="bg-white rounded-[16px] border border-warm-gray-200 shadow-soft overflow-hidden">
                               <div className="bg-purple-50/70 p-4 border-b border-purple-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                 <div>
-                                  <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider">Grant Proposal</span>
+                                  <span className="text-xs font-bold text-purple-700 uppercase tracking-wider">Grant Proposal</span>
                                   <h5 className="font-heading font-bold text-warm-gray-900 text-sm">{prop.title}</h5>
                                   <p className="text-xs text-warm-gray-500">
                                     {prop.grantTitle ? `${prop.grantTitle} • ` : ''}{prop.grantAgency || 'Funding Agency'}
@@ -5320,9 +5975,9 @@ Official Seal & Endorsement`
                                   <div key={sec._id} className="py-2.5 px-2 flex items-center justify-between gap-2">
                                     <div>
                                       <p className="text-xs font-bold text-warm-gray-800">{sec.title}</p>
-                                      <p className="text-[11px] text-warm-gray-400">Word limit: {sec.wordCountLimit || 500} words</p>
+                                      <p className="text-xs text-warm-gray-400">Word limit: {sec.wordCountLimit || 500} words</p>
                                     </div>
-                                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${sec.status === 'Approved' ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${sec.status === 'Approved' ? 'bg-blue-50 text-blue-700 border-blue-200'
                                       : sec.status === 'Ready for Review' ? 'bg-green-50 text-green-700 border-green-200'
                                         : sec.status === 'In Progress' ? 'bg-amber-50 text-amber-700 border-amber-200'
                                           : 'bg-warm-gray-50 text-warm-gray-600 border-warm-gray-200'
@@ -5361,7 +6016,7 @@ Official Seal & Endorsement`
           <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-2xl w-full max-w-md p-6 sm:p-7 animate-fade-in z-10">
             <div className="flex items-center justify-between pb-3 border-b border-warm-gray-200 mb-4">
               <div>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-900 border border-purple-200">
                   Lifecycle Stage Update
                 </span>
                 <h3 className="font-heading font-bold text-base text-warm-gray-900 mt-1">Update Tracking Status</h3>
@@ -5439,7 +6094,7 @@ Official Seal & Endorsement`
           <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-2xl w-full max-w-lg p-6 sm:p-8 animate-fade-in z-10 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-warm-gray-200 mb-4">
               <div>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1 w-fit">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1 w-fit">
                   <span>🏆</span> Grant Sanction & Award Form
                 </span>
                 <h3 className="font-heading font-bold text-lg text-warm-gray-900 mt-1">Record Official Sanction Order</h3>
@@ -5539,7 +6194,7 @@ Official Seal & Endorsement`
           <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-2xl w-full max-w-md p-6 sm:p-7 animate-fade-in z-10">
             <div className="flex items-center justify-between pb-3 border-b border-warm-gray-200 mb-3">
               <div>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-900 border border-purple-200">
                   Instant Team Ping
                 </span>
                 <h3 className="font-heading font-bold text-base text-warm-gray-900 mt-1">Send Notice to PI</h3>
@@ -5552,7 +6207,7 @@ Official Seal & Endorsement`
             </p>
 
             <div className="mb-3 space-y-1.5">
-              <span className="text-[10px] font-bold text-warm-gray-500 uppercase tracking-wider block">Quick Templates</span>
+              <span className="text-xs font-bold text-warm-gray-500 uppercase tracking-wider block">Quick Templates</span>
               <div className="flex flex-wrap gap-1.5">
                 {[
                   'Agency requested budget justification revisions.',
@@ -5564,7 +6219,7 @@ Official Seal & Endorsement`
                     key={tpl}
                     type="button"
                     onClick={() => setPingPiMessage(tpl)}
-                    className="px-2 py-1 rounded-[6px] bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-900 text-[10px] font-medium text-left transition-colors cursor-pointer"
+                    className="px-2 py-1 rounded-[6px] bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-900 text-xs font-medium text-left transition-colors cursor-pointer"
                   >
                     + {tpl}
                   </button>
@@ -5613,7 +6268,7 @@ Official Seal & Endorsement`
           <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-2xl w-full max-w-lg p-6 sm:p-7 animate-fade-in z-10 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-warm-gray-200 mb-4">
               <div>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-900 border border-purple-200">
                   Audit History
                 </span>
                 <h3 className="font-heading font-bold text-base text-warm-gray-900 mt-1">Proposal Lifecycle Progression</h3>
@@ -5632,18 +6287,18 @@ Official Seal & Endorsement`
               <div className="relative pl-5">
                 <span className="absolute -left-[23px] top-0.5 w-4 h-4 rounded-full bg-purple-600 border-2 border-white shadow-xs" />
                 <p className="text-xs font-bold text-warm-gray-900">Proposal Created</p>
-                <p className="text-[11px] text-warm-gray-500">17-section template generated and allocated for team writing.</p>
-                <span className="text-[10px] text-warm-gray-400 mt-0.5 block">{new Date(timelineModal.createdAt).toLocaleString()}</span>
+                <p className="text-xs text-warm-gray-500">17-section template generated and allocated for team writing.</p>
+                <span className="text-xs text-warm-gray-400 mt-0.5 block">{new Date(timelineModal.createdAt).toLocaleString()}</span>
               </div>
 
               {timelineModal.agencySubmission?.submittedAt && (
                 <div className="relative pl-5">
                   <span className="absolute -left-[23px] top-0.5 w-4 h-4 rounded-full bg-blue-600 border-2 border-white shadow-xs" />
                   <p className="text-xs font-bold text-warm-gray-900">Endorsed & Dispatched to Agency</p>
-                  <p className="text-[11px] text-warm-gray-600">
+                  <p className="text-xs text-warm-gray-600">
                     Dispatched by {timelineModal.agencySubmission.submittedByName || 'Org Admin'}. Ref ID: <span className="font-mono font-bold text-blue-800">{timelineModal.agencySubmission.agencySubmissionId}</span>
                   </p>
-                  <span className="text-[10px] text-warm-gray-400 mt-0.5 block">{new Date(timelineModal.agencySubmission.submittedAt).toLocaleString()}</span>
+                  <span className="text-xs text-warm-gray-400 mt-0.5 block">{new Date(timelineModal.agencySubmission.submittedAt).toLocaleString()}</span>
                 </div>
               )}
 
@@ -5651,8 +6306,8 @@ Official Seal & Endorsement`
                 <div key={idx} className="relative pl-5">
                   <span className="absolute -left-[23px] top-0.5 w-4 h-4 rounded-full bg-emerald-600 border-2 border-white shadow-xs" />
                   <p className="text-xs font-bold text-warm-gray-900">Stage: {step.stage}</p>
-                  <p className="text-[11px] text-warm-gray-600">{step.notes || 'Status updated by administrator'}</p>
-                  <p className="text-[10px] text-warm-gray-400 mt-0.5">By {step.updatedBy || 'Admin'} on {new Date(step.timestamp).toLocaleString()}</p>
+                  <p className="text-xs text-warm-gray-600">{step.notes || 'Status updated by administrator'}</p>
+                  <p className="text-xs text-warm-gray-400 mt-0.5">By {step.updatedBy || 'Admin'} on {new Date(step.timestamp).toLocaleString()}</p>
                 </div>
               ))}
 
@@ -5666,12 +6321,12 @@ Official Seal & Endorsement`
                     Sanction Order #{timelineModal.awardDetails.sanctionOrderNumber} • {timelineModal.awardDetails.sanctionedAmount}
                   </p>
                   {timelineModal.awardDetails.durationMonths && (
-                    <p className="text-[11px] text-emerald-700">Duration: {timelineModal.awardDetails.durationMonths} Months</p>
+                    <p className="text-xs text-emerald-700">Duration: {timelineModal.awardDetails.durationMonths} Months</p>
                   )}
                   {timelineModal.awardDetails.sanctionNotes && (
-                    <p className="text-[11px] text-emerald-900 mt-1 italic">"{timelineModal.awardDetails.sanctionNotes}"</p>
+                    <p className="text-xs text-emerald-900 mt-1 italic">"{timelineModal.awardDetails.sanctionNotes}"</p>
                   )}
-                  <span className="text-[10px] text-emerald-600 mt-1 block">
+                  <span className="text-xs text-emerald-600 mt-1 block">
                     Recorded on {timelineModal.awardDetails.awardedAt ? new Date(timelineModal.awardDetails.awardedAt).toLocaleDateString() : 'N/A'} by {timelineModal.awardDetails.awardedBy || 'Admin'}
                   </span>
                 </div>
@@ -5698,7 +6353,7 @@ Official Seal & Endorsement`
           <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-2xl w-full max-w-lg p-6 sm:p-8 animate-fade-in z-10 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-warm-gray-200 mb-4">
               <div>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20">
                   Institutional Scheduler
                 </span>
                 <h3 className="font-heading font-bold text-base text-warm-gray-900 mt-1">
@@ -5797,7 +6452,7 @@ Official Seal & Endorsement`
                       key={t.key}
                       type="button"
                       onClick={() => setReminderForm({ ...reminderForm, reminderType: t.key })}
-                      className={`px-2.5 py-1.5 rounded-[8px] text-[11px] font-bold text-left transition-all cursor-pointer border ${
+                      className={`px-2.5 py-1.5 rounded-[8px] text-xs font-bold text-left transition-all cursor-pointer border ${
                         reminderForm.reminderType === t.key
                           ? 'bg-primary-50 text-primary border-primary font-bold shadow-xs'
                           : 'bg-cream/40 text-warm-gray-700 border-warm-gray-200 hover:bg-cream'
@@ -5817,7 +6472,7 @@ Official Seal & Endorsement`
                   type="text"
                   value={reminderForm.recipientName}
                   onChange={(e) => setReminderForm({ ...reminderForm, recipientName: e.target.value })}
-                  placeholder="e.g. Prof. Thorne (PI), Dr. Rostova, or Dean R&D"
+                  placeholder="e.g. Lead PI, Co-Investigator, or Dean R&D"
                   className="w-full px-3 py-2 rounded-[10px] border border-warm-gray-200 bg-white text-xs font-medium text-warm-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-warm-gray-400"
                 />
               </div>
@@ -5863,7 +6518,7 @@ Official Seal & Endorsement`
           <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-2xl w-full max-w-2xl p-6 sm:p-8 animate-fade-in z-10 max-h-[92vh] flex flex-col">
             <div className="flex items-center justify-between pb-3 border-b border-warm-gray-200 mb-4 shrink-0">
               <div>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-900 border border-purple-200">
                   Institutional Letterhead Generator
                 </span>
                 <h3 className="font-heading font-bold text-base text-warm-gray-900 mt-1">
@@ -5884,10 +6539,10 @@ Official Seal & Endorsement`
                 <strong className="text-warm-gray-900">{followupLetterModal.title}</strong>
               </div>
               <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-mono font-bold text-[10px] border border-blue-200">
+                <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-mono font-bold text-xs border border-blue-200">
                   Ref: {followupLetterModal.agencySubmission?.agencySubmissionId || 'Recorded'}
                 </span>
-                <span className="text-warm-gray-500 text-[11px]">
+                <span className="text-warm-gray-500 text-xs">
                   Agency: <strong className="text-warm-gray-800">{followupLetterModal.grantAgency || 'Funding Agency'}</strong>
                 </span>
               </div>
@@ -5898,7 +6553,7 @@ Official Seal & Endorsement`
             </div>
 
             <div className="flex items-center justify-between pt-4 border-t border-warm-gray-200 mt-4 shrink-0">
-              <span className="text-[11px] text-warm-gray-500 hidden sm:inline">
+              <span className="text-xs text-warm-gray-500 hidden sm:inline">
                 Formal draft ready for official Registrar dispatch or email representation.
               </span>
               <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
@@ -5972,8 +6627,8 @@ function GrantSection({ icon, title, children }) {
 function FactBox({ label, value, fallback = '—' }) {
   return (
     <div className="p-2.5 rounded-[8px] bg-cream border border-warm-gray-200">
-      <span className="text-warm-gray-400 block text-[10px] uppercase tracking-wide">{label}</span>
-      <strong className="text-warm-gray-900">{value || fallback}</strong>
+      <span className="text-slate-500 block text-xs font-bold uppercase tracking-wider mb-1">{label}</span>
+      <strong className="text-slate-900 font-bold text-sm block leading-snug">{value || fallback}</strong>
     </div>
   )
 }

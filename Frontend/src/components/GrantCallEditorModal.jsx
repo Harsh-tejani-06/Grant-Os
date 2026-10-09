@@ -632,7 +632,7 @@ export default function GrantCallEditorModal({ program, onClose, onSaved }) {
                     <p className="text-xs font-semibold text-warm-gray-800 truncate">
                       📄 {currentProgram.document.fileName || 'Grant document.pdf'}
                     </p>
-                    <p className="text-[11px] text-warm-gray-400">{currentProgram.document.documentType}</p>
+                    <p className="text-xs text-warm-gray-400">{currentProgram.document.documentType}</p>
                   </div>
                   <a href={documentUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-amber hover:underline flex-shrink-0">
                     View →
@@ -646,9 +646,9 @@ export default function GrantCallEditorModal({ program, onClose, onSaved }) {
                 <input type="file" accept="application/pdf" onChange={handleUploadDocument} disabled={uploadingDoc} className="hidden" />
               </label>
               {!currentProgram?._id && (
-                <p className="text-[11px] text-warm-gray-400 mt-1">Save this grant call as a draft first to attach a document.</p>
+                <p className="text-xs text-warm-gray-400 mt-1">Save this grant call as a draft first to attach a document.</p>
               )}
-              {docError && <p className="text-[11px] text-red-600 mt-1">⚠️ {docError}</p>}
+              {docError && <p className="text-xs text-red-600 mt-1">⚠️ {docError}</p>}
             </div>
 
             {error && (
@@ -696,19 +696,19 @@ export default function GrantCallEditorModal({ program, onClose, onSaved }) {
 
             <div className="grid grid-cols-2 gap-3 p-3.5 rounded-[12px] bg-cream border border-warm-gray-200 text-xs">
               <div>
-                <span className="text-warm-gray-400 block text-[11px]">Funding</span>
+                <span className="text-warm-gray-400 block text-xs">Funding</span>
                 <strong className="text-warm-gray-900 text-sm">{budget || '—'}</strong>
               </div>
               <div>
-                <span className="text-warm-gray-400 block text-[11px]">Deadline</span>
+                <span className="text-warm-gray-400 block text-xs">Deadline</span>
                 <strong className="text-warm-gray-900 text-sm">{deadline || '—'}</strong>
               </div>
               <div>
-                <span className="text-warm-gray-400 block text-[11px]">Start Date</span>
+                <span className="text-warm-gray-400 block text-xs">Start Date</span>
                 <strong className="text-warm-gray-900 text-sm">{startDate || '—'}</strong>
               </div>
               <div>
-                <span className="text-warm-gray-400 block text-[11px]">Duration</span>
+                <span className="text-warm-gray-400 block text-xs">Duration</span>
                 <strong className="text-warm-gray-900 text-sm">
                   {durationMin || durationMax ? `${durationMin || '?'}–${durationMax || '?'} months` : '—'}
                 </strong>

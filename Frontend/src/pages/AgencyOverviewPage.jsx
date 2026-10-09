@@ -116,7 +116,7 @@ export default function AgencyOverviewPage() {
           </div>
           {profile.fundingDomains?.length > 0 && (
             <div className="mt-5 pt-5 border-t border-warm-gray-100">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-warm-gray-400 block mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-warm-gray-400 block mb-2">
                 Funding Domains
               </span>
               <div className="flex flex-wrap gap-2">
@@ -248,7 +248,7 @@ export default function AgencyOverviewPage() {
 function SnapshotItem({ label, value, isLink }) {
   return (
     <div>
-      <span className="block text-[11px] font-bold uppercase tracking-wider text-warm-gray-400 mb-1">
+      <span className="block text-xs font-bold uppercase tracking-wider text-warm-gray-400 mb-1">
         {label}
       </span>
       {isLink ? (
@@ -296,7 +296,7 @@ function ChecklistItem({ done, title, subtitle, onClick }) {
       </span>
       <div>
         <p className="text-xs font-semibold text-warm-gray-900">{title}</p>
-        <p className="text-[11px] text-warm-gray-500">{subtitle}</p>
+        <p className="text-xs text-warm-gray-500">{subtitle}</p>
       </div>
     </Wrapper>
   )
