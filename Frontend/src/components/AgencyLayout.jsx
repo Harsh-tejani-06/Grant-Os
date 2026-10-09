@@ -34,17 +34,21 @@ const ProfileIcon = () => (
     <path d="M15 9h4" /><path d="M15 13h4" /><path d="M6 17c.6-1.6 1.9-2.5 3-2.5s2.4.9 3 2.5" />
   </svg>
 )
-
+const AnalyticsIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
+    <line x1="12" y1="20" x2="12" y2="10" /><line x1="18" y1="20" x2="18" y2="4" /><line x1="6" y1="20" x2="6" y2="16" />
+  </svg>
+)
 const LogoutIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[16px] h-[16px]">
     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
   </svg>
 )
-
 const NAV_ITEMS = [
   { to: '/agency/dashboard', label: 'Overview', icon: OverviewIcon, end: true },
   { to: '/agency/dashboard/grants', label: 'Grant Calls', icon: GrantsIcon },
   { to: '/agency/dashboard/proposals', label: 'Proposals', icon: ProposalsIcon },
+  { to: '/agency/dashboard/analytics', label: 'Analytics', icon: AnalyticsIcon },
   { to: '/agency/dashboard/profile', label: 'Profile', icon: ProfileIcon },
 ]
 

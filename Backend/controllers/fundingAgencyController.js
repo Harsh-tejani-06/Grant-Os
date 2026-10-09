@@ -798,6 +798,153 @@ const getFullProfile = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error while fetching profile' });
   }
 };
+// @desc    Aggregated analytics for the authenticated agency, derived
+//          entirely from existing Proposal/GrantProgram documents — no new
+//          model, no fabricated metrics.
+// @route   GET /api/agency/analytics
+// @access  Private (funding_agency)
+const AGENCY_VISIBLE_STATUSES = ['Submitted to Agency', 'Submitted', 'Under Evaluation', 'Revisions Requested', 'Awarded', 'Accepted', 'Rejected'];
+
+const STAGE_CONFIG = [
+  { stage: 'pending', statuses: ['Submitted to Agency', 'Submitted'], label: 'Pending Review', icon: '📥', color: 'bg-blue-500', bgColor: 'bg-blue-50/60', borderColor: 'border-blue-200', textColor: 'text-blue-700' },
+  { stage: 'evaluation', statuses: ['Under Evaluation'], label: 'Under Evaluation', icon: '🔍', color: 'bg-purple-500', bgColor: 'bg-purple-50/60', borderColor: 'border-purple-200', textColor: 'text-purple-700' },
+  { stage: 'revisions', statuses: ['Revisions Requested'], label: 'Revisions Requested', icon: '⚠️', color: 'bg-amber-500', bgColor: 'bg-amber-50/60', borderColor: 'border-amber-200', textColor: 'text-amber-800' },
+  { stage: 'awarded', statuses: ['Awarded', 'Accepted'], label: 'Awarded', icon: '🏆', color: 'bg-emerald-600', bgColor: 'bg-emerald-50/60', borderColor: 'border-emerald-200', textColor: 'text-emerald-800' },
+  { stage: 'rejected', statuses: ['Rejected'], label: 'Rejected', icon: '❌', color: 'bg-rose-500', bgColor: 'bg-rose-50/60', borderColor: 'border-rose-200', textColor: 'text-rose-700' },
+];
+
+const getAgencyAnalytics = async (req, res) => {
+  try {
+    const agency = await getApprovedAgencyOrRespond(req, res);
+    if (!agency) return;
+
+    const programs = await GrantProgram.find({ fundingAgency: agency._id }).select('_id title shortTitle status budget budgetAmount');
+    const programIds = programs.map((p) => p._id.toString());
+
+    const proposals = await Proposal.find({
+      grantProgram: { $in: programIds },
+      status: { $in: AGENCY_VISIBLE_STATUSES },
+    }).select('status grantProgram awardAmount aiScore createdAt agencySubmission');
+
+    const totalProposals = proposals.length;
+    const countByStatuses = (statuses) => proposals.filter((p) => statuses.includes(p.status)).length;
+
+    const pendingCount = countByStatuses(['Submitted to Agency', 'Submitted']);
+    const underEvaluationCount = countByStatuses(['Under Evaluation']);
+    const revisionsCount = countByStatuses(['Revisions Requested']);
+    const awardedCount = countByStatuses(['Awarded', 'Accepted']);
+    const rejectedCount = countByStatuses(['Rejected']);
+    const decidedCount = awardedCount + rejectedCount;
+    const awardRate = decidedCount > 0 ? Math.round((awardedCount / decidedCount) * 100) : 0;
+
+    const totalAwardedCapital = proposals
+      .filter((p) => ['Awarded', 'Accepted'].includes(p.status) && typeof p.awardAmount === 'number')
+      .reduce((sum, p) => sum + p.awardAmount, 0);
+
+    const totalFundPool = programs.reduce((sum, p) => sum + (typeof p.budgetAmount === 'number' ? p.budgetAmount : 0), 0);
+
+    // ─── Status Distribution (5-stage pipeline, matches the frontend's stage cards) ───
+    const statusDistribution = STAGE_CONFIG.map((cfg) => {
+      const count = countByStatuses(cfg.statuses);
+      return {
+        ...cfg,
+        count,
+        percentage: totalProposals > 0 ? Math.round((count / totalProposals) * 100) : 0,
+      };
+    });
+
+    // ─── Submission Trends (actual months present in the data, last 6) ───
+    const monthMap = {};
+    proposals.forEach((p) => {
+      const d = p.agencySubmission?.submittedAt || p.createdAt;
+      if (!d) return;
+      const dt = new Date(d);
+      const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
+      if (!monthMap[key]) {
+        monthMap[key] = {
+          key,
+          label: dt.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }),
+          count: 0,
+          awarded: 0,
+          sortDate: dt,
+        };
+      }
+      monthMap[key].count++;
+      if (['Awarded', 'Accepted'].includes(p.status)) monthMap[key].awarded++;
+    });
+    const submissionTrends = Object.values(monthMap)
+      .sort((a, b) => a.sortDate - b.sortDate)
+      .slice(-6)
+      .map(({ key, label, count, awarded }) => ({ key, label, count, awarded }));
+
+    // ─── Grant Call Performance Matrix ───
+    const programPerformance = programs.map((program) => {
+      const progProposals = proposals.filter((p) => p.grantProgram?.toString() === program._id.toString());
+      const progAwardedCapital = progProposals
+        .filter((p) => ['Awarded', 'Accepted'].includes(p.status) && typeof p.awardAmount === 'number')
+        .reduce((sum, p) => sum + p.awardAmount, 0);
+
+      return {
+        id: program._id.toString(),
+        title: program.title,
+        shortTitle: program.shortTitle || '',
+        status: program.status,
+        budget: program.budget || (program.budgetAmount ? `₹${program.budgetAmount.toLocaleString('en-IN')}` : '—'),
+        proposalsCount: progProposals.length,
+        underEvaluationCount: progProposals.filter((p) => p.status === 'Under Evaluation').length,
+        revisionsCount: progProposals.filter((p) => p.status === 'Revisions Requested').length,
+        awardedCount: progProposals.filter((p) => ['Awarded', 'Accepted'].includes(p.status)).length,
+        totalAwardedCapital: progAwardedCapital,
+      };
+    });
+
+    // ─── AI Matching / Evaluation Analytics (only if aiScore is actually populated) ───
+    const scoredProposals = proposals.filter((p) => typeof p.aiScore === 'number');
+    let aiAnalytics = { hasData: false };
+    if (scoredProposals.length > 0) {
+      const scores = scoredProposals.map((p) => p.aiScore);
+      const averageScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+      const high = scores.filter((s) => s >= 75).length;
+      const moderate = scores.filter((s) => s >= 50 && s < 75).length;
+      const low = scores.filter((s) => s < 50).length;
+      const pct = (n) => Math.round((n / scores.length) * 100);
+      aiAnalytics = {
+        hasData: true,
+        averageScore,
+        tiers: {
+          high: { label: 'Strong Alignment (75%+)', count: high, pct: pct(high) },
+          moderate: { label: 'Moderate Alignment (50–74%)', count: moderate, pct: pct(moderate) },
+          low: { label: 'Low Alignment (<50%)', count: low, pct: pct(low) },
+        },
+      };
+    }
+
+    res.json({
+      success: true,
+      analytics: {
+        totalPrograms: programs.length,
+        activePrograms: programs.filter((p) => p.status === 'Active').length,
+        totalProposals,
+        pendingCount,
+        underEvaluationCount,
+        revisionsCount,
+        awardedCount,
+        rejectedCount,
+        decidedCount,
+        awardRate,
+        totalAwardedCapital,
+        totalFundPool,
+        statusDistribution,
+        submissionTrends,
+        programPerformance,
+        aiAnalytics,
+      },
+    });
+  } catch (error) {
+    console.error('Get agency analytics error:', error);
+    res.status(500).json({ success: false, message: 'Server error while computing analytics' });
+  }
+};
 
 // @desc    Update the editable subset of the agency profile
 // @route   PUT /api/agency/profile
