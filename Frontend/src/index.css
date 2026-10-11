@@ -98,27 +98,29 @@
 }
 
 /* ─── Base Styles ─── */
-html {
-  scroll-behavior: smooth;
-}
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
 
-body {
-  font-family: var(--font-body);
-  background-color: var(--color-cream);
-  color: var(--color-warm-gray-700);
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+  body {
+    font-family: var(--font-body);
+    background-color: var(--color-cream);
+    color: var(--color-warm-gray-700);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-heading);
-  color: var(--color-warm-gray-900);
-}
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    color: var(--color-warm-gray-900);
+  }
 
-::selection {
-  background-color: var(--color-primary-200);
-  color: var(--color-primary-900);
+  ::selection {
+    background-color: var(--color-primary-200);
+    color: var(--color-primary-900);
+  }
 }
 
 /* ─── Custom Scrollbar Utility ─── */

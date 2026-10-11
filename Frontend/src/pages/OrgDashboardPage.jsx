@@ -362,10 +362,10 @@ function GovGrantDetailPanel({ grant, onClose, onApply, applyLoading, applySucce
               </h2>
               <span
                 className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-bold border ${grant.displayStatus === 'Open'
-                    ? 'bg-green-50 text-green-700 border-green-200'
-                    : grant.displayStatus === 'Closing Soon'
-                      ? 'bg-orange-50 text-orange-700 border-orange-200'
-                      : 'bg-red-50 text-red-700 border-red-200'
+                  ? 'bg-green-50 text-green-700 border-green-200'
+                  : grant.displayStatus === 'Closing Soon'
+                    ? 'bg-orange-50 text-orange-700 border-orange-200'
+                    : 'bg-red-50 text-red-700 border-red-200'
                   }`}
               >
                 {grant.displayStatus}
@@ -608,6 +608,9 @@ export default function OrgAdminDashboard() {
   const [newSectionWordLimit, setNewSectionWordLimit] = useState('500')
   const [sectionActionError, setSectionActionError] = useState('')
   const [deletingSectionId, setDeletingSectionId] = useState('')
+  const [inviteCollaboratorModal, setInviteCollaboratorModal] = useState(false)
+  const [collaboratorEmail, setCollaboratorEmail] = useState('')
+  const [inviteCollaboratorLoading, setInviteCollaboratorLoading] = useState(false)
 
   // ─── Proposal Tracking Dashboard State (GUI 4) ───
   const [trackingView, setTrackingView] = useState('kanban') // 'kanban' | 'table'
@@ -781,6 +784,16 @@ export default function OrgAdminDashboard() {
     receiptNote: '',
   })
   const [submittingAgency, setSubmittingAgency] = useState(false)
+
+  // ─── External Grant "Mark as Applied" Modal State ───
+  const [externalSubmitModal, setExternalSubmitModal] = useState(false)
+  const [externalSubmitData, setExternalSubmitData] = useState({
+    externalReferenceId: '',
+    portalName: '',
+    notes: '',
+  })
+  const [submittingExternal, setSubmittingExternal] = useState(false)
+
   const [updatingChecklistKey, setUpdatingChecklistKey] = useState('')
 
   const showToast = (message) => {
@@ -838,6 +851,37 @@ export default function OrgAdminDashboard() {
       alert(err.response?.data?.message || 'Failed to submit proposal to agency')
     } finally {
       setSubmittingAgency(false)
+    }
+  }
+
+  // ─── Mark External Grant as Applied Externally ───
+  const handleMarkAppliedExternally = async (e) => {
+    e.preventDefault()
+    if (!selectedProposalObj) return
+    if (!externalSubmitData.externalReferenceId.trim()) {
+      alert('Please enter the External Reference / Confirmation ID.')
+      return
+    }
+    try {
+      setSubmittingExternal(true)
+      const res = await api.put(`/proposals/${selectedProposalObj._id}/mark-applied-externally`, {
+        externalReferenceId: externalSubmitData.externalReferenceId.trim(),
+        portalName: externalSubmitData.portalName.trim(),
+        notes: externalSubmitData.notes.trim(),
+      })
+      if (res.data.success) {
+        setOrgProposals((prev) =>
+          prev.map((p) => (p._id === selectedProposalObj._id ? res.data.proposal : p))
+        )
+        setExternalSubmitModal(false)
+        setExternalSubmitData({ externalReferenceId: '', portalName: '', notes: '' })
+        showToast('🏛️ Proposal marked as applied on external government portal!')
+      }
+    } catch (err) {
+      console.error('External submission marking failed:', err)
+      alert(err.response?.data?.message || 'Failed to mark proposal as applied externally')
+    } finally {
+      setSubmittingExternal(false)
     }
   }
 
@@ -1272,6 +1316,27 @@ export default function OrgAdminDashboard() {
       alert(err.response?.data?.message || 'Failed to dispatch email alert')
     } finally {
       setSendingEmailAlertId(null)
+    }
+  }
+
+  const handleInviteCollaborator = async (e) => {
+    e.preventDefault()
+    if (!collaboratorEmail || !selectedProposalId) return
+    setInviteCollaboratorLoading(true)
+    try {
+      const res = await api.post(`/proposals/${selectedProposalId}/collaborators`, { email: collaboratorEmail })
+      if (res.data.success) {
+        setInviteCollaboratorModal(false)
+        setCollaboratorEmail('')
+        setOrgProposals((prev) =>
+          prev.map((p) => (p._id === selectedProposalId ? res.data.proposal : p))
+        )
+      }
+    } catch (err) {
+      console.error('Error inviting collaborator:', err)
+      alert(err.response?.data?.message || 'Failed to invite collaborator')
+    } finally {
+      setInviteCollaboratorLoading(false)
     }
   }
 
@@ -1725,7 +1790,12 @@ export default function OrgAdminDashboard() {
         const titleMatch = (p.title || '').toLowerCase().includes(q)
         const grantMatch = (p.grantTitle || '').toLowerCase().includes(q)
         const agencyMatch = (p.grantAgency || '').toLowerCase().includes(q)
-        const refMatch = (p.agencySubmission?.agencySubmissionId || '').toLowerCase().includes(q)
+        const refMatch = (
+          p.agencySubmission?.agencySubmissionId ||
+          p.externalSubmission?.externalReferenceId ||
+          p.externalSubmission?.portalName ||
+          ''
+        ).toLowerCase().includes(q)
         const sanctionMatch = (p.awardDetails?.sanctionOrderNumber || '').toLowerCase().includes(q)
         const statusMatch = (p.status || '').toLowerCase().includes(q)
         const piMatch =
@@ -1799,7 +1869,7 @@ export default function OrgAdminDashboard() {
     })
 
     const decided = awardedCount + rejectedCount
-    const winRate = decided > 0 ? Math.round((awardedCount / decided) * 100) : (totalDispatched >0 ? 33 : 0)
+    const winRate = decided > 0 ? Math.round((awardedCount / decided) * 100) : (totalDispatched > 0 ? 33 : 0)
 
     return {
       totalDispatched,
@@ -2374,7 +2444,7 @@ Official Seal & Endorsement`
       )}
 
       {/* ─── Main Content ─── */}
-      <main className="flex-1 lg:ml-64">
+      <main className="flex-1 lg:ml-64 min-w-0">
         <header className="lg:hidden sticky top-0 z-30 bg-white border-b border-slate-200/80 px-4 py-3 flex items-center justify-between">
           <button onClick={() => setSidebarOpen(true)} className="p-2 text-slate-600 cursor-pointer">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
@@ -2427,7 +2497,7 @@ Official Seal & Endorsement`
               approvedSecs = 0,
               inProgressSecs = 0
             filteredProposals.forEach((p) => {
-              ;(p.sections || []).forEach((s) => {
+              ; (p.sections || []).forEach((s) => {
                 totalSecs++
                 if (s.status === 'Approved') approvedSecs++
                 else if (s.status === 'In Progress') inProgressSecs++
@@ -2488,7 +2558,7 @@ Official Seal & Endorsement`
                 let assigned = 0,
                   completed = 0
                 orgProposals.forEach((p) => {
-                  ;(p.sections || []).forEach((s) => {
+                  ; (p.sections || []).forEach((s) => {
                     const matchId = s.assignedTo === m._id || s.assignedTo?._id === m._id
                     const matchName =
                       s.assignedToName &&
@@ -2524,7 +2594,7 @@ Official Seal & Endorsement`
 
             // Time greeting
             const hour = new Date().getHours()
-            const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+            const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening'
 
             return (
               <div className="animate-fade-up space-y-8">
@@ -2565,11 +2635,10 @@ Official Seal & Endorsement`
                             <button
                               key={t.id}
                               onClick={() => setDashboardTimeFilter(t.id)}
-                              className={`px-3.5 py-1.5 rounded-[10px] font-semibold transition-all cursor-pointer ${
-                                dashboardTimeFilter === t.id
-                                  ? 'bg-emerald-500 text-slate-950 font-bold shadow-xs'
-                                  : 'text-emerald-100/70 hover:text-white hover:bg-white/10'
-                              }`}
+                              className={`px-3.5 py-1.5 rounded-[10px] font-semibold transition-all cursor-pointer ${dashboardTimeFilter === t.id
+                                ? 'bg-emerald-500 text-slate-950 font-bold shadow-xs'
+                                : 'text-emerald-100/70 hover:text-white hover:bg-white/10'
+                                }`}
                             >
                               {t.label}
                             </button>
@@ -2901,24 +2970,21 @@ Official Seal & Endorsement`
                         <button
                           key={stage.key}
                           onClick={() => setPipelineFilterStage(stage.key)}
-                          className={`p-4 rounded-[16px] text-left transition-all duration-200 cursor-pointer border relative overflow-hidden group ${
-                            isActive
-                              ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-emerald-500/50 -translate-y-0.5'
-                              : 'bg-slate-50/80 hover:bg-slate-100 text-slate-800 border-slate-200/80'
-                          }`}
+                          className={`p-4 rounded-[16px] text-left transition-all duration-200 cursor-pointer border relative overflow-hidden group ${isActive
+                            ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-emerald-500/50 -translate-y-0.5'
+                            : 'bg-slate-50/80 hover:bg-slate-100 text-slate-800 border-slate-200/80'
+                            }`}
                         >
                           <div className="flex items-center justify-between mb-1.5">
                             <span
-                              className={`text-xs font-bold uppercase tracking-wider ${
-                                isActive ? 'text-emerald-300' : 'text-slate-500'
-                              }`}
+                              className={`text-xs font-bold uppercase tracking-wider ${isActive ? 'text-emerald-300' : 'text-slate-500'
+                                }`}
                             >
                               {stage.label}
                             </span>
                             <span
-                              className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                                isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
-                              }`}
+                              className={`px-2 py-0.5 rounded-full text-xs font-bold ${isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
+                                }`}
                             >
                               {stage.count}
                             </span>
@@ -2997,107 +3063,107 @@ Official Seal & Endorsement`
                     <div className="max-h-[580px] overflow-y-auto pr-2 custom-scrollbar">
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {displayedProposals.map((p) => {
-                        const statusConfig = {
-                          Draft: { bg: 'bg-slate-100 text-slate-700 border-slate-200', dot: 'bg-slate-400' },
-                          'In Progress': { bg: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
-                          'Under Review': { bg: 'bg-purple-50 text-purple-700 border-purple-200', dot: 'bg-purple-500' },
-                          'Submitted to Admin': {
-                            bg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-                            dot: 'bg-indigo-500',
-                          },
-                          'Submitted to Agency': {
-                            bg: 'bg-cyan-50 text-cyan-700 border-cyan-200',
-                            dot: 'bg-cyan-500',
-                          },
-                          'Under Evaluation': {
-                            bg: 'bg-violet-50 text-violet-700 border-violet-200',
-                            dot: 'bg-violet-500',
-                          },
-                          'Revisions Requested': {
-                            bg: 'bg-amber-50 text-amber-700 border-amber-200',
-                            dot: 'bg-amber-500 animate-pulse',
-                          },
-                          Awarded: { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
-                          Accepted: { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
-                          Rejected: { bg: 'bg-rose-50 text-rose-700 border-rose-200', dot: 'bg-rose-500' },
-                        }
-                        const sc = statusConfig[p.status] || statusConfig.Draft
-                        const approvedInProposal = (p.sections || []).filter((s) => s.status === 'Approved').length
-                        const totalInProposal = (p.sections || []).length || 1
-                        const secPct = Math.round((approvedInProposal / totalInProposal) * 100)
+                          const statusConfig = {
+                            Draft: { bg: 'bg-slate-100 text-slate-700 border-slate-200', dot: 'bg-slate-400' },
+                            'In Progress': { bg: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
+                            'Under Review': { bg: 'bg-purple-50 text-purple-700 border-purple-200', dot: 'bg-purple-500' },
+                            'Submitted to Admin': {
+                              bg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+                              dot: 'bg-indigo-500',
+                            },
+                            'Submitted to Agency': {
+                              bg: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+                              dot: 'bg-cyan-500',
+                            },
+                            'Under Evaluation': {
+                              bg: 'bg-violet-50 text-violet-700 border-violet-200',
+                              dot: 'bg-violet-500',
+                            },
+                            'Revisions Requested': {
+                              bg: 'bg-amber-50 text-amber-700 border-amber-200',
+                              dot: 'bg-amber-500 animate-pulse',
+                            },
+                            Awarded: { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
+                            Accepted: { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
+                            Rejected: { bg: 'bg-rose-50 text-rose-700 border-rose-200', dot: 'bg-rose-500' },
+                          }
+                          const sc = statusConfig[p.status] || statusConfig.Draft
+                          const approvedInProposal = (p.sections || []).filter((s) => s.status === 'Approved').length
+                          const totalInProposal = (p.sections || []).length || 1
+                          const secPct = Math.round((approvedInProposal / totalInProposal) * 100)
 
-                        return (
-                          <div
-                            key={p._id}
-                            className="bg-white rounded-[18px] p-4.5 border border-slate-200/90 hover:border-emerald-500/50 hover:shadow-md transition-all duration-200 flex flex-col justify-between group"
-                          >
-                            <div>
-                              <div className="flex items-center justify-between gap-2 mb-2.5">
-                                <span
-                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${sc.bg}`}
+                          return (
+                            <div
+                              key={p._id}
+                              className="bg-white rounded-[18px] p-4.5 border border-slate-200/90 hover:border-emerald-500/50 hover:shadow-md transition-all duration-200 flex flex-col justify-between group"
+                            >
+                              <div>
+                                <div className="flex items-center justify-between gap-2 mb-2.5">
+                                  <span
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${sc.bg}`}
+                                  >
+                                    <span className={`w-2 h-2 rounded-full ${sc.dot}`} />
+                                    {p.status}
+                                  </span>
+                                  {p.fundingAmount && (
+                                    <span className="text-xs font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-full">
+                                      {p.fundingAmount}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <h3
+                                  onClick={() => {
+                                    setSelectedProposalId(p._id)
+                                    navigateToSection('proposals')
+                                  }}
+                                  className="font-heading text-base font-bold text-slate-900 group-hover:text-emerald-700 transition-colors line-clamp-1 cursor-pointer"
+                                  title={p.title}
                                 >
-                                  <span className={`w-2 h-2 rounded-full ${sc.dot}`} />
-                                  {p.status}
-                                </span>
-                                {p.fundingAmount && (
-                                  <span className="text-xs font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-full">
-                                    {p.fundingAmount}
-                                  </span>
-                                )}
-                              </div>
+                                  {p.title}
+                                </h3>
+                                <p className="text-xs text-slate-500 font-medium truncate mt-1">
+                                  {p.grantAgency || 'Independent Grant Call'}
+                                </p>
 
-                              <h3
-                                onClick={() => {
-                                  setSelectedProposalId(p._id)
-                                  navigateToSection('proposals')
-                                }}
-                                className="font-heading text-base font-bold text-slate-900 group-hover:text-emerald-700 transition-colors line-clamp-1 cursor-pointer"
-                                title={p.title}
-                              >
-                                {p.title}
-                              </h3>
-                              <p className="text-xs text-slate-500 font-medium truncate mt-1">
-                                {p.grantAgency || 'Independent Grant Call'}
-                              </p>
-
-                              {/* Progress Track */}
-                              <div className="mt-3.5">
-                                <div className="flex items-center justify-between text-xs text-slate-600 font-semibold mb-1.5">
-                                  <span>Dossier Sections</span>
-                                  <span>
-                                    {approvedInProposal}/{totalInProposal} done ({secPct}%)
-                                  </span>
-                                </div>
-                                <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                                  <div
-                                    className="h-full rounded-full bg-emerald-500 transition-all duration-500"
-                                    style={{ width: `${secPct}%` }}
-                                  />
+                                {/* Progress Track */}
+                                <div className="mt-3.5">
+                                  <div className="flex items-center justify-between text-xs text-slate-600 font-semibold mb-1.5">
+                                    <span>Dossier Sections</span>
+                                    <span>
+                                      {approvedInProposal}/{totalInProposal} done ({secPct}%)
+                                    </span>
+                                  </div>
+                                  <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                                      style={{ width: `${secPct}%` }}
+                                    />
+                                  </div>
                                 </div>
                               </div>
-                            </div>
 
-                            {/* Card Actions */}
-                            <div className="mt-4.5 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                              <button
-                                onClick={() => {
-                                  setSelectedProposalId(p._id)
-                                  navigateToSection('proposals')
-                                }}
-                                className="text-sm font-bold text-emerald-700 hover:text-emerald-800 transition-colors cursor-pointer"
-                              >
-                                Open Editor →
-                              </button>
-                              <button
-                                onClick={() => navigateToSection('tracking')}
-                                className="text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
-                              >
-                                Track Stage
-                              </button>
+                              {/* Card Actions */}
+                              <div className="mt-4.5 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                                <button
+                                  onClick={() => {
+                                    setSelectedProposalId(p._id)
+                                    navigateToSection('proposals')
+                                  }}
+                                  className="text-sm font-bold text-emerald-700 hover:text-emerald-800 transition-colors cursor-pointer"
+                                >
+                                  Open Editor →
+                                </button>
+                                <button
+                                  onClick={() => navigateToSection('tracking')}
+                                  className="text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                                >
+                                  Track Stage
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        )
-                      })}
+                          )
+                        })}
                       </div>
                     </div>
                   )}
@@ -3140,11 +3206,10 @@ Official Seal & Endorsement`
                           <button
                             key={btn.id}
                             onClick={() => setDeadlineUrgencyFilter(btn.id)}
-                            className={`px-3 py-1.5 rounded-[8px] font-semibold transition-all cursor-pointer ${
-                              deadlineUrgencyFilter === btn.id
-                                ? 'bg-white text-slate-900 shadow-xs'
-                                : 'text-slate-600 hover:text-slate-900'
-                            }`}
+                            className={`px-3 py-1.5 rounded-[8px] font-semibold transition-all cursor-pointer ${deadlineUrgencyFilter === btn.id
+                              ? 'bg-white text-slate-900 shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                              }`}
                           >
                             {btn.label}
                           </button>
@@ -3184,11 +3249,10 @@ Official Seal & Endorsement`
                                 </div>
                               </div>
                               <span
-                                className={`px-3 py-1.5 rounded-full text-xs font-bold border shrink-0 ${
-                                  isCrit
-                                    ? 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse'
-                                    : 'bg-amber-50 text-amber-700 border-amber-200'
-                                }`}
+                                className={`px-3 py-1.5 rounded-full text-xs font-bold border shrink-0 ${isCrit
+                                  ? 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse'
+                                  : 'bg-amber-50 text-amber-700 border-amber-200'
+                                  }`}
                               >
                                 {isCrit ? '🚨 ' : '⏰ '}
                                 {d.daysLeft}d left
@@ -3243,8 +3307,8 @@ Official Seal & Endorsement`
                             m.assigned === 0
                               ? { label: 'Available', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
                               : m.assigned <= 3
-                              ? { label: 'Optimal', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' }
-                              : { label: 'High Load', color: 'bg-amber-50 text-amber-700 border-amber-200' }
+                                ? { label: 'Optimal', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' }
+                                : { label: 'High Load', color: 'bg-amber-50 text-amber-700 border-amber-200' }
 
                           return (
                             <div
@@ -3393,22 +3457,20 @@ Official Seal & Endorsement`
                     <button
                       type="button"
                       onClick={() => setTrackingView('kanban')}
-                      className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                        trackingView === 'kanban'
-                          ? 'bg-white text-purple-900 shadow-soft'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
+                      className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${trackingView === 'kanban'
+                        ? 'bg-white text-purple-900 shadow-soft'
+                        : 'text-slate-600 hover:text-slate-900'
+                        }`}
                     >
                       <span>☷</span> Kanban Board
                     </button>
                     <button
                       type="button"
                       onClick={() => setTrackingView('table')}
-                      className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                        trackingView === 'table'
-                          ? 'bg-white text-purple-900 shadow-soft'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
+                      className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${trackingView === 'table'
+                        ? 'bg-white text-purple-900 shadow-soft'
+                        : 'text-slate-600 hover:text-slate-900'
+                        }`}
                     >
                       <span>☰</span> Dense Table
                     </button>
@@ -3510,11 +3572,8 @@ Official Seal & Endorsement`
                     <option value="all">All Agencies</option>
                     <option value="DST">DST / SERB</option>
                     <option value="UGC">UGC</option>
-                    <option value="ICSSR">ICSSR</option>
-                    <option value="CSIR">CSIR</option>
                     <option value="DBT">DBT</option>
                     <option value="AICTE">AICTE</option>
-                    <option value="NIH">NIH</option>
                   </select>
 
                   <select
@@ -3570,9 +3629,25 @@ Official Seal & Endorsement`
                                   className="bg-white rounded-xl border border-slate-200 shadow-soft p-4 hover:shadow-medium hover:border-purple-300 transition-all duration-200 group"
                                 >
                                   <div className="flex items-center justify-between gap-2 mb-2">
-                                    <span className="px-2.5 py-1 rounded-md font-mono text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200 truncate max-w-[140px]" title={prop.agencySubmission?.agencySubmissionId || 'No Ref ID'}>
-                                      {prop.agencySubmission?.agencySubmissionId || 'Ref: Recorded'}
-                                    </span>
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <span
+                                        className="px-2.5 py-1 rounded-md font-mono text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200 truncate max-w-[140px]"
+                                        title={
+                                          (prop.isExternalGrant
+                                            ? prop.externalSubmission?.externalReferenceId
+                                            : prop.agencySubmission?.agencySubmissionId) || 'No Ref ID'
+                                        }
+                                      >
+                                        {(prop.isExternalGrant
+                                          ? prop.externalSubmission?.externalReferenceId
+                                          : prop.agencySubmission?.agencySubmissionId) || 'Ref: Recorded'}
+                                      </span>
+                                      {prop.isExternalGrant && (
+                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 shrink-0" title="External Government Grant">
+                                          🏛️ Govt
+                                        </span>
+                                      )}
+                                    </div>
                                     <span className={`px-2 py-0.5 rounded-full text-xs font-bold border shrink-0 ${timeline.color}`}>
                                       {timeline.label}
                                     </span>
@@ -3605,12 +3680,35 @@ Official Seal & Endorsement`
                                   </div>
 
                                   <div className="flex items-center justify-between text-xs text-slate-600 mb-3 pt-1 border-t border-slate-100">
-                                    <span className="flex items-center gap-1 font-bold text-teal-800 bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-200">
-                                      ✓ {checklistCleared}/6 Pre-submission
-                                    </span>
-                                    <span className="text-slate-500 font-medium">
-                                      {prop.agencySubmission?.submittedAt ? new Date(prop.agencySubmission.submittedAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'Dispatched'}
-                                    </span>
+                                    {prop.isExternalGrant ? (
+                                      <span className="flex items-center gap-1 font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                                        🏛️ {prop.externalSubmission?.portalName || 'External Portal'}
+                                      </span>
+                                    ) : (
+                                      <span className="flex items-center gap-1 font-bold text-teal-800 bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-200">
+                                        ✓ {checklistCleared}/6 Pre-submission
+                                      </span>
+                                    )}
+                                    <div className="flex items-center gap-2">
+                                      {prop.isExternalGrant && prop.externalGrantLinks?.applicationUrl && (
+                                        <a
+                                          href={prop.externalGrantLinks.applicationUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-blue-600 hover:text-blue-800 font-bold hover:underline flex items-center gap-0.5"
+                                          title="Open External Portal"
+                                        >
+                                          Portal ↗
+                                        </a>
+                                      )}
+                                      <span className="text-slate-500 font-medium">
+                                        {prop.externalSubmission?.appliedAt
+                                          ? new Date(prop.externalSubmission.appliedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })
+                                          : prop.agencySubmission?.submittedAt
+                                            ? new Date(prop.agencySubmission.submittedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })
+                                            : 'Dispatched'}
+                                      </span>
+                                    </div>
                                   </div>
 
                                   <div className="flex items-center justify-between gap-1.5 pt-2 border-t border-slate-100">
@@ -3701,9 +3799,18 @@ Official Seal & Endorsement`
                                   <p className="font-heading font-bold text-slate-900 line-clamp-1 max-w-[220px]" title={prop.title}>
                                     {prop.title}
                                   </p>
-                                  <span className="font-mono text-xs font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200 inline-block mt-1">
-                                    {prop.agencySubmission?.agencySubmissionId || 'Ref: Dispatched'}
-                                  </span>
+                                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                    <span className="font-mono text-xs font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200 inline-block">
+                                      {(prop.isExternalGrant
+                                        ? prop.externalSubmission?.externalReferenceId
+                                        : prop.agencySubmission?.agencySubmissionId) || 'Ref: Dispatched'}
+                                    </span>
+                                    {prop.isExternalGrant && (
+                                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                        🏛️ Govt
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
                                 <td className="py-4 px-4 text-slate-700 font-medium">
                                   <p className="font-bold text-slate-900">{prop.grantAgency || 'Funding Agency'}</p>
@@ -3731,9 +3838,28 @@ Official Seal & Endorsement`
                                   </span>
                                 </td>
                                 <td className="py-4 px-4">
-                                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200">
-                                    ✓ {checklistCleared}/6 Pre-submission
-                                  </span>
+                                  {prop.isExternalGrant ? (
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                        🏛️ {prop.externalSubmission?.portalName || 'External Portal'}
+                                      </span>
+                                      {prop.externalGrantLinks?.applicationUrl && (
+                                        <a
+                                          href={prop.externalGrantLinks.applicationUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-blue-600 hover:text-blue-800 text-xs font-bold hover:underline"
+                                          title="Open Application Portal"
+                                        >
+                                          ↗
+                                        </a>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200">
+                                      ✓ {checklistCleared}/6 Pre-submission
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="py-4 px-4">
                                   <select
@@ -4025,11 +4151,10 @@ Official Seal & Endorsement`
                     <button
                       key={tab.key}
                       onClick={() => setDeadlineTab(tab.key)}
-                      className={`px-3 py-1.5 rounded-[10px] text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                        deadlineTab === tab.key
-                          ? 'bg-warm-gray-900 text-white shadow-xs'
-                          : 'bg-cream/70 text-warm-gray-600 hover:bg-cream hover:text-warm-gray-900 border border-warm-gray-200/50'
-                      }`}
+                      className={`px-3 py-1.5 rounded-[10px] text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${deadlineTab === tab.key
+                        ? 'bg-warm-gray-900 text-white shadow-xs'
+                        : 'bg-cream/70 text-warm-gray-600 hover:bg-cream hover:text-warm-gray-900 border border-warm-gray-200/50'
+                        }`}
                     >
                       {tab.label}
                     </button>
@@ -4057,31 +4182,28 @@ Official Seal & Endorsement`
                   filteredAlerts.map((alert) => (
                     <div
                       key={alert.id}
-                      className={`bg-surface-elevated rounded-[16px] border border-warm-gray-200/80 shadow-soft p-5 hover:shadow-medium hover:border-warm-gray-300 transition-all duration-200 flex flex-col md:flex-row md:items-center justify-between gap-4 relative overflow-hidden ${
-                        alert.isCompleted ? 'opacity-60 bg-cream/20' : ''
-                      }`}
+                      className={`bg-surface-elevated rounded-[16px] border border-warm-gray-200/80 shadow-soft p-5 hover:shadow-medium hover:border-warm-gray-300 transition-all duration-200 flex flex-col md:flex-row md:items-center justify-between gap-4 relative overflow-hidden ${alert.isCompleted ? 'opacity-60 bg-cream/20' : ''
+                        }`}
                     >
                       <div
-                        className={`absolute left-0 top-0 bottom-0 w-1.5 ${
-                          alert.urgency === 'critical'
-                            ? 'bg-rose-500'
-                            : alert.urgency === 'upcoming'
+                        className={`absolute left-0 top-0 bottom-0 w-1.5 ${alert.urgency === 'critical'
+                          ? 'bg-rose-500'
+                          : alert.urgency === 'upcoming'
                             ? 'bg-amber-400'
                             : alert.isCompleted
-                            ? 'bg-emerald-500'
-                            : 'bg-purple-500'
-                        }`}
+                              ? 'bg-emerald-500'
+                              : 'bg-purple-500'
+                          }`}
                       />
 
                       <div className="flex items-start gap-4 flex-1 min-w-0 pl-1">
                         <div
-                          className={`w-11 h-11 rounded-[12px] flex items-center justify-center text-lg shrink-0 border ${
-                            alert.type === 'grant_deadline'
-                              ? 'bg-blue-50 text-blue-700 border-blue-200'
-                              : alert.type === 'agency_followup'
+                          className={`w-11 h-11 rounded-[12px] flex items-center justify-center text-lg shrink-0 border ${alert.type === 'grant_deadline'
+                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                            : alert.type === 'agency_followup'
                               ? 'bg-purple-50 text-purple-700 border-purple-200'
                               : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          }`}
+                            }`}
                         >
                           {alert.type === 'grant_deadline' ? '🏛️' : alert.type === 'agency_followup' ? '🔍' : '⏰'}
                         </div>
@@ -4096,8 +4218,8 @@ Official Seal & Endorsement`
                               {alert.type === 'grant_deadline'
                                 ? 'Grant Call Deadline'
                                 : alert.type === 'agency_followup'
-                                ? 'Agency Review Trigger'
-                                : `Custom: ${alert.reminderType.replace('_', ' ')}`}
+                                  ? 'Agency Review Trigger'
+                                  : `Custom: ${alert.reminderType.replace('_', ' ')}`}
                             </span>
 
                             {alert.agency && (
@@ -4180,11 +4302,10 @@ Official Seal & Endorsement`
                               type="button"
                               disabled={sendingEmailAlertId === alert.proposalId}
                               onClick={() => handleSendDeadlineEmailAlert(alert.proposalId, alert.title)}
-                              className={`px-3 py-1.5 rounded-[10px] font-bold text-xs transition-all cursor-pointer flex items-center gap-1 shadow-xs disabled:opacity-50 ${
-                                alert.urgency === 'critical'
-                                  ? 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 animate-pulse'
-                                  : 'bg-white hover:bg-purple-50 text-warm-gray-700 border border-warm-gray-300 hover:border-purple-300'
-                              }`}
+                              className={`px-3 py-1.5 rounded-[10px] font-bold text-xs transition-all cursor-pointer flex items-center gap-1 shadow-xs disabled:opacity-50 ${alert.urgency === 'critical'
+                                ? 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 animate-pulse'
+                                : 'bg-white hover:bg-purple-50 text-warm-gray-700 border border-warm-gray-300 hover:border-purple-300'
+                                }`}
                               title={
                                 alert.urgency === 'critical'
                                   ? 'Send Urgent Critical Deadline Email (<7 days left)'
@@ -4234,11 +4355,10 @@ Official Seal & Endorsement`
                             <button
                               type="button"
                               onClick={() => handleToggleReminder(alert.reminderObj._id)}
-                              className={`px-3 py-1.5 rounded-[10px] font-bold text-xs transition-all cursor-pointer flex items-center gap-1 shadow-xs border ${
-                                alert.isCompleted
-                                  ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
-                                  : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
-                              }`}
+                              className={`px-3 py-1.5 rounded-[10px] font-bold text-xs transition-all cursor-pointer flex items-center gap-1 shadow-xs border ${alert.isCompleted
+                                ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                                : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                                }`}
                             >
                               <span>{alert.isCompleted ? '↩️ Reopen' : '✓ Mark Complete'}</span>
                             </button>
@@ -4291,11 +4411,10 @@ Official Seal & Endorsement`
                         key={tf.key}
                         type="button"
                         onClick={() => setAnalyticsTimeframe(tf.key)}
-                        className={`px-3 py-1.5 rounded-[8px] text-xs font-bold transition-all cursor-pointer ${
-                          analyticsTimeframe === tf.key
-                            ? 'bg-primary text-white shadow-soft'
-                            : 'text-warm-gray-600 hover:text-warm-gray-900 hover:bg-cream/60'
-                        }`}
+                        className={`px-3 py-1.5 rounded-[8px] text-xs font-bold transition-all cursor-pointer ${analyticsTimeframe === tf.key
+                          ? 'bg-primary text-white shadow-soft'
+                          : 'text-warm-gray-600 hover:text-warm-gray-900 hover:bg-cream/60'
+                          }`}
                       >
                         {tf.label}
                       </button>
@@ -4857,13 +4976,20 @@ Official Seal & Endorsement`
                   <div className="bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-soft p-6">
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
                             17-Section Master Template
                           </span>
+                          {selectedProposalObj.isExternalGrant && (
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
+                              <span>🏛️</span> External Govt. Grant
+                            </span>
+                          )}
                           {selectedProposalObj.status === 'Submitted to Agency' ? (
                             <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-soft">
-                              🏛️ Submitted to Agency (Ref: {selectedProposalObj.agencySubmission?.agencySubmissionId || 'Dispatched'})
+                              {selectedProposalObj.isExternalGrant
+                                ? `🏛️ Applied Externally (Ref: ${selectedProposalObj.externalSubmission?.externalReferenceId || selectedProposalObj.agencySubmission?.agencySubmissionId || 'Recorded'})`
+                                : `🏛️ Submitted to Agency (Ref: ${selectedProposalObj.agencySubmission?.agencySubmissionId || 'Dispatched'})`}
                             </span>
                           ) : selectedProposalObj.status === 'Submitted to Admin' ? (
                             <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-50 text-green-700 border border-green-200 shadow-soft animate-pulse">
@@ -4874,8 +5000,28 @@ Official Seal & Endorsement`
                         <h2 className="font-heading text-xl font-bold text-warm-gray-900 mt-2">{selectedProposalObj.title}</h2>
                         <p className="text-xs text-warm-gray-500 mt-1">
                           Grant: <span className="font-semibold text-warm-gray-800">{selectedProposalObj.grantTitle || 'N/A'}</span> ({selectedProposalObj.grantAgency || 'Funding Agency'})
-                          {selectedProposalObj.deadline && <> &nbsp;•&nbsp; Deadline: {selectedProposalObj.deadline}</>}
+                          {selectedProposalObj.deadline && <>&nbsp;•&nbsp; Deadline: {selectedProposalObj.deadline}</>}
                         </p>
+                        {/* External Grant Portal Links */}
+                        {selectedProposalObj.isExternalGrant && (selectedProposalObj.externalGrantLinks?.applicationUrl || selectedProposalObj.externalGrantLinks?.infoUrl || selectedProposalObj.externalGrantLinks?.guidelinesUrl) && (
+                          <div className="flex items-center gap-2 mt-2 flex-wrap">
+                            {selectedProposalObj.externalGrantLinks.applicationUrl && (
+                              <a href={selectedProposalObj.externalGrantLinks.applicationUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-200 hover:bg-blue-100 transition-colors">
+                                🌐 Apply on Portal ↗
+                              </a>
+                            )}
+                            {selectedProposalObj.externalGrantLinks.infoUrl && (
+                              <a href={selectedProposalObj.externalGrantLinks.infoUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-warm-gray-50 text-warm-gray-700 text-xs font-semibold border border-warm-gray-200 hover:bg-warm-gray-100 transition-colors">
+                                📋 Grant Info ↗
+                              </a>
+                            )}
+                            {selectedProposalObj.externalGrantLinks.guidelinesUrl && (
+                              <a href={selectedProposalObj.externalGrantLinks.guidelinesUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-warm-gray-50 text-warm-gray-700 text-xs font-semibold border border-warm-gray-200 hover:bg-warm-gray-100 transition-colors">
+                                📄 Guidelines ↗
+                              </a>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2">
@@ -4897,6 +5043,12 @@ Official Seal & Endorsement`
                           className="px-4.5 py-2.5 rounded-[12px] bg-purple-600 text-white text-xs font-bold hover:bg-purple-700 transition-all cursor-pointer flex items-center gap-2 shadow-soft"
                         >
                           <span>📄</span> View & Export Final PDF
+                        </button>
+                        <button
+                          onClick={() => setInviteCollaboratorModal(true)}
+                          className="px-4.5 py-2.5 rounded-[12px] bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-all cursor-pointer flex items-center gap-2 shadow-soft"
+                        >
+                          <span>👤</span> Invite External Collaborator
                         </button>
                         <button
                           onClick={() => handleAutoAssignByRolePresets(selectedProposalObj._id)}
@@ -4958,7 +5110,36 @@ Official Seal & Endorsement`
 
                           {selectedProposalObj.status === 'Submitted to Agency' ? (
                             <div className="px-3.5 py-2 rounded-[10px] bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center gap-1.5 shadow-xs">
-                              <span>🏛️</span> Submitted to {selectedProposalObj.grantAgency || 'Agency'} (Ref: {selectedProposalObj.agencySubmission?.agencySubmissionId})
+                              <span>🏛️</span> {selectedProposalObj.isExternalGrant
+                                ? `Applied on ${selectedProposalObj.externalSubmission?.portalName || selectedProposalObj.grantAgency || 'Government Portal'} (Ref: ${selectedProposalObj.externalSubmission?.externalReferenceId || 'Recorded'})`
+                                : `Submitted to ${selectedProposalObj.grantAgency || 'Agency'} (Ref: ${selectedProposalObj.agencySubmission?.agencySubmissionId})`}
+                            </div>
+                          ) : selectedProposalObj.isExternalGrant ? (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {selectedProposalObj.externalGrantLinks?.applicationUrl && (
+                                <a
+                                  href={selectedProposalObj.externalGrantLinks.applicationUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-3.5 py-2.5 rounded-[12px] text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                                >
+                                  <span>🌐</span> Open Portal ({selectedProposalObj.grantAgency || 'Govt'}) ↗
+                                </a>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setExternalSubmitData({
+                                    externalReferenceId: '',
+                                    portalName: selectedProposalObj.grantAgency ? `${selectedProposalObj.grantAgency} Official Portal` : '',
+                                    notes: '',
+                                  })
+                                  setExternalSubmitModal(true)
+                                }}
+                                className="px-5 py-2.5 rounded-[12px] text-xs font-bold transition-all shadow-soft flex items-center gap-2 cursor-pointer bg-gradient-to-r from-amber-600 to-orange-600 text-white hover:opacity-95 shadow-md"
+                              >
+                                <span>🏛️</span> Mark as Applied Externally
+                              </button>
                             </div>
                           ) : (
                             <button
@@ -4970,16 +5151,27 @@ Official Seal & Endorsement`
                                 }
                                 setSubmitAgencyModal(true)
                               }}
-                              className={`px-5 py-2.5 rounded-[12px] text-xs font-bold transition-all shadow-soft flex items-center gap-2 cursor-pointer ${
-                                selectedProposalObj.preSubmissionChecklist?.endorsementLetter
-                                  ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white hover:opacity-95 shadow-md'
-                                  : 'bg-warm-gray-200 text-warm-gray-500 border border-warm-gray-300 cursor-not-allowed opacity-75'
-                              }`}
+                              className={`px-5 py-2.5 rounded-[12px] text-xs font-bold transition-all shadow-soft flex items-center gap-2 cursor-pointer ${selectedProposalObj.preSubmissionChecklist?.endorsementLetter
+                                ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white hover:opacity-95 shadow-md'
+                                : 'bg-warm-gray-200 text-warm-gray-500 border border-warm-gray-300 cursor-not-allowed opacity-75'
+                                }`}
                             >
                               <span>🚀</span> Submit to Funding Agency
                             </button>
                           )}
                         </div>
+
+                        {selectedProposalObj.isExternalGrant && selectedProposalObj.status !== 'Submitted to Agency' && (
+                          <div className="mb-4 p-3.5 rounded-[12px] bg-amber-50/80 border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5">
+                            <span className="text-base shrink-0">🏛️</span>
+                            <div className="leading-relaxed">
+                              <span className="font-bold">External Government Grant Notice ({selectedProposalObj.grantAgency || 'AICTE / DBT / DST / UGC'}):</span>
+                              <p className="mt-0.5 text-amber-800">
+                                This proposal targets an external government grant. Submit the complete dossier directly on the government body's official online portal. Once submitted, click <strong>"Mark as Applied Externally"</strong> above to record your reference/acknowledgement ID. The proposal will then enter your lifecycle pipeline for manual status tracking.
+                              </p>
+                            </div>
+                          </div>
+                        )}
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-cream/50 p-4 rounded-[14px] border border-warm-gray-200/80">
                           {COMPLIANCE_CHECKLIST_ITEMS.map((item) => {
@@ -4992,21 +5184,20 @@ Official Seal & Endorsement`
                                   if (isLocked) return
                                   handleToggleChecklist(selectedProposalObj._id, item.key)
                                 }}
-                                className={`p-3.5 rounded-[12px] border transition-all flex items-start gap-3 select-none ${
-                                  isLocked
-                                    ? isChecked
-                                      ? 'bg-white border-emerald-200 shadow-xs'
-                                      : 'bg-warm-gray-50 border-warm-gray-200 opacity-60'
-                                    : isChecked
+                                className={`p-3.5 rounded-[12px] border transition-all flex items-start gap-3 select-none ${isLocked
+                                  ? isChecked
+                                    ? 'bg-white border-emerald-200 shadow-xs'
+                                    : 'bg-warm-gray-50 border-warm-gray-200 opacity-60'
+                                  : isChecked
                                     ? 'bg-white border-emerald-300 shadow-xs cursor-pointer hover:border-emerald-400'
                                     : 'bg-white border-warm-gray-200 cursor-pointer hover:border-purple-300 hover:bg-purple-50/20'
-                                }`}
+                                  }`}
                               >
                                 <input
                                   type="checkbox"
                                   checked={isChecked}
                                   disabled={isLocked || updatingChecklistKey === item.key}
-                                  onChange={() => {}}
+                                  onChange={() => { }}
                                   className="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600 shrink-0"
                                 />
                                 <div className="flex-1 min-w-0">
@@ -5575,6 +5766,47 @@ Official Seal & Endorsement`
         </div>
       )}
 
+      {/* ─── Invite External Collaborator Modal ─── */}
+      {inviteCollaboratorModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 animate-fade-in">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={() => setInviteCollaboratorModal(false)} />
+          <div className="relative bg-white rounded-[24px] shadow-2xl w-full max-w-md overflow-hidden border border-warm-gray-200">
+            <div className="bg-blue-50/50 p-5 border-b border-blue-100 flex items-start justify-between">
+              <div>
+                <h2 className="font-heading text-xl font-bold text-warm-gray-900 mt-1">Invite External Collaborator</h2>
+                <p className="text-xs text-warm-gray-500 mt-1">Invite a user from another organization to collaborate on this proposal.</p>
+              </div>
+              <button onClick={() => setInviteCollaboratorModal(false)} className="text-warm-gray-400 hover:text-warm-gray-700 text-lg font-bold p-1 cursor-pointer">
+                ✕
+              </button>
+            </div>
+            <div className="p-6">
+              <form onSubmit={handleInviteCollaborator} className="space-y-4">
+                <div>
+                  <label className="text-xs font-bold text-warm-gray-700 block mb-1">Collaborator Email *</label>
+                  <input
+                    type="email"
+                    required
+                    value={collaboratorEmail}
+                    onChange={(e) => setCollaboratorEmail(e.target.value)}
+                    placeholder="e.g. peer@other-university.edu"
+                    className="w-full px-4 py-2.5 rounded-[12px] border border-warm-gray-200 bg-warm-gray-50/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/30 transition-all"
+                  />
+                </div>
+                <div className="flex justify-end gap-3 pt-4 border-t border-warm-gray-100 mt-6">
+                  <button type="button" onClick={() => setInviteCollaboratorModal(false)} className="px-5 py-2.5 rounded-[12px] text-warm-gray-600 text-sm font-bold hover:bg-warm-gray-100 transition-colors cursor-pointer">
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={inviteCollaboratorLoading} className="px-5 py-2.5 rounded-[12px] bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-50 transition-all cursor-pointer shadow-soft">
+                    {inviteCollaboratorLoading ? 'Inviting...' : 'Send Invite'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ─── Task Assignment Modal ─── */}
       {taskModalMember && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -5838,6 +6070,127 @@ Official Seal & Endorsement`
                   className="flex-1 py-2.5 rounded-[12px] font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-700 hover:opacity-95 shadow-soft transition-all text-xs cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
                 >
                   <span>🚀</span> {submittingAgency ? 'Submitting...' : 'Confirm Official Submission'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Mark as Applied Externally Modal (Scraped Government Grants) ─── */}
+      {externalSubmitModal && selectedProposalObj && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-xs" onClick={() => setExternalSubmitModal(false)} />
+          <div className="relative bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-2xl w-full max-w-lg p-6 sm:p-8 animate-fade-up">
+            <div className="flex items-center justify-between pb-4 border-b border-warm-gray-200/60 mb-5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-[10px] bg-amber-100 text-amber-800 font-bold flex items-center justify-center text-lg">
+                  🏛️
+                </div>
+                <div>
+                  <h2 className="font-heading text-lg font-bold text-warm-gray-900">
+                    Mark as Applied Externally
+                  </h2>
+                  <p className="text-xs text-warm-gray-500">
+                    Government Body: {selectedProposalObj.grantAgency || 'AICTE / DBT / DST / UGC'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setExternalSubmitModal(false)}
+                className="text-warm-gray-400 hover:text-warm-gray-700 text-lg font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mb-4 p-3.5 rounded-[12px] bg-amber-50 border border-amber-200 text-xs text-amber-900 leading-relaxed">
+              <p className="font-bold flex items-center gap-1.5 mb-1">
+                <span>🏛️</span> Official Portal Submission
+              </p>
+              <p className="text-xs text-amber-800">
+                Record the official application acknowledgement or reference number issued by <strong>{selectedProposalObj.grantAgency || 'the government agency'}</strong>. The proposal will then enter your post-submission tracking pipeline for manual stage updates (Under Evaluation, Revisions, Awarded).
+              </p>
+              {selectedProposalObj.externalGrantLinks?.applicationUrl && (
+                <div className="mt-2 pt-2 border-t border-amber-200/70 flex items-center justify-between">
+                  <span className="text-[11px] text-amber-700 font-medium">Official Portal:</span>
+                  <a
+                    href={selectedProposalObj.externalGrantLinks.applicationUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-bold text-blue-700 hover:underline text-xs"
+                  >
+                    Open Application Portal ↗
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <form onSubmit={handleMarkAppliedExternally} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-warm-gray-800 mb-1.5">
+                  External Reference / Acknowledgement ID <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={externalSubmitData.externalReferenceId}
+                  onChange={(e) =>
+                    setExternalSubmitData((prev) => ({ ...prev, externalReferenceId: e.target.value }))
+                  }
+                  placeholder="e.g. DST/SERB/CRG/2026/001234 or UGC/2026/MRP-8841"
+                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-warm-gray-200 bg-white text-xs font-mono font-bold text-warm-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                />
+                <p className="text-xs text-warm-gray-500 mt-1">
+                  Issued upon completing application on e-PMS (DST/SERB), e-Samarth/UGC, AICTE portal, or DBT e-ProMIS.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-warm-gray-800 mb-1.5">
+                  Government Portal Name (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={externalSubmitData.portalName}
+                  onChange={(e) =>
+                    setExternalSubmitData((prev) => ({ ...prev, portalName: e.target.value }))
+                  }
+                  placeholder={`e.g. ${selectedProposalObj.grantAgency || 'DST'} e-PMS Portal`}
+                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-warm-gray-200 bg-white text-xs text-warm-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-warm-gray-800 mb-1.5">
+                  Submission Notes / Acknowledgement Details (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={externalSubmitData.notes}
+                  onChange={(e) =>
+                    setExternalSubmitData((prev) => ({ ...prev, notes: e.target.value }))
+                  }
+                  placeholder="e.g. Uploaded final dossier with signed endorsement certificate. Technical review decision expected in 90 days."
+                  className="w-full px-3.5 py-2.5 rounded-[10px] border border-warm-gray-200 bg-white text-xs text-warm-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 resize-none"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setExternalSubmitModal(false)}
+                  className="flex-1 py-2.5 rounded-[12px] font-semibold text-warm-gray-600 hover:bg-warm-gray-100 transition-all text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingExternal || !externalSubmitData.externalReferenceId.trim()}
+                  className="flex-1 py-2.5 rounded-[12px] font-bold text-white bg-gradient-to-r from-amber-600 to-orange-600 hover:opacity-95 shadow-soft transition-all text-xs cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  <span>🏛️</span> {submittingExternal ? 'Recording...' : 'Record External Application'}
                 </button>
               </div>
             </form>
@@ -6452,11 +6805,10 @@ Official Seal & Endorsement`
                       key={t.key}
                       type="button"
                       onClick={() => setReminderForm({ ...reminderForm, reminderType: t.key })}
-                      className={`px-2.5 py-1.5 rounded-[8px] text-xs font-bold text-left transition-all cursor-pointer border ${
-                        reminderForm.reminderType === t.key
-                          ? 'bg-primary-50 text-primary border-primary font-bold shadow-xs'
-                          : 'bg-cream/40 text-warm-gray-700 border-warm-gray-200 hover:bg-cream'
-                      }`}
+                      className={`px-2.5 py-1.5 rounded-[8px] text-xs font-bold text-left transition-all cursor-pointer border ${reminderForm.reminderType === t.key
+                        ? 'bg-primary-50 text-primary border-primary font-bold shadow-xs'
+                        : 'bg-cream/40 text-warm-gray-700 border-warm-gray-200 hover:bg-cream'
+                        }`}
                     >
                       {t.label}
                     </button>
@@ -6566,11 +6918,10 @@ Official Seal & Endorsement`
                     showToast('✓ Enquiry letter copied to clipboard!')
                     setTimeout(() => setCopiedLetter(false), 2000)
                   }}
-                  className={`px-4 py-2 rounded-[10px] text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-soft ${
-                    copiedLetter
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-primary text-white hover:bg-primary-dark'
-                  }`}
+                  className={`px-4 py-2 rounded-[10px] text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-soft ${copiedLetter
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-primary text-white hover:bg-primary-dark'
+                    }`}
                 >
                   <span>{copiedLetter ? '✓' : '📋'}</span>
                   {copiedLetter ? 'Copied to Clipboard!' : 'Copy Letter Text'}

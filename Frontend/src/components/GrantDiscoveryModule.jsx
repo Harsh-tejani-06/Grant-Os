@@ -26,20 +26,26 @@ export const STATUS_OPTIONS = [
   { value: 'Closing Soon', label: 'Closing Soon' },
 ]
 
-// Fallback agencies so dropdown is populated immediately even before network response
+// Fallback agencies strictly restricted to AICTE, DBT, DST, and UGC
 export const DEFAULT_GOV_AGENCIES = [
   { value: 'AICTE', label: 'AICTE (All India Council for Technical Education)' },
-  { value: 'CSIR', label: 'CSIR (Council of Scientific and Industrial Research)' },
   { value: 'DBT', label: 'DBT (Department of Biotechnology)' },
   { value: 'DST', label: 'DST (Department of Science and Technology)' },
-  { value: 'ICMR', label: 'ICMR (Indian Council of Medical Research)' },
-  { value: 'SERB', label: 'SERB (Science and Engineering Research Board)' },
   { value: 'UGC', label: 'UGC (University Grants Commission)' },
 ]
 
 export const DEFAULT_PRIVATE_AGENCIES = [
   { value: 'TechNova Research Foundation', label: 'TechNova Research Foundation (TRF)' },
   { value: 'Tejani Group', label: 'Tejani Group' },
+]
+
+export const INDIAN_STATES = [
+  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+  'Delhi', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh',
+  'Jammu and Kashmir', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh',
+  'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland',
+  'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
+  'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal'
 ]
 
 // Helper: Format grant category for clean display
@@ -184,11 +190,22 @@ export function GrantCard({ grant, index = 0, onSelect }) {
         </div>
       </div>
 
-      {/* Card Footer: Category tag & Similarity percentage (Requirement 5: Similarity percentage for all) */}
+      {/* Card Footer: Category tag, Region badge & Similarity percentage */}
       <div className="px-5 py-3 border-t border-warm-gray-200/50 bg-warm-gray-50/40 flex items-center justify-between gap-2">
-        <span className="px-2 py-0.5 rounded-md bg-surface-elevated text-warm-gray-600 text-xs font-medium border border-warm-gray-200/60 truncate max-w-[170px]">
-          {formatGrantCategory(grant)}
-        </span>
+        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+          <span className="px-2 py-0.5 rounded-md bg-surface-elevated text-warm-gray-600 text-xs font-medium border border-warm-gray-200/60 truncate max-w-[140px]">
+            {formatGrantCategory(grant)}
+          </span>
+          {grant.regionDisplay && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary-50 text-primary text-xs font-semibold border border-primary/20 truncate max-w-[150px]"
+              title={`Region: ${grant.regionDisplay}`}
+            >
+              <span className="text-[10px]">📍</span>
+              {grant.regionDisplay}
+            </span>
+          )}
+        </div>
         <MatchBar percentage={grant.matchPercentage} compact />
       </div>
     </div>
@@ -298,7 +315,7 @@ export function GrantDetailPanel({
         {/* Scrollable Body */}
         <div className="overflow-y-auto p-6 space-y-5 flex-1">
           {/* Key Info Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-cream rounded-[12px] p-3 border border-warm-gray-200/50">
               <p className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-0.5">
                 Funding Amount
@@ -315,8 +332,16 @@ export function GrantDetailPanel({
                 {formatDeadlineDisplay(grant.deadlineDisplay)}
               </p>
             </div>
+            <div className="bg-cream rounded-[12px] p-3 border border-warm-gray-200/50">
+              <p className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-0.5">
+                Region / Scope
+              </p>
+              <p className="text-sm font-bold text-warm-gray-900 truncate" title={grant.regionDisplay || grant.geographicScope || 'Pan-India (National)'}>
+                {grant.regionDisplay || grant.geographicScope || 'Pan-India (National)'}
+              </p>
+            </div>
             {grant.durationDisplay && (
-              <div className="bg-cream rounded-[12px] p-3 border border-warm-gray-200/50 col-span-2 sm:col-span-1">
+              <div className="bg-cream rounded-[12px] p-3 border border-warm-gray-200/50">
                 <p className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-0.5">
                   Duration
                 </p>
@@ -415,6 +440,25 @@ export function GrantDetailPanel({
                 </div>
               </div>
             )}
+
+          {/* Eligible States & Territories */}
+          {grant.eligibleStates && grant.eligibleStates.length > 0 && (
+            <div>
+              <h3 className="font-heading text-sm font-bold text-warm-gray-900 mb-2">
+                Eligible States & Territories
+              </h3>
+              <div className="flex flex-wrap gap-1.5">
+                {grant.eligibleStates.map((st, i) => (
+                  <span
+                    key={i}
+                    className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-semibold border border-emerald-200/80 flex items-center gap-1"
+                  >
+                    <span>📍</span> {st}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Notifications & Feedback */}
@@ -617,6 +661,8 @@ export default function GrantDiscoveryModule({
   const [category, setCategory] = useState('all')
   const [status, setStatus] = useState('all')
   const [agencyFilter, setAgencyFilter] = useState('all')
+  const [regionFilter, setRegionFilter] = useState('all')
+  const [orgState, setOrgState] = useState('')
 
   // Loading & detail states
   const [grantsLoading, setGrantsLoading] = useState(false)
@@ -647,6 +693,7 @@ export default function GrantDiscoveryModule({
         if (category !== 'all') params.category = category
         if (status !== 'all') params.status = status
         if (agencyFilter !== 'all') params.agencyFilter = agencyFilter
+        if (regionFilter !== 'all') params.region = regionFilter
 
         const res = await api.get('/org/grants/discover', { params })
         if (res.data?.success) {
@@ -660,9 +707,18 @@ export default function GrantDiscoveryModule({
           setGrantosTotalPages(res.data.grantos?.totalPages || 0)
           if (res.data.grantos?.page) setGrantosPage(res.data.grantos.page)
 
-          // Merge loaded agencies with defaults so standard ones always exist
+          if (res.data.filters?.orgState) {
+            setOrgState(res.data.filters.orgState)
+          }
+
+          // Merge loaded agencies with defaults strictly restricted to AICTE, DBT, DST, UGC
           if (res.data.filters?.govAgencies && res.data.filters.govAgencies.length > 0) {
-            setGovAgencyOptions(res.data.filters.govAgencies)
+            const allowedGov = ['aicte', 'dst', 'serb', 'ugc', 'dbt']
+            const filteredGov = res.data.filters.govAgencies.filter((item) => {
+              const val = (typeof item === 'string' ? item : item.value || item.name || '').toLowerCase()
+              return allowedGov.some((k) => val.includes(k))
+            })
+            setGovAgencyOptions(filteredGov.length > 0 ? filteredGov : DEFAULT_GOV_AGENCIES)
           }
           if (res.data.filters?.grantosAgencies && res.data.filters.grantosAgencies.length > 0) {
             const govKeywords = ['aicte', 'dst', 'serb', 'ugc', 'dbt', 'csir', 'icmr', 'drdo', 'isro']
@@ -679,7 +735,7 @@ export default function GrantDiscoveryModule({
         setGrantsLoading(false)
       }
     },
-    [search, category, status, agencyFilter, govPage, grantosPage]
+    [search, category, status, agencyFilter, regionFilter, govPage, grantosPage]
   )
 
   // Debounced search & filter trigger
@@ -693,7 +749,7 @@ export default function GrantDiscoveryModule({
     return () => {
       if (debounceTimer.current) clearTimeout(debounceTimer.current)
     }
-  }, [search, category, status, agencyFilter])
+  }, [search, category, status, agencyFilter, regionFilter])
 
   // Close detail panel on Escape key
   useEffect(() => {
@@ -763,12 +819,24 @@ export default function GrantDiscoveryModule({
     setCategory('all')
     setStatus('all')
     setAgencyFilter('all')
+    setRegionFilter('all')
   }
 
   const totalGrants = govTotal + grantosTotal
   const hasActiveFilters = Boolean(
-    search || category !== 'all' || status !== 'all' || agencyFilter !== 'all'
+    search || category !== 'all' || status !== 'all' || agencyFilter !== 'all' || regionFilter !== 'all'
   )
+
+  // Selected region display label for human-readable filter chips
+  const selectedRegionLabel = useMemo(() => {
+    if (regionFilter === 'all') return ''
+    if (regionFilter === 'my_state') return `My State: ${orgState || 'Local'}`
+    if (regionFilter === 'National') return 'Pan-India / National'
+    if (regionFilter === 'State') return 'State / Regional Specific'
+    if (regionFilter === 'International') return 'International / Global'
+    if (regionFilter === 'NER') return 'North Eastern Region (NER)'
+    return regionFilter
+  }, [regionFilter, orgState])
 
   // Selected agency display label for human-readable filter chips
   const selectedAgencyLabel = useMemo(() => {
@@ -1040,12 +1108,53 @@ export default function GrantDiscoveryModule({
               </>
             )}
           </select>
+
+          {/* Region dropdown filter */}
+          <select
+            value={regionFilter}
+            onChange={(e) => setRegionFilter(e.target.value)}
+            className="px-3 py-2 rounded-[10px] bg-cream border border-warm-gray-200 text-warm-gray-700 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer min-w-[170px] max-w-[260px] truncate"
+            id="grant-region-filter"
+            title="Filter grants by geographic region or state"
+          >
+            <option value="all">🌐 All Regions & Scopes</option>
+            {orgState && (
+              <option value="my_state">🎯 My State: {orgState} (Eligible)</option>
+            )}
+            <optgroup label="Geographic Scope">
+              <option value="National">🇮🇳 Pan-India / National Schemes</option>
+              <option value="State">🏛️ State / Regional Specific</option>
+              <option value="International">🌍 International / Global</option>
+            </optgroup>
+            <optgroup label="Priority Regional Zones">
+              <option value="NER">🏔️ North Eastern Region (NER)</option>
+            </optgroup>
+            <optgroup label="Specific Indian States">
+              {INDIAN_STATES.map((st) => (
+                <option key={st} value={st}>
+                  {st}
+                </option>
+              ))}
+            </optgroup>
+          </select>
         </div>
 
         {/* Active filter chips */}
         {hasActiveFilters && (
           <div className="flex items-center gap-2 flex-wrap mt-3 pt-3 border-t border-warm-gray-200/50 text-xs">
             <span className="text-warm-gray-400 font-medium">Active filters:</span>
+            {regionFilter !== 'all' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold bg-primary-50 text-primary border border-primary/20">
+                Region: {selectedRegionLabel}
+                <button
+                  onClick={() => setRegionFilter('all')}
+                  className="hover:text-primary-dark cursor-pointer font-bold"
+                  title="Remove region filter"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
             {agencyFilter !== 'all' && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-semibold bg-primary-50 text-primary border border-primary/20">
                 Organization: {selectedAgencyLabel}
@@ -1141,7 +1250,7 @@ export default function GrantDiscoveryModule({
           <SectionHeader
             icon="🏛️"
             title="Government & Other Sources"
-            subtitle="Grants from DST, SERB, AICTE, UGC, DBT, and state research councils"
+            subtitle="Official research grants from AICTE, DBT, DST, and UGC"
             count={govTotal}
             accentColor="primary"
           />

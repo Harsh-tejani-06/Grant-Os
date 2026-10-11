@@ -24,10 +24,13 @@ const {
   submitToAdmin,
   updatePreSubmissionChecklist,
   submitToAgency,
+  markAppliedExternally,
   updateProposalTrackingStatus,
 
   // Proposal Management
   deleteProposal,
+  inviteCollaborator,
+  removeCollaborator,
 
   // Grant / Organization Routes
   getOpenGrantPrograms,
@@ -197,6 +200,16 @@ router.put(
 );
 
 
+// PUT /api/proposals/:proposalId/mark-applied-externally
+// Org Admin marks a scraped/government grant proposal as applied on external portal
+router.put(
+  '/:proposalId/mark-applied-externally',
+  protect,
+  requireRole('org_admin'),
+  markAppliedExternally
+);
+
+
 // PUT /api/proposals/:proposalId/tracking-status
 // Update proposal lifecycle tracking status
 router.put(
@@ -271,6 +284,26 @@ router.delete(
   protect,
   requireRole('org_admin'),
   deleteProposal
+);
+
+
+// POST /api/proposals/:proposalId/collaborators
+// Invite an external collaborator to the proposal
+router.post(
+  '/:proposalId/collaborators',
+  protect,
+  requireRole('org_admin'),
+  inviteCollaborator
+);
+
+
+// DELETE /api/proposals/:proposalId/collaborators/:userId
+// Remove an external collaborator from the proposal
+router.delete(
+  '/:proposalId/collaborators/:userId',
+  protect,
+  requireRole('org_admin'),
+  removeCollaborator
 );
 
 

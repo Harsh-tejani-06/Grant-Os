@@ -278,6 +278,22 @@ const GrantListingSchema = new Schema(
       default: [],
     },
 
+    geographicScope: {
+      type: String,
+      enum: ['Local', 'State', 'National', 'International', ''],
+      default: 'National',
+    },
+
+    eligibleStates: {
+      type: [String],
+      default: [],
+    },
+
+    region: {
+      type: String,
+      default: '',
+    },
+
     status: { type: String, enum: GRANT_STATUS, default: 'unknown' },
 
     source: { type: SourceSchema, required: true },

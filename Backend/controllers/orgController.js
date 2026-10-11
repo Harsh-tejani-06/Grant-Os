@@ -195,6 +195,122 @@ const getOrgStatus = async (req, res) => {
   }
 };
 
+// ─── Regional / Geographic Scope Helpers for Grant Discovery ───
+const INDIAN_STATES_LIST = [
+  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+  'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand',
+  'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur',
+  'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab',
+  'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura',
+  'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Delhi', 'Jammu and Kashmir',
+  'Ladakh', 'Puducherry', 'Chandigarh'
+];
+
+function getGrantListingGeography(grant) {
+  let geographicScope = grant.geographicScope || 'National';
+  let eligibleStates = Array.isArray(grant.eligibleStates) && grant.eligibleStates.length > 0
+    ? [...grant.eligibleStates]
+    : [];
+
+  const text = `${grant.title || ''} ${grant.description || ''} ${grant.eligibilityText || ''} ${grant.categoryRaw || ''}`;
+
+  if (!grant.geographicScope || grant.geographicScope === 'National') {
+    if (/\b(bilateral|multilateral|international|indo-|global|brics|asean|eu|horizon)\b/i.test(text)) {
+      geographicScope = 'International';
+    } else if (/\b(ner|north\s*east|north\s*eastern)\b/i.test(text)) {
+      geographicScope = 'State';
+      if (!eligibleStates.some((s) => /ner|north\s*east/i.test(s))) {
+        eligibleStates.push('North Eastern Region (NER)');
+      }
+    }
+  }
+
+  // Detect specific Indian states mentioned in text if empty
+  if (eligibleStates.length === 0) {
+    for (const st of INDIAN_STATES_LIST) {
+      const regex = new RegExp(`\\b${st}\\b`, 'i');
+      if (regex.test(text)) {
+        eligibleStates.push(st);
+      }
+    }
+  }
+
+  let regionDisplay = 'Pan-India (National)';
+  if (geographicScope === 'International') {
+    regionDisplay = 'International / Global';
+  } else if (geographicScope === 'State') {
+    regionDisplay = eligibleStates.length > 0 ? eligibleStates.join(', ') : 'State / Regional';
+  } else if (geographicScope === 'Local') {
+    regionDisplay = 'Local / Institutional';
+  } else if (eligibleStates.length > 0) {
+    regionDisplay = `Pan-India (${eligibleStates.join(', ')})`;
+  }
+
+  return { geographicScope, eligibleStates, regionDisplay, hqState: '' };
+}
+
+function getGrantProgramGeography(program) {
+  const geographicScope = program.eligibility?.geographicScope || program.fundingAgency?.geographicScope || 'National';
+  let eligibleStates = Array.isArray(program.eligibility?.eligibleStates) && program.eligibility.eligibleStates.length > 0
+    ? [...program.eligibility.eligibleStates]
+    : (Array.isArray(program.fundingAgency?.fundingStates) ? [...program.fundingAgency.fundingStates] : []);
+
+  const hqState = program.fundingAgency?.headquarters?.state || '';
+  if (eligibleStates.length === 0 && hqState && geographicScope === 'State') {
+    eligibleStates.push(hqState);
+  }
+
+  let regionDisplay = 'Pan-India (National)';
+  if (geographicScope === 'International') {
+    regionDisplay = 'International / Global';
+  } else if (geographicScope === 'State') {
+    regionDisplay = eligibleStates.length > 0 ? eligibleStates.join(', ') : (hqState ? `${hqState} (State)` : 'State / Regional');
+  } else if (geographicScope === 'Local') {
+    regionDisplay = 'Local / Institutional';
+  } else if (eligibleStates.length > 0) {
+    regionDisplay = `Pan-India (${eligibleStates.join(', ')})`;
+  }
+
+  return { geographicScope, eligibleStates, regionDisplay, hqState };
+}
+
+function matchesRegionFilter(item, regionFilter, orgState) {
+  if (!regionFilter || regionFilter === 'all') return true;
+
+  const scope = (item.geographicScope || '').toLowerCase();
+  const states = (item.eligibleStates || []).map((s) => s.toLowerCase());
+  const hq = (item.hqState || '').toLowerCase();
+  const normFilter = regionFilter.trim().toLowerCase();
+  const orgStateLower = (orgState || '').trim().toLowerCase();
+
+  // Contextual "my_state" filter: grants open to org's state
+  if (normFilter === 'my_state') {
+    if (!orgStateLower) return true;
+    if (scope === 'national') return true;
+    if (states.some((s) => s.includes(orgStateLower) || orgStateLower.includes(s))) return true;
+    if (hq && (hq.includes(orgStateLower) || orgStateLower.includes(hq))) return true;
+    return false;
+  }
+
+  // Direct Scope Matches
+  if (normFilter === 'national') return scope === 'national';
+  if (normFilter === 'international') return scope === 'international';
+  if (normFilter === 'state') return scope === 'state' || states.length > 0;
+  if (normFilter === 'local') return scope === 'local';
+
+  // NER match
+  if (normFilter === 'ner' || normFilter.includes('north east')) {
+    const nerKeywords = ['ner', 'north east', 'assam', 'meghalaya', 'manipur', 'mizoram', 'nagaland', 'tripura', 'sikkim', 'arunachal'];
+    return states.some((s) => nerKeywords.some((k) => s.includes(k)));
+  }
+
+  // Specific state match (e.g. 'gujarat', 'maharashtra', etc.)
+  if (states.some((s) => s.includes(normFilter) || normFilter.includes(s))) return true;
+  if (hq && (hq.includes(normFilter) || normFilter.includes(hq))) return true;
+
+  return false;
+}
+
 // @desc    Discover grants ranked by semantic similarity to org profile
 //          Returns government/scraped grants AND GrantOS funding agency grants
 //          as two separate sections, plus dropdown filter options for each.
@@ -227,7 +343,7 @@ const discoverGrants = async (req, res) => {
     const orgEmbedding = org.embedding && org.embedding.length === 768 ? org.embedding : null;
 
     // ── 2. Build grant query ──
-    const { search, category, status, page = 1, limit = 20, agencyFilter, sourceTab, govPage, grantosPage } = req.query;
+    const { search, category, status, page = 1, limit = 20, agencyFilter, sourceTab, govPage, grantosPage, region } = req.query;
     const filter = { isActive: true };
 
     // Status filter — maps to GrantListing.status
@@ -246,7 +362,7 @@ const discoverGrants = async (req, res) => {
       filter.grantType = category;
     }
 
-    // Agency acronym & alias helper
+    // Agency acronym & alias helper — strictly restricted to AICTE, DBT, DST, UGC
     const GOV_ACRONYMS = {
       'Department of Science and Technology': 'DST',
       'Dept of Science and Technology': 'DST',
@@ -255,10 +371,6 @@ const discoverGrants = async (req, res) => {
       'University Grants Commission': 'UGC',
       'Department of Biotechnology': 'DBT',
       'Dept of Biotechnology': 'DBT',
-      'Council of Scientific and Industrial Research': 'CSIR',
-      'Indian Council of Medical Research': 'ICMR',
-      'Indian Space Research Organisation': 'ISRO',
-      'Defence Research and Development Organisation': 'DRDO',
     };
 
     const ACRONYM_TO_FULL = {
@@ -267,10 +379,6 @@ const discoverGrants = async (req, res) => {
       'aicte': 'All India Council for Technical Education',
       'ugc': 'University Grants Commission',
       'dbt': 'Department of Biotechnology',
-      'csir': 'Council of Scientific and Industrial Research',
-      'icmr': 'Indian Council of Medical Research',
-      'isro': 'Indian Space Research Organisation',
-      'drdo': 'Defence Research and Development Organisation',
     };
 
     let agencyRegex = null;
@@ -375,6 +483,8 @@ const discoverGrants = async (req, res) => {
         }
       }
 
+      const geo = getGrantListingGeography(grant);
+
       return {
         _id: grant._id,
         title: grant.title,
@@ -387,6 +497,10 @@ const discoverGrants = async (req, res) => {
         displayStatus,
         matchPercentage,
         _similarity,
+        geographicScope: geo.geographicScope,
+        eligibleStates: geo.eligibleStates,
+        regionDisplay: geo.regionDisplay,
+        hqState: geo.hqState,
         infoUrl: grant.links?.infoUrl || '',
         applicationUrl: grant.links?.applicationUrl || '',
         description: grant.description || '',
@@ -412,7 +526,13 @@ const discoverGrants = async (req, res) => {
     }
 
     // ── 6. Separate into government (scraped) and GrantOS (agency_submitted) ──
-    const govGrants = filtered.filter((g) => g.sourceType === 'scraped');
+    // Strictly restrict scraped government grants to AICTE, DBT, DST, and UGC
+    const ALLOWED_GOV_REGEX = /^(aicte|dbt|dst|ugc|serb)$|all india council for technical education|department of biotechnology|dept of biotechnology|department of science and technology|dept of science and technology|science and engineering research board|university grants commission/i;
+    const govGrants = filtered.filter((g) => {
+      if (g.sourceType !== 'scraped') return false;
+      const agencyText = `${g.agencyName || ''} ${g.source?.website || ''}`;
+      return ALLOWED_GOV_REGEX.test(agencyText);
+    });
     const grantosGrants = filtered.filter((g) => g.sourceType === 'agency_submitted');
 
     // ── 6a. Also fetch GrantProgram entries from approved funding agencies ──
@@ -524,6 +644,8 @@ const discoverGrants = async (req, res) => {
         }
       }
 
+      const progGeo = getGrantProgramGeography(program);
+
       return {
         _id: program._id,
         title: program.title,
@@ -545,6 +667,10 @@ const discoverGrants = async (req, res) => {
         displayStatus,
         matchPercentage,
         _similarity,
+        geographicScope: progGeo.geographicScope,
+        eligibleStates: progGeo.eligibleStates,
+        regionDisplay: progGeo.regionDisplay,
+        hqState: progGeo.hqState,
         description: program.description || '',
         eligibilityText: program.eligibilityRulesText || '',
         applicationProcedure: program.applicationProcess || '',
@@ -629,21 +755,30 @@ const discoverGrants = async (req, res) => {
       })
       .sort((a, b) => a.label.localeCompare(b.label));
 
+    // ── 7a. Apply Region Filter across both Government & GrantOS datasets ──
+    const orgState = org.address?.state || '';
+    let finalGovGrants = govGrants;
+    let combinedGrantos = [...grantosGrants, ...filteredPrograms];
+
+    if (region && region !== 'all') {
+      finalGovGrants = govGrants.filter((g) => matchesRegionFilter(g, region, orgState));
+      combinedGrantos = combinedGrantos.filter((g) => matchesRegionFilter(g, region, orgState));
+    }
+
     // ── 8. Paginate the data ──
     const limitNum = Math.min(50, Math.max(1, parseInt(limit, 10) || 20));
 
     // Government pagination
     const govPageNum = Math.max(1, parseInt(govPage || page, 10) || 1);
     const govStartIdx = (govPageNum - 1) * limitNum;
-    const govPaginated = govGrants.slice(govStartIdx, govStartIdx + limitNum);
+    const govPaginated = finalGovGrants.slice(govStartIdx, govStartIdx + limitNum);
 
     // GrantOS pagination (listings + programs combined)
-    const allGrantosItems = [...grantosGrants, ...filteredPrograms];
-    allGrantosItems.sort((a, b) => (b.matchPercentage || 0) - (a.matchPercentage || 0));
+    combinedGrantos.sort((a, b) => (b.matchPercentage || 0) - (a.matchPercentage || 0));
 
     const grantosPageNum = Math.max(1, parseInt(grantosPage || page, 10) || 1);
     const grantosStartIdx = (grantosPageNum - 1) * limitNum;
-    const grantosPaginated = allGrantosItems.slice(grantosStartIdx, grantosStartIdx + limitNum);
+    const grantosPaginated = combinedGrantos.slice(grantosStartIdx, grantosStartIdx + limitNum);
 
     // Strip _similarity field before sending
     const cleanGovGrants = govPaginated.map(({ _similarity, ...rest }) => rest);
@@ -653,25 +788,26 @@ const discoverGrants = async (req, res) => {
       success: true,
       government: {
         grants: cleanGovGrants,
-        total: govGrants.length,
+        total: finalGovGrants.length,
         page: govPageNum,
-        totalPages: Math.ceil(govGrants.length / limitNum),
+        totalPages: Math.ceil(finalGovGrants.length / limitNum),
       },
       grantos: {
         grants: cleanGrantosGrants,
-        total: allGrantosItems.length,
+        total: combinedGrantos.length,
         page: grantosPageNum,
-        totalPages: Math.ceil(allGrantosItems.length / limitNum),
+        totalPages: Math.ceil(combinedGrantos.length / limitNum),
       },
       filters: {
         govAgencies: govAgencyOptions,
         grantosAgencies: grantosAgencyOptions,
+        orgState,
       },
       pagination: {
         page: govPageNum,
         limit: limitNum,
-        total: govGrants.length,
-        totalPages: Math.ceil(govGrants.length / limitNum),
+        total: finalGovGrants.length,
+        totalPages: Math.ceil(finalGovGrants.length / limitNum),
       },
       grants: cleanGovGrants,
     });

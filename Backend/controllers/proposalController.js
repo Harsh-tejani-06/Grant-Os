@@ -3,6 +3,7 @@ const GrantListing = require('../models/GrantListing');
 const GrantProgram = require('../models/GrantProgram');
 const FundingAgency = require('../models/FundingAgency');
 const Organization = require('../models/Organization');
+const User = require('../models/User');
 const socketHelper = require('../socket');
 
 // ─────────────────────────────────────────────────────────────
@@ -176,6 +177,7 @@ exports.getMyAssignedProposals = async (req, res) => {
       $or: [
         { 'sections.assignedTo': userId },
         { organization: orgId },
+        { collaborators: userId },
       ],
     }).sort({ updatedAt: -1 });
 
@@ -239,8 +241,9 @@ exports.getMyAssignedProposals = async (req, res) => {
 
     let result = proposals.map((proposal) => {
       const proposalObj = proposal.toObject();
+      const isCollaborator = proposalObj.collaborators && proposalObj.collaborators.some(c => c.toString() === userId.toString());
 
-      if (!isPIOrAdmin) {
+      if (!isPIOrAdmin && !isCollaborator) {
         proposalObj.sections =
           proposalObj.sections.filter(
             (section) =>
@@ -2439,6 +2442,31 @@ exports.createProposal = async (
       }
     }
 
+    // ── External / scraped grant enrichment ──
+    // When creating from a scraped GrantListing (AICTE, DBT, DST, UGC),
+    // fetch the listing to auto-populate external portal links.
+    let isExternalGrant = false;
+    let externalGrantLinks = {};
+
+    if (grantListingId) {
+      const listing =
+        await GrantListing.findById(
+          grantListingId
+        );
+
+      if (listing) {
+        isExternalGrant = true;
+        externalGrantLinks = {
+          applicationUrl:
+            listing.links?.applicationUrl || '',
+          infoUrl:
+            listing.links?.infoUrl || '',
+          guidelinesUrl:
+            listing.links?.guidelinesUrl || '',
+        };
+      }
+    }
+
     let linkedProgram = null;
 
     let eligibilitySnapshot = {
@@ -2576,6 +2604,9 @@ exports.createProposal = async (
           grantListingId ||
           null,
 
+        isExternalGrant,
+        externalGrantLinks,
+
         grantProgram:
           linkedProgram
             ? linkedProgram._id
@@ -2602,6 +2633,185 @@ exports.createProposal = async (
   } catch (error) {
     console.error(
       'Error creating proposal:',
+      error
+    );
+
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// MARK APPLIED EXTERNALLY (Scraped / Government Grants)
+// ─────────────────────────────────────────────────────────────
+
+// @route PUT /api/proposals/:proposalId/mark-applied-externally
+// Records that the org admin has applied for this scraped grant
+// on the external government portal (AICTE, DBT, DST, UGC).
+// Transitions the proposal into the post-submission tracking pipeline.
+exports.markAppliedExternally = async (
+  req,
+  res
+) => {
+  try {
+    const { proposalId } = req.params;
+
+    const {
+      externalReferenceId,
+      portalName,
+      notes,
+    } = req.body;
+
+    if (
+      !externalReferenceId ||
+      !externalReferenceId.trim()
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'External Reference / Confirmation ID is required (e.g., DST/SERB/CRG/2026/001234).',
+      });
+    }
+
+    const proposal =
+      await Proposal.findById(proposalId);
+
+    if (!proposal) {
+      return res.status(404).json({
+        success: false,
+        message: 'Proposal not found',
+      });
+    }
+
+    if (!proposal.isExternalGrant) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'This action is only available for external/government grant proposals.',
+      });
+    }
+
+    if (
+      proposal.externalSubmission?.isApplied
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'This proposal has already been marked as applied externally.',
+      });
+    }
+
+    // Record external submission details
+    proposal.externalSubmission = {
+      isApplied: true,
+      appliedAt: new Date(),
+      appliedBy: req.user._id,
+      appliedByName: req.user.fullName,
+      externalReferenceId:
+        externalReferenceId.trim(),
+      portalName:
+        portalName
+          ? portalName.trim()
+          : '',
+      notes:
+        notes ? notes.trim() : '',
+    };
+
+    // Transition to post-submission tracking
+    proposal.status = 'Submitted to Agency';
+    proposal.submittedAt = new Date();
+
+    // Add tracking timeline entry
+    if (!proposal.trackingTimeline) {
+      proposal.trackingTimeline = [];
+    }
+
+    proposal.trackingTimeline.push({
+      stage: 'Submitted to Agency',
+      updatedBy: req.user.fullName,
+      notes:
+        `Applied externally on ${
+          portalName
+            ? portalName.trim()
+            : 'external portal'
+        }. Reference ID: ${externalReferenceId.trim()}${
+          notes ? ` — ${notes.trim()}` : ''
+        }`,
+      source: 'external_manual',
+      timestamp: new Date(),
+    });
+
+    // Add audit comment
+    const auditNotice = {
+      senderId: req.user._id,
+      senderName:
+        `${req.user.fullName} (Org Admin)`,
+      senderRole: 'org_admin',
+      text:
+        `🏛️ External Submission: This proposal has been applied for on ${
+          portalName
+            ? `"${portalName.trim()}"`
+            : 'the external government portal'
+        }. Reference ID: "${externalReferenceId.trim()}". The proposal will now be tracked manually through the post-submission pipeline.${
+          proposal.externalGrantLinks?.applicationUrl
+            ? ` Portal: ${proposal.externalGrantLinks.applicationUrl}`
+            : ''
+        }`,
+      createdAt: new Date(),
+    };
+
+    proposal.comments.push(auditNotice);
+
+    await proposal.save();
+
+    const updatedProposal =
+      proposal.toObject();
+
+    // Real-time notifications
+    socketHelper.emitToProposal(
+      proposalId,
+      'proposalAppliedExternally',
+      {
+        proposalId,
+        status: 'Submitted to Agency',
+        externalSubmission:
+          updatedProposal.externalSubmission,
+        message:
+          `This proposal has been marked as applied externally on ${
+            portalName || 'the government portal'
+          }.`,
+        comment: auditNotice,
+        comments:
+          updatedProposal.comments,
+      }
+    );
+
+    if (proposal.organization) {
+      socketHelper.emitToOrg(
+        proposal.organization.toString(),
+        'proposalAppliedExternally',
+        {
+          proposalId,
+          status: 'Submitted to Agency',
+          externalSubmission:
+            updatedProposal.externalSubmission,
+        }
+      );
+    }
+
+    res.json({
+      success: true,
+      message:
+        `Proposal marked as applied externally on ${
+          portalName || 'government portal'
+        }. Ref: ${externalReferenceId.trim()}`,
+      proposal: updatedProposal,
+    });
+  } catch (error) {
+    console.error(
+      'Error marking proposal as applied externally:',
       error
     );
 
@@ -2673,9 +2883,15 @@ exports.getScrapedGrants = async (
   res
 ) => {
   try {
+    const allowedGovRegex = /^(aicte|dbt|dst|ugc|serb)$|all india council for technical education|department of biotechnology|dept of biotechnology|department of science and technology|dept of science and technology|science and engineering research board|university grants commission/i;
     const grants =
       await GrantListing.find({
         isActive: true,
+        $or: [
+          { 'agency.name': allowedGovRegex },
+          { 'agency.acronym': allowedGovRegex },
+          { 'source.website': allowedGovRegex },
+        ],
       })
         .sort({
           lastScrapedAt: -1,
@@ -3117,3 +3333,58 @@ exports.deleteProposal = async (
     });
   }
 };
+
+// ─────────────────────────────────────────────────────────────
+// INVITE / REMOVE COLLABORATORS
+// ─────────────────────────────────────────────────────────────
+
+exports.inviteCollaborator = async (req, res) => {
+  try {
+    const { proposalId } = req.params;
+    const { email } = req.body;
+
+    const proposal = await Proposal.findById(proposalId);
+    if (!proposal) {
+      return res.status(404).json({ success: false, message: 'Proposal not found' });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found. They must create an account first.' });
+    }
+
+    if (proposal.collaborators && proposal.collaborators.includes(user._id)) {
+      return res.status(400).json({ success: false, message: 'User is already a collaborator' });
+    }
+
+    if (!proposal.collaborators) proposal.collaborators = [];
+    proposal.collaborators.push(user._id);
+    await proposal.save();
+
+    res.json({ success: true, message: 'Collaborator invited successfully', proposal });
+  } catch (error) {
+    console.error('Error inviting collaborator:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.removeCollaborator = async (req, res) => {
+  try {
+    const { proposalId, userId } = req.params;
+
+    const proposal = await Proposal.findById(proposalId);
+    if (!proposal) {
+      return res.status(404).json({ success: false, message: 'Proposal not found' });
+    }
+
+    if (proposal.collaborators) {
+      proposal.collaborators = proposal.collaborators.filter(id => id.toString() !== userId);
+      await proposal.save();
+    }
+
+    res.json({ success: true, message: 'Collaborator removed successfully', proposal });
+  } catch (error) {
+    console.error('Error removing collaborator:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

@@ -105,10 +105,48 @@ const proposalSchema = new mongoose.Schema(
       default: null,
     },
 
+    // ─── External / Scraped Grant Metadata ───
+    // When a proposal targets a scraped government grant (AICTE, DBT, DST, UGC)
+    // that has no in-system funding agency, these fields enable manual
+    // lifecycle tracking and link back to the external application portal.
+    isExternalGrant: {
+      type: Boolean,
+      default: false,
+    },
+
+    externalGrantLinks: {
+      applicationUrl: { type: String, default: '' },
+      infoUrl: { type: String, default: '' },
+      guidelinesUrl: { type: String, default: '' },
+    },
+
+    // Tracks whether admin has marked this as "applied on external portal"
+    externalSubmission: {
+      isApplied: { type: Boolean, default: false },
+      appliedAt: { type: Date, default: null },
+      appliedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null,
+      },
+      appliedByName: { type: String, default: '' },
+      externalReferenceId: { type: String, default: '' },
+      portalName: { type: String, default: '' },
+      notes: { type: String, default: '' },
+    },
+
     organization: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Organization',
     },
+
+    // ─── Cross-Organization Collaborators ───
+    collaborators: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
 
     // Existing GrantProgram relationship retained from File 1.
     grantProgram: {
@@ -379,7 +417,7 @@ const proposalSchema = new mongoose.Schema(
           // Preserved from File 1.
           source: {
             type: String,
-            enum: ['org_admin', 'funding_agency'],
+            enum: ['org_admin', 'funding_agency', 'external_manual'],
             default: 'org_admin',
           },
 
