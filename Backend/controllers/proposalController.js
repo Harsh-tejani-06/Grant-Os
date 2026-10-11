@@ -960,13 +960,36 @@ exports.submitToAgency = async (req, res) => {
       });
     }
 
+    // Scope to the caller's organization so one org can never submit
+    // (or tamper with) another organization's proposal.
     const proposal =
-      await Proposal.findById(proposalId);
+      await Proposal.findOne({
+        _id: proposalId,
+        organization: req.user.organization,
+      });
 
     if (!proposal) {
       return res.status(404).json({
         success: false,
         message: 'Proposal not found',
+      });
+    }
+
+    // The agency owns the proposal while it is being evaluated or once a
+    // final decision has been recorded.
+    if (
+      [
+        'Under Evaluation',
+        'Awarded',
+        'Accepted',
+        'Rejected',
+        'Not Awarded',
+      ].includes(proposal.status)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          `This proposal is "${proposal.status}" and can no longer be submitted to the funding agency.`,
       });
     }
 
@@ -989,7 +1012,26 @@ exports.submitToAgency = async (req, res) => {
       });
     }
 
+    // A proposal coming back from "Revisions Requested" is a resubmission:
+    // keep the ORIGINAL submission date (used for agency turnaround analytics)
+    // and record the resubmission in the audit trail instead.
+    const isResubmission =
+      proposal.status === 'Revisions Requested';
+
+    const firstSubmittedAt =
+      proposal.agencySubmission?.submittedAt || null;
+
     proposal.status = 'Submitted to Agency';
+
+    proposal.trackingTimeline.push({
+      stage: 'Submitted to Agency',
+      notes: isResubmission
+        ? `Resubmitted after revisions requested by the agency (Ref: ${agencySubmissionId.trim()})`
+        : `Submitted to the funding agency (Ref: ${agencySubmissionId.trim()})`,
+      updatedBy: req.user.fullName,
+      source: 'org_admin',
+      timestamp: new Date(),
+    });
 
     proposal.agencySubmission = {
       agencySubmissionId:
@@ -1000,7 +1042,7 @@ exports.submitToAgency = async (req, res) => {
           ? receiptNote.trim()
           : '',
 
-      submittedAt: new Date(),
+      submittedAt: firstSubmittedAt || new Date(),
       submittedBy: req.user._id,
       submittedByName: req.user.fullName,
     };
@@ -1084,7 +1126,6 @@ exports.submitToAgency = async (req, res) => {
     });
   }
 };
-
 // ─────────────────────────────────────────────────────────────
 // TRACKING STATUS
 // ─────────────────────────────────────────────────────────────
@@ -1121,14 +1162,54 @@ exports.updateProposalTrackingStatus = async (
       });
     }
 
+    // Scope to the caller's organization.
     const proposal =
-      await Proposal.findById(proposalId);
+      await Proposal.findOne({
+        _id: proposalId,
+        organization: req.user.organization,
+      });
 
     if (!proposal) {
       return res.status(404).json({
         success: false,
         message: 'Proposal not found',
       });
+    }
+
+    // Proposals linked to a grant call on this platform are reviewed by the
+    // funding agency itself. The org may not set the agency's decisions, and
+    // must use the "Submit to Agency" step (checklist + reference ID) to submit.
+    if (proposal.grantProgram) {
+      const agencyControlled = [
+        'Under Evaluation',
+        'Revisions Requested',
+        'Awarded',
+        'Rejected',
+      ];
+
+      if (agencyControlled.includes(status)) {
+        return res.status(403).json({
+          success: false,
+          message:
+            `"${status}" is recorded by the funding agency for proposals submitted through GrantOS.`,
+        });
+      }
+
+      if (status === 'Submitted to Agency') {
+        return res.status(400).json({
+          success: false,
+          message:
+            'Use the "Submit to Agency" step to send this proposal to the funding agency.',
+        });
+      }
+
+      if (status === 'Accepted' && proposal.status !== 'Awarded') {
+        return res.status(400).json({
+          success: false,
+          message:
+            'Only an awarded proposal can be accepted.',
+        });
+      }
     }
 
     const oldStatus = proposal.status;
@@ -1291,7 +1372,6 @@ exports.updateProposalTrackingStatus = async (
     });
   }
 };
-
 // ─────────────────────────────────────────────────────────────
 // SECTION COMMENT
 // ─────────────────────────────────────────────────────────────
@@ -3387,4 +3467,4 @@ exports.removeCollaborator = async (req, res) => {
     console.error('Error removing collaborator:', error);
     res.status(500).json({ success: false, message: error.message });
   }
-};
+};

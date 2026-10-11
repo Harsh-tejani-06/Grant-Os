@@ -4,6 +4,7 @@ const GrantProgram = require('../models/GrantProgram');
 const Proposal = require('../models/Proposal');
 const User = require('../models/User');
 const { embedGrantText } = require('../utils/embeddings');
+const socketHelper = require('../socket');
 
 // Helper: ensure the logged-in user has an approved funding agency profile,
 // and return it. Sends the appropriate error response itself if not.
@@ -255,11 +256,11 @@ const createGrantProgram = async (req, res) => {
     });
 
     // Pre-compute embedding for grant discovery (fire-and-forget; non-blocking)
-    embedGrantText(grant)
+    embedGrantText(program)
       .then(({ embedding, hash }) => {
-        grant.embedding = embedding;
-        grant.embeddingContentHash = hash;
-        return grant.save();
+        program.embedding = embedding;
+        program.embeddingContentHash = hash;
+        return program.save();
       })
       .catch((err) => console.error('Grant embedding computation failed (non-fatal):', err.message));
 
@@ -531,10 +532,110 @@ const deleteGrantProgram = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────────────────────────────────
+// PROPOSAL TRACKING PIPELINE (agency side)
+// ─────────────────────────────────────────────────────────────
+//
+// Status vocabulary is shared with the org-side Proposal Tracking
+// Dashboard (TRACKING_STAGES). The agency can only move a proposal
+// along the transitions below; Awarded / Rejected / Not Awarded /
+// Accepted are terminal for the agency.
+//
+//   Submitted to Agency ──► Under Evaluation ──► Awarded
+//          │                    │   ▲            Rejected
+//          │                    ▼   │            Not Awarded
+//          │             Revisions Requested
+//          └──► Rejected (desk rejection)
+
+const AGENCY_VISIBLE_STATUSES = [
+  'Submitted to Agency',
+  'Submitted',
+  'Under Evaluation',
+  'Revisions Requested',
+  'Awarded',
+  'Accepted',
+  'Rejected',
+  'Not Awarded',
+];
+
+const AWAITING_REVIEW_STATUSES = ['Submitted to Agency', 'Submitted'];
+const AWARDED_STATUSES = ['Awarded', 'Accepted'];
+const REJECTED_STATUSES = ['Rejected', 'Not Awarded'];
+
+const AGENCY_TRANSITIONS = {
+  'Submitted to Agency': ['Under Evaluation', 'Rejected'],
+  Submitted: ['Under Evaluation', 'Rejected'],
+  'Under Evaluation': ['Revisions Requested', 'Awarded', 'Rejected', 'Not Awarded'],
+  'Revisions Requested': ['Under Evaluation', 'Rejected'],
+};
+
+// Accepts the UI vocabulary and the legacy lowercase decision codes.
+const DECISION_ALIASES = {
+  'Under Evaluation': 'Under Evaluation',
+  under_evaluation: 'Under Evaluation',
+  shortlisted: 'Under Evaluation', // legacy
+  'Revisions Requested': 'Revisions Requested',
+  revisions_requested: 'Revisions Requested',
+  Awarded: 'Awarded',
+  awarded: 'Awarded',
+  Rejected: 'Rejected',
+  rejected: 'Rejected',
+  'Not Awarded': 'Not Awarded',
+  not_awarded: 'Not Awarded',
+};
+
+// Mirrors the proposal status onto the legacy `decision.status` enum.
+const LEGACY_DECISION_CODE = {
+  'Under Evaluation': 'under_evaluation',
+  'Revisions Requested': 'revisions_requested',
+  Awarded: 'awarded',
+  Rejected: 'rejected',
+  'Not Awarded': 'not_awarded',
+};
+
+const REVIEW_SLA_DAYS = 7;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+const formatINR = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
+
+// Proposal.fundingAmount is a display string ("₹25,00,000", "25 Lakh", "1.5 Cr").
+// Prefer the numeric field when present, otherwise parse the string.
+const parseAmountToNumber = (value) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (!value) return 0;
+  const s = String(value).toLowerCase().replace(/,/g, '');
+  const m = s.match(/(\d+(\.\d+)?)/);
+  if (!m) return 0;
+  let n = parseFloat(m[1]);
+  if (/crore|\bcr\b/.test(s)) n *= 1e7;
+  else if (/lakh|\blac\b|\bl\b/.test(s)) n *= 1e5;
+  return Math.round(n);
+};
+
+const requestedAmountOf = (p) =>
+  p.requestedAmountValue || parseAmountToNumber(p.fundingAmount);
+
+const submittedDateOf = (p) =>
+  p.agencySubmission?.submittedAt || p.submittedAt || p.createdAt || null;
+
+const daysBetween = (from, to) => (new Date(to) - new Date(from)) / MS_PER_DAY;
+
+const round1 = (n) => Math.round(n * 10) / 10;
+const avg = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
+
+// All programmes owned by this agency. Archived (soft-deleted) programmes are
+// included on purpose: deleting a grant call with proposals only archives it,
+// and those proposals must stay visible and reviewable.
+const getAgencyProgramIds = async (agencyId) => {
+  const programs = await GrantProgram.find({ fundingAgency: agencyId }).select('_id');
+  return programs.map((p) => p._id);
+};
 
 // @desc    Get all proposals actually SUBMITTED to this agency's grant programs.
 //          Proposals still 'In Progress' or 'Draft' on the org side never
 //          appear here — only after the org admin explicitly submits.
+//          Heavy fields (sections, comments) are omitted; the review page
+//          loads them through the detail endpoint.
 // @route   GET /api/agency/proposals
 // @access  Private (funding_agency)
 const getAgencyProposals = async (req, res) => {
@@ -542,19 +643,20 @@ const getAgencyProposals = async (req, res) => {
     const agency = await getApprovedAgencyOrRespond(req, res);
     if (!agency) return;
 
-    const programs = await GrantProgram.find({ fundingAgency: agency._id }).select('_id');
-    const programIds = programs.map((p) => p._id);
+    const programIds = await getAgencyProgramIds(agency._id);
 
     const proposals = await Proposal.find({
       grantProgram: { $in: programIds },
-      status: { $in: ['Submitted', 'Under Review', 'Shortlisted', 'Rejected', 'Awarded', 'Not Awarded'] },
+      status: { $in: AGENCY_VISIBLE_STATUSES },
     })
+      .select('-sections -comments')
       .populate(
         'organization',
         'organizationName organizationType registrationNumber establishedYear website address contactPerson'
       )
-      .populate('grantProgram', 'title')
-      .sort({ submittedAt: -1, createdAt: -1 });
+      .populate('grantProgram', 'title budgetAmount')
+      .sort({ updatedAt: -1 })
+      .lean();
 
     res.json({ success: true, proposals });
   } catch (error) {
@@ -563,8 +665,27 @@ const getAgencyProposals = async (req, res) => {
   }
 };
 
+// Funding pool position for one grant program: budget, already awarded, remaining.
+const getProgramFunding = async (program, excludeProposalId = null) => {
+  const budget = program.budgetAmount || 0;
+  const filter = {
+    grantProgram: program._id,
+    status: { $in: AWARDED_STATUSES },
+  };
+  if (excludeProposalId) filter._id = { $ne: excludeProposalId };
+  const awardedDocs = await Proposal.find(filter).select('awardAmount').lean();
+  const awarded = awardedDocs.reduce((sum, p) => sum + (p.awardAmount || 0), 0);
+  return { budget, awarded, remaining: budget > 0 ? Math.max(budget - awarded, 0) : null };
+};
+
 // @desc    Get one proposal in full detail, for the agency review page
-//          (organization info, eligibility snapshot, AI score, sections, decision)
+//          (organization info, eligibility snapshot, AI score, sections,
+//          decision, tracking timeline, programme funding position)
+// @route   GET /api/agency/proposals/:id
+// @access  Private (funding_agency, must own the underlying grant program)
+// @desc    Get one proposal in full detail, for the agency review page
+//          (organization info, eligibility snapshot, AI score, sections,
+//          decision, tracking timeline, programme funding position)
 // @route   GET /api/agency/proposals/:id
 // @access  Private (funding_agency, must own the underlying grant program)
 const getAgencyProposalDetail = async (req, res) => {
@@ -589,26 +710,122 @@ const getAgencyProposalDetail = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Not authorized to view this proposal' });
     }
 
-    res.json({ success: true, proposal });
+    // Proposals the org has not submitted yet are not visible to the agency.
+    if (!AGENCY_VISIBLE_STATUSES.includes(proposal.status)) {
+      return res.status(404).json({ success: false, message: 'Proposal not found' });
+    }
+
+    const programFunding = await getProgramFunding(proposal.grantProgram, proposal._id);
+
+    // The agency only sees what the organization submitted: internal team
+    // discussion (proposal comments and per-section comments) stays private.
+    // Only the agency's own official notices are returned.
+    const doc = proposal.toObject();
+    doc.comments = (doc.comments || []).filter((c) => c.senderRole === 'funding_agency');
+    doc.sections = (doc.sections || []).map(({ comments, starterGuide, ...rest }) => rest); // eslint-disable-line no-unused-vars
+
+    // Pre-filled "requested by" contact for decision dialogs (editable in the UI).
+    const reviewer = {
+      name: req.user.fullName || agency.contactPerson?.name || '',
+      email: req.user.email || agency.contactPerson?.email || '',
+      designation: agency.contactPerson?.designation || '',
+      phone: agency.contactPerson?.phone || '',
+      agencyName: agency.agencyName,
+    };
+
+    res.json({ success: true, proposal: doc, programFunding, reviewer });
   } catch (error) {
     console.error('Get agency proposal detail error:', error);
     res.status(500).json({ success: false, message: 'Server error while fetching proposal' });
   }
 };
 
-// @desc    Record the agency's decision on a proposal (shortlist / reject / award / not_awarded)
+// @desc    Record the agency's decision on a proposal and move it along the
+//          tracking pipeline. Writes the audit trail (trackingTimeline), posts
+//          an official note into the proposal's comment thread, and notifies
+//          the organization live over Socket.io.
 // @route   PUT /api/agency/proposals/:id/decision
+// @body    { status, notes, awardAmount, sanctionOrderNumber, startDate,
+//            durationMonths, sanctionNotes }
+// @access  Private (funding_agency, must own the underlying grant program)
+const REVISION_PRIORITIES = ['Minor', 'Moderate', 'Major'];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_NOTES_LENGTH = 5000;
+
+const cleanText = (value, max) => (typeof value === 'string' ? value.trim().slice(0, max) : '');
+
+const formatDateLong = (d) =>
+  new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+// Validates the "requested by" contact block sent from the decision dialog.
+// Returns { value } (possibly null when nothing was sent) or { error }.
+const parseContact = (raw) => {
+  if (!raw || typeof raw !== 'object') return { value: null };
+  const value = {
+    name: cleanText(raw.name, 120),
+    designation: cleanText(raw.designation, 120),
+    email: cleanText(raw.email, 160),
+    phone: cleanText(raw.phone, 40),
+  };
+  if (value.email && !EMAIL_RE.test(value.email)) {
+    return { error: 'Please enter a valid contact email address.' };
+  }
+  if (!value.name && !value.email && !value.phone) return { value: null };
+  return { value };
+};
+
+const formatContactLine = (contact) => {
+  if (!contact) return '';
+  const who = contact.name
+    ? contact.designation
+      ? `${contact.name} (${contact.designation})`
+      : contact.name
+    : '';
+  const parts = [who, contact.email, contact.phone].filter(Boolean);
+  return parts.length ? `Contact for queries: ${parts.join(' • ')}` : '';
+};
+
+// @desc    Record the agency's decision on a proposal and move it along the
+//          tracking pipeline. Writes the audit trail (trackingTimeline), posts
+//          an official note into the proposal's comment thread, and notifies
+//          the organization live over Socket.io.
+// @route   PUT /api/agency/proposals/:id/decision
+// @body    { status, notes, contact{name,designation,email,phone},
+//            // Revisions Requested:
+//            priority, dueDate, sections[],
+//            // Awarded:
+//            awardAmount, sanctionOrderNumber, startDate, durationMonths, sanctionNotes }
 // @access  Private (funding_agency, must own the underlying grant program)
 const updateProposalDecision = async (req, res) => {
   try {
     const agency = await getApprovedAgencyOrRespond(req, res);
     if (!agency) return;
 
-    const { status, notes, awardAmount } = req.body;
-    const validStatuses = ['shortlisted', 'rejected', 'awarded', 'not_awarded'];
-    if (!validStatuses.includes(status)) {
+    if (agency.status !== 'approved') {
+      return res.status(403).json({
+        success: false,
+        message: 'Your agency must be approved before recording decisions.',
+      });
+    }
+
+    const nextStatus = DECISION_ALIASES[req.body.status];
+    if (!nextStatus) {
       return res.status(400).json({ success: false, message: 'Invalid decision status' });
     }
+
+    if (typeof req.body.notes === 'string' && req.body.notes.trim().length > MAX_NOTES_LENGTH) {
+      return res.status(400).json({
+        success: false,
+        message: `Notes are too long (maximum ${MAX_NOTES_LENGTH} characters).`,
+      });
+    }
+    const notes = cleanText(req.body.notes, MAX_NOTES_LENGTH);
+
+    const parsedContact = parseContact(req.body.contact);
+    if (parsedContact.error) {
+      return res.status(400).json({ success: false, message: parsedContact.error });
+    }
+    const contact = parsedContact.value;
 
     const proposal = await Proposal.findById(req.params.id).populate('grantProgram');
     if (!proposal || !proposal.grantProgram) {
@@ -618,33 +835,217 @@ const updateProposalDecision = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Not authorized to review this proposal' });
     }
 
-    if (status === 'awarded') {
-      if (!awardAmount || Number(awardAmount) <= 0) {
-        return res.status(400).json({ success: false, message: 'A valid award amount is required' });
-      }
-      proposal.awardAmount = Number(awardAmount);
+    // ─── Transition guard ───
+    const previousStatus = proposal.status;
+    const allowedNext = AGENCY_TRANSITIONS[previousStatus];
+    if (!allowedNext) {
+      return res.status(409).json({
+        success: false,
+        message: AGENCY_VISIBLE_STATUSES.includes(previousStatus)
+          ? `This proposal is already "${previousStatus}" and can no longer be changed.`
+          : 'This proposal has not been submitted to the agency yet.',
+      });
+    }
+    if (!allowedNext.includes(nextStatus)) {
+      return res.status(409).json({
+        success: false,
+        message: `A proposal that is "${previousStatus}" cannot move to "${nextStatus}". Allowed: ${allowedNext.join(', ')}.`,
+      });
     }
 
+    // ─── Per-decision validation ───
+    if (['Revisions Requested', 'Rejected', 'Not Awarded'].includes(nextStatus) && !notes) {
+      return res.status(400).json({
+        success: false,
+        message:
+          nextStatus === 'Revisions Requested'
+            ? 'Please describe the revisions or queries for the organization.'
+            : 'Please provide a reason; it is shared with the organization.',
+      });
+    }
+
+    // Revision requests carry structured context so the organization knows
+    // what to fix, by when, and who to contact.
+    let revision = null;
+    if (nextStatus === 'Revisions Requested') {
+      if (!contact || !contact.name || !(contact.email || contact.phone)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            'Please add the contact person (name and email or phone) the organization should reach out to about this revision request.',
+        });
+      }
+
+      const priority = REVISION_PRIORITIES.includes(req.body.priority) ? req.body.priority : 'Moderate';
+
+      let dueDate = null;
+      if (req.body.dueDate) {
+        dueDate = new Date(req.body.dueDate);
+        if (Number.isNaN(dueDate.getTime())) {
+          return res.status(400).json({ success: false, message: 'Invalid response due date.' });
+        }
+        // Compare in UTC: the date input is a plain YYYY-MM-DD (parsed as UTC midnight).
+        const startOfToday = new Date();
+        startOfToday.setUTCHours(0, 0, 0, 0);
+        if (dueDate < startOfToday) {
+          return res.status(400).json({ success: false, message: 'The response due date cannot be in the past.' });
+        }
+      }
+
+      const sections = Array.isArray(req.body.sections)
+        ? req.body.sections.map((t) => cleanText(t, 150)).filter(Boolean).slice(0, 25)
+        : [];
+
+      const round =
+        (proposal.trackingTimeline || []).filter((t) => t.stage === 'Revisions Requested').length + 1;
+
+      revision = { priority, dueDate, sections, round };
+    }
+
+    let awardAmount = null;
+    if (nextStatus === 'Awarded') {
+      awardAmount = Number(req.body.awardAmount);
+      if (!Number.isFinite(awardAmount) || awardAmount <= 0) {
+        return res.status(400).json({ success: false, message: 'A valid award amount is required' });
+      }
+
+      const durationMonths =
+        req.body.durationMonths === undefined || req.body.durationMonths === ''
+          ? null
+          : Number(req.body.durationMonths);
+      if (durationMonths !== null && (!Number.isFinite(durationMonths) || durationMonths <= 0)) {
+        return res.status(400).json({ success: false, message: 'Project duration must be a positive number of months' });
+      }
+
+      const startDate = req.body.startDate ? new Date(req.body.startDate) : null;
+      if (startDate && Number.isNaN(startDate.getTime())) {
+        return res.status(400).json({ success: false, message: 'Invalid project start date' });
+      }
+
+      // Never allocate more than the programme's fund pool.
+      const funding = await getProgramFunding(proposal.grantProgram, proposal._id);
+      if (funding.budget > 0 && awardAmount > funding.remaining) {
+        return res.status(400).json({
+          success: false,
+          message: `Award exceeds the remaining fund pool for this programme (${formatINR(
+            funding.remaining
+          )} of ${formatINR(funding.budget)} left).`,
+        });
+      }
+
+      proposal.awardAmount = awardAmount;
+      proposal.awardDetails = {
+        sanctionOrderNumber: cleanText(req.body.sanctionOrderNumber, 100),
+        sanctionedAmount: formatINR(awardAmount),
+        startDate,
+        durationMonths,
+        sanctionNotes: cleanText(req.body.sanctionNotes, MAX_NOTES_LENGTH) || notes,
+        awardedAt: new Date(),
+        awardedBy: agency.agencyName,
+      };
+    }
+
+    // ─── Apply ───
+    const now = new Date();
+
     proposal.decision = {
-      status,
-      notes: notes || '',
-      decidedAt: new Date(),
+      status: LEGACY_DECISION_CODE[nextStatus],
+      notes,
+      decidedAt: now,
       decidedBy: req.user._id,
     };
+    proposal.status = nextStatus;
 
-    // Mirror the decision onto the proposal's own status field so existing
-    // status-based UI (badges, filters) reflects it without extra lookups.
-    const statusMap = {
-      shortlisted: 'Shortlisted',
-      rejected: 'Rejected',
-      awarded: 'Awarded',
-      not_awarded: 'Not Awarded',
+    const resumedFromRevision =
+      previousStatus === 'Revisions Requested' && nextStatus === 'Under Evaluation';
+
+    const contactLine = formatContactLine(contact);
+
+    const revisionHeader = revision
+      ? [
+          `Revision round ${revision.round} • Priority: ${revision.priority}${
+            revision.dueDate ? ` • Response due: ${formatDateLong(revision.dueDate)}` : ''
+          }`,
+          revision.sections.length ? `Sections to revise: ${revision.sections.join('; ')}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n')
+      : '';
+
+    // Timeline entry (audit trail, shown on both dashboards)
+    const timelineNote = [
+      revisionHeader,
+      notes ||
+        (resumedFromRevision
+          ? 'Evaluation resumed after revisions'
+          : `Status changed from ${previousStatus} to ${nextStatus}`),
+      contactLine,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+
+    proposal.trackingTimeline.push({
+      stage: nextStatus,
+      notes: timelineNote,
+      updatedBy: `${req.user.fullName} (${agency.agencyName})`,
+      source: 'funding_agency',
+      timestamp: now,
+    });
+
+    const messageByStatus = {
+      'Under Evaluation': resumedFromRevision
+        ? 'Evaluation has resumed after your revisions.'
+        : 'Your proposal is now under evaluation.',
+      'Revisions Requested': 'Revisions have been requested.',
+      Awarded: `Congratulations, the proposal has been awarded ${formatINR(awardAmount)}.`,
+      Rejected: 'The proposal was not selected.',
+      'Not Awarded': 'The proposal was not awarded funding.',
     };
-    proposal.status = statusMap[status];
+
+    // Official notice posted into the organization's comment thread
+    const officialNotice = {
+      senderId: req.user._id,
+      senderName: `${agency.agencyName} (Funding Agency)`,
+      senderRole: 'funding_agency',
+      text: [
+        messageByStatus[nextStatus],
+        revisionHeader,
+        notes ? `Note from agency: ${notes}` : '',
+        nextStatus === 'Awarded' && proposal.awardDetails.sanctionOrderNumber
+          ? `Sanction order: ${proposal.awardDetails.sanctionOrderNumber}.`
+          : '',
+        contactLine,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      createdAt: now,
+    };
+    proposal.comments.push(officialNotice);
 
     await proposal.save();
 
-    res.json({ success: true, message: 'Decision recorded', proposal });
+    // ─── Live notification (same event the org dashboard already listens to) ───
+    const updated = proposal.toObject();
+    const payload = {
+      proposalId: proposal._id.toString(),
+      status: nextStatus,
+      awardDetails: updated.awardDetails,
+      trackingTimeline: updated.trackingTimeline,
+      comment: officialNotice,
+      comments: updated.comments,
+      updatedBy: agency.agencyName,
+      source: 'funding_agency',
+    };
+    socketHelper.emitToProposal(proposal._id.toString(), 'proposalTrackingStatusUpdated', payload);
+    if (proposal.organization) {
+      // The org-room payload omits comments, matching the org-side handler.
+      const { comments, comment, ...orgPayload } = payload; // eslint-disable-line no-unused-vars
+      socketHelper.emitToOrg(proposal.organization.toString(), 'proposalTrackingStatusUpdated', orgPayload);
+    }
+
+    // Return a slim proposal (no sections, no internal comments) to keep the response small.
+    const { sections, comments: _comments, ...slim } = updated; // eslint-disable-line no-unused-vars
+    res.json({ success: true, message: 'Decision recorded', proposal: slim });
   } catch (error) {
     console.error('Update proposal decision error:', error);
     res.status(500).json({ success: false, message: 'Server error while recording decision' });
@@ -659,32 +1060,41 @@ const getAgencyStats = async (req, res) => {
     const agency = await getApprovedAgencyOrRespond(req, res);
     if (!agency) return;
 
-    const programs = await GrantProgram.find({ fundingAgency: agency._id, isDeleted: { $ne: true } });
-    const programIds = programs.map((p) => p._id);
+    const allPrograms = await GrantProgram.find({ fundingAgency: agency._id });
+    const programIds = allPrograms.map((p) => p._id);
+    const programs = allPrograms.filter((p) => p.isDeleted !== true);
 
     const activePrograms = programs.filter((p) => p.status === 'Active').length;
     const totalFundPool = programs.reduce((sum, p) => sum + (p.budgetAmount || 0), 0);
 
-    const proposalsCount = await Proposal.countDocuments({
-      grantProgram: { $in: programIds },
-    });
+    // Only proposals the organization actually submitted count as "received".
+    const received = { grantProgram: { $in: programIds }, status: { $in: AGENCY_VISIBLE_STATUSES } };
 
-    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const newThisWeek = await Proposal.countDocuments({
-      grantProgram: { $in: programIds },
-      createdAt: { $gte: oneWeekAgo },
-    });
+    const oneWeekAgo = new Date(Date.now() - 7 * MS_PER_DAY);
 
-    const scoredProposals = await Proposal.find({
-      grantProgram: { $in: programIds },
-      aiScore: { $ne: null },
-    }).select('aiScore');
+    const [proposalsCount, newThisWeek, awaitingReview, underEvaluation, awardedDocs, scoredProposals] =
+      await Promise.all([
+        Proposal.countDocuments(received),
+        Proposal.countDocuments({
+          ...received,
+          $or: [
+            { 'agencySubmission.submittedAt': { $gte: oneWeekAgo } },
+            { 'agencySubmission.submittedAt': null, createdAt: { $gte: oneWeekAgo } },
+          ],
+        }),
+        Proposal.countDocuments({ grantProgram: { $in: programIds }, status: { $in: AWAITING_REVIEW_STATUSES } }),
+        Proposal.countDocuments({ grantProgram: { $in: programIds }, status: 'Under Evaluation' }),
+        Proposal.find({ grantProgram: { $in: programIds }, status: { $in: AWARDED_STATUSES } })
+          .select('awardAmount')
+          .lean(),
+        Proposal.find({ ...received, aiScore: { $ne: null } }).select('aiScore').lean(),
+      ]);
+
+    const totalAwarded = awardedDocs.reduce((sum, p) => sum + (p.awardAmount || 0), 0);
 
     const aiMatchAccuracy =
       scoredProposals.length > 0
-        ? (
-            scoredProposals.reduce((sum, p) => sum + p.aiScore, 0) / scoredProposals.length
-          ).toFixed(1)
+        ? (scoredProposals.reduce((sum, p) => sum + p.aiScore, 0) / scoredProposals.length).toFixed(1)
         : null;
 
     res.json({
@@ -696,11 +1106,245 @@ const getAgencyStats = async (req, res) => {
         proposalsCount,
         newThisWeek,
         aiMatchAccuracy,
+        awaitingReview,
+        underEvaluation,
+        awardedCount: awardedDocs.length,
+        totalAwarded,
       },
     });
   } catch (error) {
     console.error('Get agency stats error:', error);
     res.status(500).json({ success: false, message: 'Server error while fetching stats' });
+  }
+};
+
+// @desc    Aggregated analytics for the authenticated agency, derived
+//          entirely from existing Proposal/GrantProgram documents — no new
+//          model, no fabricated metrics.
+// @route   GET /api/agency/analytics
+// @access  Private (funding_agency)
+const STAGE_CONFIG = [
+  { stage: 'pending', statuses: ['Submitted to Agency', 'Submitted'], label: 'Pending Review', icon: '📥', color: 'bg-blue-500', bgColor: 'bg-blue-50/60', borderColor: 'border-blue-200', textColor: 'text-blue-700' },
+  { stage: 'evaluation', statuses: ['Under Evaluation'], label: 'Under Evaluation', icon: '🔍', color: 'bg-purple-500', bgColor: 'bg-purple-50/60', borderColor: 'border-purple-200', textColor: 'text-purple-700' },
+  { stage: 'revisions', statuses: ['Revisions Requested'], label: 'Revisions Requested', icon: '⚠️', color: 'bg-amber-500', bgColor: 'bg-amber-50/60', borderColor: 'border-amber-200', textColor: 'text-amber-800' },
+  { stage: 'awarded', statuses: AWARDED_STATUSES, label: 'Awarded', icon: '🏆', color: 'bg-emerald-600', bgColor: 'bg-emerald-50/60', borderColor: 'border-emerald-200', textColor: 'text-emerald-800' },
+  { stage: 'rejected', statuses: REJECTED_STATUSES, label: 'Rejected', icon: '❌', color: 'bg-rose-500', bgColor: 'bg-rose-50/60', borderColor: 'border-rose-200', textColor: 'text-rose-700' },
+];
+
+const getAgencyAnalytics = async (req, res) => {
+  try {
+    const agency = await getApprovedAgencyOrRespond(req, res);
+    if (!agency) return;
+
+    // Archived (soft-deleted) programmes are included on purpose: their
+    // proposals remain part of the agency's history.
+    const programs = await GrantProgram.find({ fundingAgency: agency._id })
+      .select('_id title shortTitle status budget budgetAmount')
+      .lean();
+    const programIds = programs.map((p) => p._id);
+
+    const proposals = await Proposal.find({
+      grantProgram: { $in: programIds },
+      status: { $in: AGENCY_VISIBLE_STATUSES },
+    })
+      .select(
+        'title status grantProgram organization awardAmount aiScore fundingAmount requestedAmountValue createdAt submittedAt agencySubmission decision trackingTimeline'
+      )
+      .populate('organization', 'organizationName')
+      .lean();
+
+    const now = new Date();
+
+    // ─── Per-proposal derived facts (turnaround, waiting time) ───
+    const enriched = proposals.map((p) => {
+      const submittedAt = submittedDateOf(p);
+      const timeline = p.trackingTimeline || [];
+      const agencyEntries = timeline.filter((t) => t.source === 'funding_agency');
+      const firstEval = agencyEntries.find((t) => t.stage === 'Under Evaluation');
+      const lastAgencyEntry = agencyEntries[agencyEntries.length - 1];
+      // A resubmission restarts the wait: use the latest organization entry too.
+      const lastOrgSubmit = [...timeline].reverse().find((t) => t.stage === 'Submitted to Agency');
+      const lastTouch =
+        [lastAgencyEntry?.timestamp, lastOrgSubmit?.timestamp, submittedAt]
+          .filter(Boolean)
+          .map((d) => new Date(d))
+          .sort((a, b) => b - a)[0] || null;
+      const isAwarded = AWARDED_STATUSES.includes(p.status);
+      const isRejected = REJECTED_STATUSES.includes(p.status);
+      return {
+        p,
+        submittedAt,
+        lastTouch,
+        isAwarded,
+        isRejected,
+        awaiting: AWAITING_REVIEW_STATUSES.includes(p.status),
+        daysToFirstReview:
+          firstEval && submittedAt ? Math.max(daysBetween(submittedAt, firstEval.timestamp), 0) : null,
+        daysToDecision:
+          (isAwarded || isRejected) && p.decision?.decidedAt && submittedAt
+            ? Math.max(daysBetween(submittedAt, p.decision.decidedAt), 0)
+            : null,
+        requested: requestedAmountOf(p),
+      };
+    });
+
+    const totalProposals = proposals.length;
+    const countByStatuses = (statuses) => proposals.filter((p) => statuses.includes(p.status)).length;
+
+    const pendingCount = countByStatuses(AWAITING_REVIEW_STATUSES);
+    const underEvaluationCount = countByStatuses(['Under Evaluation']);
+    const revisionsCount = countByStatuses(['Revisions Requested']);
+    const awardedCount = countByStatuses(AWARDED_STATUSES);
+    const rejectedCount = countByStatuses(REJECTED_STATUSES);
+    const decidedCount = awardedCount + rejectedCount;
+    const awardRate = decidedCount > 0 ? Math.round((awardedCount / decidedCount) * 100) : 0;
+
+    const awardedAmountOf = (p) =>
+      AWARDED_STATUSES.includes(p.status) && typeof p.awardAmount === 'number' ? p.awardAmount : 0;
+
+    const totalAwardedCapital = proposals.reduce((sum, p) => sum + awardedAmountOf(p), 0);
+    const totalRequestedCapital = enriched.reduce((sum, e) => sum + e.requested, 0);
+    const totalFundPool = programs.reduce(
+      (sum, p) => sum + (typeof p.budgetAmount === 'number' ? p.budgetAmount : 0),
+      0
+    );
+
+    // ─── Review turnaround / SLA ───
+    const firstReviewDays = enriched.filter((e) => e.daysToFirstReview !== null).map((e) => e.daysToFirstReview);
+    const decisionDays = enriched.filter((e) => e.daysToDecision !== null).map((e) => e.daysToDecision);
+    const avgDaysToFirstReview = firstReviewDays.length ? round1(avg(firstReviewDays)) : null;
+    const avgDaysToDecision = decisionDays.length ? round1(avg(decisionDays)) : null;
+    const overdueReviews = enriched.filter(
+      (e) => e.awaiting && e.lastTouch && daysBetween(e.lastTouch, now) > REVIEW_SLA_DAYS
+    ).length;
+
+    // ─── Status Distribution (5-stage pipeline, matches the frontend's stage cards) ───
+    const statusDistribution = STAGE_CONFIG.map((cfg) => {
+      const count = countByStatuses(cfg.statuses);
+      return {
+        ...cfg,
+        count,
+        percentage: totalProposals > 0 ? Math.round((count / totalProposals) * 100) : 0,
+      };
+    });
+
+    // ─── Submission Trends (actual months present in the data, last 6) ───
+    const monthMap = {};
+    proposals.forEach((p) => {
+      const d = submittedDateOf(p);
+      if (!d) return;
+      const dt = new Date(d);
+      const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
+      if (!monthMap[key]) {
+        monthMap[key] = {
+          key,
+          label: dt.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }),
+          count: 0,
+          awarded: 0,
+          sortDate: dt,
+        };
+      }
+      monthMap[key].count++;
+      if (AWARDED_STATUSES.includes(p.status)) monthMap[key].awarded++;
+    });
+    const submissionTrends = Object.values(monthMap)
+      .sort((a, b) => a.sortDate - b.sortDate)
+      .slice(-6)
+      .map(({ key, label, count, awarded }) => ({ key, label, count, awarded }));
+
+    // ─── Grant Call Performance Matrix ───
+    const programPerformance = programs.map((program) => {
+      const progProposals = proposals.filter((p) => p.grantProgram?.toString() === program._id.toString());
+      const progAwardedCapital = progProposals.reduce((sum, p) => sum + awardedAmountOf(p), 0);
+      const budgetAmount = typeof program.budgetAmount === 'number' ? program.budgetAmount : 0;
+
+      return {
+        id: program._id.toString(),
+        title: program.title,
+        shortTitle: program.shortTitle || '',
+        status: program.status,
+        budget: program.budget || (budgetAmount ? `₹${budgetAmount.toLocaleString('en-IN')}` : '—'),
+        budgetAmount,
+        proposalsCount: progProposals.length,
+        underEvaluationCount: progProposals.filter((p) => p.status === 'Under Evaluation').length,
+        revisionsCount: progProposals.filter((p) => p.status === 'Revisions Requested').length,
+        awardedCount: progProposals.filter((p) => AWARDED_STATUSES.includes(p.status)).length,
+        rejectedCount: progProposals.filter((p) => REJECTED_STATUSES.includes(p.status)).length,
+        totalAwardedCapital: progAwardedCapital,
+        utilisationPct: budgetAmount > 0 ? round1((progAwardedCapital / budgetAmount) * 100) : null,
+      };
+    });
+
+    // ─── AI Matching / Evaluation Analytics (only if aiScore is actually populated) ───
+    const scoredProposals = proposals.filter((p) => typeof p.aiScore === 'number');
+    let aiAnalytics = { hasData: false };
+    if (scoredProposals.length > 0) {
+      const scores = scoredProposals.map((p) => p.aiScore);
+      const averageScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+      const high = scores.filter((s) => s >= 75).length;
+      const moderate = scores.filter((s) => s >= 50 && s < 75).length;
+      const low = scores.filter((s) => s < 50).length;
+      const pct = (n) => Math.round((n / scores.length) * 100);
+      aiAnalytics = {
+        hasData: true,
+        averageScore,
+        tiers: {
+          high: { label: 'Strong Alignment (75%+)', count: high, pct: pct(high) },
+          moderate: { label: 'Moderate Alignment (50–74%)', count: moderate, pct: pct(moderate) },
+          low: { label: 'Low Alignment (<50%)', count: low, pct: pct(low) },
+        },
+      };
+    }
+
+    // ─── Oldest proposals still waiting on the agency ───
+    const programTitle = Object.fromEntries(programs.map((p) => [p._id.toString(), p.title]));
+    const agingQueue = enriched
+      .filter((e) => (e.awaiting || e.p.status === 'Under Evaluation') && e.lastTouch)
+      .map((e) => {
+        const waited = daysBetween(e.lastTouch, now);
+        return {
+          proposalId: e.p._id.toString(),
+          title: e.p.title,
+          institution: e.p.organization?.organizationName || 'Unknown institution',
+          programTitle: programTitle[e.p.grantProgram?.toString()] || '',
+          status: e.p.status,
+          daysWaiting: Math.floor(Math.max(waited, 0)),
+          overdue: e.awaiting && waited > REVIEW_SLA_DAYS,
+        };
+      })
+      .sort((a, b) => b.daysWaiting - a.daysWaiting)
+      .slice(0, 5);
+
+    res.json({
+      success: true,
+      analytics: {
+        totalPrograms: programs.filter((p) => p.status !== 'Archived').length,
+        activePrograms: programs.filter((p) => p.status === 'Active').length,
+        totalProposals,
+        pendingCount,
+        underEvaluationCount,
+        revisionsCount,
+        awardedCount,
+        rejectedCount,
+        decidedCount,
+        awardRate,
+        totalAwardedCapital,
+        totalRequestedCapital,
+        totalFundPool,
+        avgDaysToFirstReview,
+        avgDaysToDecision,
+        overdueReviews,
+        reviewSlaDays: REVIEW_SLA_DAYS,
+        statusDistribution,
+        submissionTrends,
+        programPerformance,
+        aiAnalytics,
+        agingQueue,
+      },
+    });
+  } catch (error) {
+    console.error('Get agency analytics error:', error);
+    res.status(500).json({ success: false, message: 'Server error while computing analytics' });
   }
 };
 
@@ -798,153 +1442,6 @@ const getFullProfile = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error while fetching profile' });
   }
 };
-// @desc    Aggregated analytics for the authenticated agency, derived
-//          entirely from existing Proposal/GrantProgram documents — no new
-//          model, no fabricated metrics.
-// @route   GET /api/agency/analytics
-// @access  Private (funding_agency)
-const AGENCY_VISIBLE_STATUSES = ['Submitted to Agency', 'Submitted', 'Under Evaluation', 'Revisions Requested', 'Awarded', 'Accepted', 'Rejected'];
-
-const STAGE_CONFIG = [
-  { stage: 'pending', statuses: ['Submitted to Agency', 'Submitted'], label: 'Pending Review', icon: '📥', color: 'bg-blue-500', bgColor: 'bg-blue-50/60', borderColor: 'border-blue-200', textColor: 'text-blue-700' },
-  { stage: 'evaluation', statuses: ['Under Evaluation'], label: 'Under Evaluation', icon: '🔍', color: 'bg-purple-500', bgColor: 'bg-purple-50/60', borderColor: 'border-purple-200', textColor: 'text-purple-700' },
-  { stage: 'revisions', statuses: ['Revisions Requested'], label: 'Revisions Requested', icon: '⚠️', color: 'bg-amber-500', bgColor: 'bg-amber-50/60', borderColor: 'border-amber-200', textColor: 'text-amber-800' },
-  { stage: 'awarded', statuses: ['Awarded', 'Accepted'], label: 'Awarded', icon: '🏆', color: 'bg-emerald-600', bgColor: 'bg-emerald-50/60', borderColor: 'border-emerald-200', textColor: 'text-emerald-800' },
-  { stage: 'rejected', statuses: ['Rejected'], label: 'Rejected', icon: '❌', color: 'bg-rose-500', bgColor: 'bg-rose-50/60', borderColor: 'border-rose-200', textColor: 'text-rose-700' },
-];
-
-const getAgencyAnalytics = async (req, res) => {
-  try {
-    const agency = await getApprovedAgencyOrRespond(req, res);
-    if (!agency) return;
-
-    const programs = await GrantProgram.find({ fundingAgency: agency._id }).select('_id title shortTitle status budget budgetAmount');
-    const programIds = programs.map((p) => p._id.toString());
-
-    const proposals = await Proposal.find({
-      grantProgram: { $in: programIds },
-      status: { $in: AGENCY_VISIBLE_STATUSES },
-    }).select('status grantProgram awardAmount aiScore createdAt agencySubmission');
-
-    const totalProposals = proposals.length;
-    const countByStatuses = (statuses) => proposals.filter((p) => statuses.includes(p.status)).length;
-
-    const pendingCount = countByStatuses(['Submitted to Agency', 'Submitted']);
-    const underEvaluationCount = countByStatuses(['Under Evaluation']);
-    const revisionsCount = countByStatuses(['Revisions Requested']);
-    const awardedCount = countByStatuses(['Awarded', 'Accepted']);
-    const rejectedCount = countByStatuses(['Rejected']);
-    const decidedCount = awardedCount + rejectedCount;
-    const awardRate = decidedCount > 0 ? Math.round((awardedCount / decidedCount) * 100) : 0;
-
-    const totalAwardedCapital = proposals
-      .filter((p) => ['Awarded', 'Accepted'].includes(p.status) && typeof p.awardAmount === 'number')
-      .reduce((sum, p) => sum + p.awardAmount, 0);
-
-    const totalFundPool = programs.reduce((sum, p) => sum + (typeof p.budgetAmount === 'number' ? p.budgetAmount : 0), 0);
-
-    // ─── Status Distribution (5-stage pipeline, matches the frontend's stage cards) ───
-    const statusDistribution = STAGE_CONFIG.map((cfg) => {
-      const count = countByStatuses(cfg.statuses);
-      return {
-        ...cfg,
-        count,
-        percentage: totalProposals > 0 ? Math.round((count / totalProposals) * 100) : 0,
-      };
-    });
-
-    // ─── Submission Trends (actual months present in the data, last 6) ───
-    const monthMap = {};
-    proposals.forEach((p) => {
-      const d = p.agencySubmission?.submittedAt || p.createdAt;
-      if (!d) return;
-      const dt = new Date(d);
-      const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
-      if (!monthMap[key]) {
-        monthMap[key] = {
-          key,
-          label: dt.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }),
-          count: 0,
-          awarded: 0,
-          sortDate: dt,
-        };
-      }
-      monthMap[key].count++;
-      if (['Awarded', 'Accepted'].includes(p.status)) monthMap[key].awarded++;
-    });
-    const submissionTrends = Object.values(monthMap)
-      .sort((a, b) => a.sortDate - b.sortDate)
-      .slice(-6)
-      .map(({ key, label, count, awarded }) => ({ key, label, count, awarded }));
-
-    // ─── Grant Call Performance Matrix ───
-    const programPerformance = programs.map((program) => {
-      const progProposals = proposals.filter((p) => p.grantProgram?.toString() === program._id.toString());
-      const progAwardedCapital = progProposals
-        .filter((p) => ['Awarded', 'Accepted'].includes(p.status) && typeof p.awardAmount === 'number')
-        .reduce((sum, p) => sum + p.awardAmount, 0);
-
-      return {
-        id: program._id.toString(),
-        title: program.title,
-        shortTitle: program.shortTitle || '',
-        status: program.status,
-        budget: program.budget || (program.budgetAmount ? `₹${program.budgetAmount.toLocaleString('en-IN')}` : '—'),
-        proposalsCount: progProposals.length,
-        underEvaluationCount: progProposals.filter((p) => p.status === 'Under Evaluation').length,
-        revisionsCount: progProposals.filter((p) => p.status === 'Revisions Requested').length,
-        awardedCount: progProposals.filter((p) => ['Awarded', 'Accepted'].includes(p.status)).length,
-        totalAwardedCapital: progAwardedCapital,
-      };
-    });
-
-    // ─── AI Matching / Evaluation Analytics (only if aiScore is actually populated) ───
-    const scoredProposals = proposals.filter((p) => typeof p.aiScore === 'number');
-    let aiAnalytics = { hasData: false };
-    if (scoredProposals.length > 0) {
-      const scores = scoredProposals.map((p) => p.aiScore);
-      const averageScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
-      const high = scores.filter((s) => s >= 75).length;
-      const moderate = scores.filter((s) => s >= 50 && s < 75).length;
-      const low = scores.filter((s) => s < 50).length;
-      const pct = (n) => Math.round((n / scores.length) * 100);
-      aiAnalytics = {
-        hasData: true,
-        averageScore,
-        tiers: {
-          high: { label: 'Strong Alignment (75%+)', count: high, pct: pct(high) },
-          moderate: { label: 'Moderate Alignment (50–74%)', count: moderate, pct: pct(moderate) },
-          low: { label: 'Low Alignment (<50%)', count: low, pct: pct(low) },
-        },
-      };
-    }
-
-    res.json({
-      success: true,
-      analytics: {
-        totalPrograms: programs.length,
-        activePrograms: programs.filter((p) => p.status === 'Active').length,
-        totalProposals,
-        pendingCount,
-        underEvaluationCount,
-        revisionsCount,
-        awardedCount,
-        rejectedCount,
-        decidedCount,
-        awardRate,
-        totalAwardedCapital,
-        totalFundPool,
-        statusDistribution,
-        submissionTrends,
-        programPerformance,
-        aiAnalytics,
-      },
-    });
-  } catch (error) {
-    console.error('Get agency analytics error:', error);
-    res.status(500).json({ success: false, message: 'Server error while computing analytics' });
-  }
-};
 
 // @desc    Update the editable subset of the agency profile
 // @route   PUT /api/agency/profile
@@ -1040,6 +1537,7 @@ module.exports = {
   getAgencyProposalDetail,
   updateProposalDecision,
   getAgencyStats,
+  getAgencyAnalytics,
   updateLegalVerification,
   getFullProfile,
   updateProfile,

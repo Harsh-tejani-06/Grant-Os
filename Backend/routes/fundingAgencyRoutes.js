@@ -13,6 +13,7 @@ const {
   getAgencyProposalDetail,
   updateProposalDecision,
   getAgencyStats,
+  getAgencyAnalytics,
   updateLegalVerification,
   getFullProfile,
   updateProfile,
@@ -146,6 +147,11 @@ router.put(
   requireRole('funding_agency'),
   updateLegalVerification
 );
+
+// ─── Analytics ───
+
+// GET /api/agency/analytics
+router.get('/analytics', protect, requireRole('funding_agency'), getAgencyAnalytics);
 
 // ─── Profile (identity + editable operational details) ───
 

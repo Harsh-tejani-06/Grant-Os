@@ -39,11 +39,10 @@ function App() {
       <Route path="/agency/register" element={<FundingAgencyRegistrationPage />} />
       <Route path="/agency/pending" element={<FundingAgencyPendingPage />} />
       <Route path="/agency/rejected" element={<FundingAgencyRejectedPage />} />
-      <Route path="analytics" element={<AgencyAnalyticsPage />} />
 
       {/* Funding Agency Portal — sidebar-navigated dashboard with nested sections */}
       <Route
-        path="/agency/dashboard" 
+        path="/agency/dashboard"
         element={
           <AgencyProvider>
             <AgencyLayout />
@@ -53,6 +52,7 @@ function App() {
         <Route index element={<AgencyOverviewPage />} />
         <Route path="grants" element={<AgencyGrantCallsPage />} />
         <Route path="proposals" element={<AgencyProposalsPage />} />
+        <Route path="analytics" element={<AgencyAnalyticsPage />} />
         <Route path="profile" element={<AgencyProfilePage />} />
       </Route>
 
