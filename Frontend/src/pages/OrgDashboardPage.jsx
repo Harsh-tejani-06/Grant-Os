@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import api from '../api'
 import { socket, joinOrgRoom, leaveOrgRoom } from '../socket'
 import GrantDiscoveryModule from '../components/GrantDiscoveryModule'
+import { FundingAgencyDonutChart, MonthlyGrantTrajectoryChart } from '../components/OrgCharts'
 
 const LeafIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
@@ -574,6 +575,7 @@ export default function OrgAdminDashboard() {
   const [dashboardSearchQuery, setDashboardSearchQuery] = useState('')
   const [deadlineUrgencyFilter, setDeadlineUrgencyFilter] = useState('all') // 'all' | 'critical' | 'upcoming'
   const [dashboardViewTab, setDashboardViewTab] = useState('pipeline') // 'pipeline' | 'agencies' | 'workload'
+  const [dashboardAgencyFilter, setDashboardAgencyFilter] = useState('all') // 'all' | agency name
 
   // Team management state
   const [members, setMembers] = useState([])
@@ -2534,6 +2536,10 @@ Official Seal & Endorsement`
 
             const currentStageObj = stageConfigMap[pipelineFilterStage] || stageConfigMap.all
             const displayedProposals = (currentStageObj.proposals || []).filter((p) => {
+              if (dashboardAgencyFilter !== 'all') {
+                const ag = (p.grantAgency || '').toLowerCase()
+                if (!ag.includes(dashboardAgencyFilter.toLowerCase())) return false
+              }
               if (!dashboardSearchQuery.trim()) return true
               const q = dashboardSearchQuery.toLowerCase().trim()
               const matchTitle = (p.title || '').toLowerCase().includes(q)
@@ -3028,7 +3034,19 @@ Official Seal & Endorsement`
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2 justify-end text-sm text-slate-600">
+                    <div className="flex items-center gap-2 justify-end text-sm text-slate-600 flex-wrap">
+                      {dashboardAgencyFilter !== 'all' && (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold shadow-xs">
+                          <span>Agency: {dashboardAgencyFilter}</span>
+                          <button
+                            onClick={() => setDashboardAgencyFilter('all')}
+                            className="hover:text-emerald-950 font-black cursor-pointer ml-0.5"
+                            title="Clear Agency Filter"
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      )}
                       <span>
                         Showing <strong className="text-slate-900">{displayedProposals.length}</strong> in{' '}
                         <strong className="text-slate-900">{currentStageObj.label}</strong>
@@ -3038,7 +3056,7 @@ Official Seal & Endorsement`
                           onClick={() => setPipelineFilterStage('all')}
                           className="text-emerald-700 hover:underline font-bold ml-1 cursor-pointer"
                         >
-                          Reset Filter
+                          Reset Stage
                         </button>
                       )}
                     </div>
@@ -3357,67 +3375,92 @@ Official Seal & Endorsement`
                   </div>
                 </div>
 
-                {/* ─── 6. Funding Agency Portfolio Breakdown ─── */}
-                <div className="bg-white rounded-[24px] border border-slate-200/80 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.06)] p-6 sm:p-7">
-                  <div className="flex items-center justify-between mb-5">
+                {/* ─── 6. Analytical Intelligence Suite: Agency Allocation & Trajectory Velocity ─── */}
+                <div className="space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <h2 className="font-heading text-xl font-bold text-slate-900 leading-tight">
-                        Funding Agency Portfolio
-                      </h2>
-                      <p className="text-sm text-slate-500 mt-0.5">Capital distribution across grant mandates</p>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <h2 className="font-heading text-2xl font-bold text-slate-900 tracking-tight">
+                          Institutional Grant Intelligence & Trajectory
+                        </h2>
+                      </div>
+                      <p className="text-sm text-slate-600">
+                        Real-time capital distribution by agency and monthly dossier submission velocity.
+                      </p>
                     </div>
-                    <button
-                      onClick={() => navigateToSection('analytics')}
-                      className="text-sm font-bold text-emerald-700 hover:underline cursor-pointer"
-                    >
-                      Full Analytics Report →
-                    </button>
+
+                    <div className="flex items-center gap-2.5 self-start sm:self-auto flex-wrap">
+                      {dashboardAgencyFilter !== 'all' && (
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold shadow-xs">
+                          <span>Filtered: {dashboardAgencyFilter}</span>
+                          <button
+                            onClick={() => setDashboardAgencyFilter('all')}
+                            className="hover:text-emerald-950 font-black cursor-pointer"
+                            title="Clear Agency Filter"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => navigateToSection('analytics')}
+                        className="px-4 py-2 rounded-[12px] bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
+                      >
+                        <span>📊</span> Full Analytics Report →
+                      </button>
+                    </div>
                   </div>
 
-                  {topAgencies.length === 0 ? (
-                    <div className="text-center py-8 bg-slate-50/50 rounded-[16px] border border-dashed border-slate-200">
-                      <p className="text-sm font-bold text-slate-800">No agency distribution data</p>
-                      <p className="text-xs text-slate-500 mt-0.5">Create proposals with grant calls to view stats</p>
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    {/* Left: Funding Agency Capital Allocation Donut Chart */}
+                    <div className="lg:col-span-5 bg-white rounded-[24px] border border-slate-200/80 shadow-[0_4px_24px_-4px_rgba(15,23,42,0.06)] p-5 sm:p-6 min-w-0 flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="font-heading text-lg font-bold text-slate-900 leading-tight">
+                            Funding Agency Capital Allocation
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Capital distribution across government & private donors
+                          </p>
+                        </div>
+                        <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200 shrink-0">
+                          {topAgencies.length} Partner Bodies
+                        </span>
+                      </div>
+
+                      <FundingAgencyDonutChart
+                        agencies={topAgencies}
+                        totalPipelineValue={totalPipeline}
+                        selectedAgency={dashboardAgencyFilter}
+                        onSelectAgency={(agency) => setDashboardAgencyFilter(agency)}
+                        formatCurrency={formatCurrency}
+                      />
                     </div>
-                  ) : (
-                    <div className="space-y-3.5">
-                      {topAgencies.map((ag) => {
-                        const maxVal = topAgencies[0]?.value || 1
-                        const barPct = Math.max(8, (ag.value / maxVal) * 100)
-                        return (
-                          <div
-                            key={ag.name}
-                            className="p-4 rounded-[16px] bg-slate-50/80 border border-slate-200/80 transition-all"
-                          >
-                            <div className="flex items-center justify-between mb-2.5">
-                              <p className="text-sm font-bold text-slate-900 truncate flex-1">{ag.name}</p>
-                              <div className="flex items-center gap-2.5 shrink-0 ml-2">
-                                {ag.awarded > 0 && (
-                                  <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
-                                    🏆 {ag.awarded} Sanctioned
-                                  </span>
-                                )}
-                                <span className="text-xs text-slate-600 font-semibold">
-                                  {ag.count} proposal{ag.count > 1 ? 's' : ''}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <div className="flex-1 h-2.5 rounded-full bg-slate-200/80 overflow-hidden">
-                                <div
-                                  className="h-full rounded-full bg-gradient-to-r from-emerald-600 to-teal-500 transition-all duration-700"
-                                  style={{ width: `${barPct}%` }}
-                                />
-                              </div>
-                              <span className="text-sm font-extrabold text-slate-900 min-w-[75px] text-right">
-                                {formatCurrency(ag.value)}
-                              </span>
-                            </div>
-                          </div>
-                        )
-                      })}
+
+                    {/* Right: Monthly Grant Trajectory & Submission Velocity */}
+                    <div className="lg:col-span-7 bg-white rounded-[24px] border border-slate-200/80 shadow-[0_4px_24px_-4px_rgba(15,23,42,0.06)] p-5 sm:p-6 min-w-0 flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="font-heading text-lg font-bold text-slate-900 leading-tight">
+                            Monthly Grant Trajectory & Submission Velocity
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Timeline velocity of grant drafting, submissions & sanctioned capital
+                          </p>
+                        </div>
+                        <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold border border-indigo-200 shrink-0">
+                          Timeline Analytics
+                        </span>
+                      </div>
+
+                      <MonthlyGrantTrajectoryChart
+                        proposals={filteredProposals}
+                        formatCurrency={formatCurrency}
+                        parseAmountToNumber={parseAmountToNumber}
+                      />
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
             )
@@ -4796,6 +4839,29 @@ Official Seal & Endorsement`
                     Proposals require 100% of statutory compliance checklists verified prior to agency dispatch.
                   </p>
                 </div>
+              </div>
+
+              {/* Monthly Grant Trajectory & Submission Velocity in Analytics Suite */}
+              <div className="bg-surface-elevated rounded-[18px] border border-warm-gray-200/70 shadow-soft p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-warm-gray-200/80 mb-5">
+                  <div>
+                    <h3 className="font-heading font-bold text-base text-warm-gray-900 flex items-center gap-2">
+                      <span>📈</span> Monthly Grant Trajectory & Submission Velocity
+                    </h3>
+                    <p className="text-xs text-warm-gray-500 mt-0.5">
+                      Longitudinal research capital realization and dossier formulation velocity.
+                    </p>
+                  </div>
+                  <span className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-800 text-xs font-bold border border-indigo-200">
+                    Institutional Growth Engine
+                  </span>
+                </div>
+
+                <MonthlyGrantTrajectoryChart
+                  proposals={orgProposals}
+                  formatCurrency={formatCurrency}
+                  parseAmountToNumber={parseAmountToNumber}
+                />
               </div>
 
               <div className="bg-surface-elevated rounded-[18px] border border-warm-gray-200/70 shadow-soft p-6">
