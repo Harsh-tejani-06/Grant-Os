@@ -250,10 +250,17 @@ function getGrantListingGeography(grant) {
 }
 
 function getGrantProgramGeography(program) {
-  const geographicScope = program.eligibility?.geographicScope || program.fundingAgency?.geographicScope || 'National';
-  let eligibleStates = Array.isArray(program.eligibility?.eligibleStates) && program.eligibility.eligibleStates.length > 0
-    ? [...program.eligibility.eligibleStates]
+  const rules = program.eligibility || {};
+  const geographicScope = rules.geographicScope || program.fundingAgency?.geographicScope || 'National';
+  let eligibleStates = Array.isArray(rules.eligibleStates) && rules.eligibleStates.length > 0
+    ? [...rules.eligibleStates]
     : (Array.isArray(program.fundingAgency?.fundingStates) ? [...program.fundingAgency.fundingStates] : []);
+
+  const excludedStates = Array.isArray(rules.excludedStates) ? [...rules.excludedStates] : [];
+  const eligibleCountries = Array.isArray(rules.eligibleCountries) ? [...rules.eligibleCountries] : [];
+  const eligibleDistricts = Array.isArray(rules.eligibleDistricts) ? [...rules.eligibleDistricts] : [];
+  const areaTypes = Array.isArray(rules.areaTypes) ? [...rules.areaTypes] : [];
+  const geographicNotes = rules.geographicNotes || '';
 
   const hqState = program.fundingAgency?.headquarters?.state || '';
   if (eligibleStates.length === 0 && hqState && geographicScope === 'State') {
@@ -262,16 +269,36 @@ function getGrantProgramGeography(program) {
 
   let regionDisplay = 'Pan-India (National)';
   if (geographicScope === 'International') {
-    regionDisplay = 'International / Global';
+    regionDisplay = eligibleCountries.length > 0
+      ? `International (${eligibleCountries.join(', ')})`
+      : 'International / Global';
   } else if (geographicScope === 'State') {
     regionDisplay = eligibleStates.length > 0 ? eligibleStates.join(', ') : (hqState ? `${hqState} (State)` : 'State / Regional');
   } else if (geographicScope === 'Local') {
-    regionDisplay = 'Local / Institutional';
+    if (eligibleDistricts.length > 0) {
+      regionDisplay = `${eligibleDistricts.join(', ')}${eligibleStates[0] ? `, ${eligibleStates[0]}` : ''} (Local)`;
+    } else if (rules.eligibleStates?.length > 0) {
+      regionDisplay = `${rules.eligibleStates.join(', ')} (Local)`;
+    } else {
+      regionDisplay = 'Local / Institutional';
+    }
   } else if (eligibleStates.length > 0) {
     regionDisplay = `Pan-India (${eligibleStates.join(', ')})`;
+  } else if (excludedStates.length > 0) {
+    regionDisplay = `Pan-India (excluding ${excludedStates.join(', ')})`;
   }
 
-  return { geographicScope, eligibleStates, regionDisplay, hqState };
+  return {
+    geographicScope,
+    eligibleStates,
+    excludedStates,
+    eligibleCountries,
+    eligibleDistricts,
+    areaTypes,
+    geographicNotes,
+    regionDisplay,
+    hqState,
+  };
 }
 
 function matchesRegionFilter(item, regionFilter, orgState) {
@@ -286,6 +313,9 @@ function matchesRegionFilter(item, regionFilter, orgState) {
   // Contextual "my_state" filter: grants open to org's state
   if (normFilter === 'my_state') {
     if (!orgStateLower) return true;
+    // Pan-India calls that exclude the org's own state are not open to it.
+    const excluded = (item.excludedStates || []).map((s) => String(s).toLowerCase());
+    if (excluded.some((s) => s === orgStateLower)) return false;
     if (scope === 'national') return true;
     if (states.some((s) => s.includes(orgStateLower) || orgStateLower.includes(s))) return true;
     if (hq && (hq.includes(orgStateLower) || orgStateLower.includes(hq))) return true;
@@ -669,6 +699,11 @@ const discoverGrants = async (req, res) => {
         _similarity,
         geographicScope: progGeo.geographicScope,
         eligibleStates: progGeo.eligibleStates,
+        excludedStates: progGeo.excludedStates,
+        eligibleCountries: progGeo.eligibleCountries,
+        eligibleDistricts: progGeo.eligibleDistricts,
+        areaTypes: progGeo.areaTypes,
+        geographicNotes: progGeo.geographicNotes,
         regionDisplay: progGeo.regionDisplay,
         hqState: progGeo.hqState,
         description: program.description || '',
@@ -821,4 +856,3 @@ const discoverGrants = async (req, res) => {
 };
 
 module.exports = { registerOrganization, getOrgStatus, discoverGrants, maybeRecomputeOrgEmbedding };
-

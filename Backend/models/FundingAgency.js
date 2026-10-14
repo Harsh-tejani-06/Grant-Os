@@ -19,6 +19,7 @@ const fundingAgencySchema = new mongoose.Schema(
       enum: [
         'government_central',
         'government_state',
+        'corporate_csr',
         'private_foundation',
         'international_agency',
       ],
@@ -61,6 +62,21 @@ const fundingAgencySchema = new mongoose.Schema(
       type: String,
       default: '',
       maxlength: 1000,
+    },
+
+    // ─── 🟢 Public: Branding & Reach ───
+    logoUrl: {
+      type: String,
+      default: '', // e.g. /uploads/agency-logos/<agencyId>-<ts>.png
+    },
+    focusAreas: {
+      type: [String], // thematic areas the agency funds, e.g. "Clean Energy"
+      default: [],
+    },
+    socialLinks: {
+      linkedin: { type: String, trim: true, default: '' },
+      twitter: { type: String, trim: true, default: '' },
+      other: { type: String, trim: true, default: '' },
     },
 
     // ─── 🟢 Public: Headquarters Address ───
@@ -187,6 +203,19 @@ const fundingAgencySchema = new mongoose.Schema(
       default: null,
     },
 
+    // ─── Profile change log (last 15 self-service edits, newest first) ───
+    profileHistory: {
+      type: [
+        {
+          fields: { type: [String], default: [] },
+          changedAt: { type: Date, default: Date.now },
+          changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+          _id: false,
+        },
+      ],
+      default: [],
+    },
+
     // ─── Owner ───
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -218,6 +247,9 @@ fundingAgencySchema.virtual('profileCompletion').get(function () {
         this.contactPerson.name &&
         this.contactPerson.email &&
         (this.contactPerson.designation || this.contactPerson.phone)
+    ),
+    branding: Boolean(
+      this.logoUrl || (this.focusAreas && this.focusAreas.length > 0)
     ),
     legalVerification: Boolean(this.cin || this.darpanId),
   };

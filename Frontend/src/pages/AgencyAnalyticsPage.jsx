@@ -113,7 +113,7 @@ export default function AgencyAnalyticsPage() {
         <div className="relative z-10 flex flex-col justify-between gap-5 md:flex-row md:items-center">
           <div className="max-w-2xl">
             <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-amber/15 bg-amber-50 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber">
-              <span>📈</span> Portfolio intelligence
+              <span>📈</span> PR0POSAL intelligence
             </div>
             <h1 className="font-heading text-3xl font-bold leading-tight text-warm-gray-900 sm:text-4xl">Grant analytics</h1>
             <p className="mt-2 text-sm leading-relaxed text-warm-gray-600">

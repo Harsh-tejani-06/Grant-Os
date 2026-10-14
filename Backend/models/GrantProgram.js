@@ -110,9 +110,38 @@ const grantProgramSchema = new mongoose.Schema(
         enum: ['Local', 'State', 'National', 'International', ''],
         default: '',
       },
+      // States / UTs the call is open to. Used by State scope, and by
+      // National scope as an optional "selected states only" restriction.
       eligibleStates: {
         type: [String],
         default: [],
+      },
+      // National scope only: Pan-India EXCEPT these states / UTs.
+      excludedStates: {
+        type: [String],
+        default: [],
+      },
+      // International scope only: empty list = open to any country.
+      eligibleCountries: {
+        type: [String],
+        default: [],
+      },
+      // Local scope only: districts / cities covered (within eligibleStates).
+      eligibleDistricts: {
+        type: [String],
+        default: [],
+      },
+      // Location-type focus (informational — shown to applicants, not auto-checked).
+      areaTypes: {
+        type: [String],
+        enum: ['urban', 'semi_urban', 'rural', 'tribal', 'aspirational_districts', 'border_areas', 'coastal'],
+        default: [],
+      },
+      // Freeform residency / location requirement, e.g. "Unit must operate from a Tier-2 city".
+      geographicNotes: {
+        type: String,
+        default: '',
+        maxlength: 500,
       },
       minOrganizationAge: {
         type: Number,

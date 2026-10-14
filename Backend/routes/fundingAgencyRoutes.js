@@ -17,9 +17,12 @@ const {
   updateLegalVerification,
   getFullProfile,
   updateProfile,
+  uploadAgencyLogo: uploadAgencyLogoHandler,
+  removeAgencyLogo,
+  getProfileInsights,
 } = require('../controllers/fundingAgencyController');
 const { protect, requireRole } = require('../middleware/auth');
-const { uploadGrantDoc } = require('../middleware/uploadGrantDocument');
+const { uploadGrantDoc, uploadAgencyLogo } = require('../middleware/uploadGrantDocument');
 
 const router = express.Router();
 
@@ -160,5 +163,33 @@ router.get('/profile', protect, requireRole('funding_agency'), getFullProfile);
 
 // PUT /api/agency/profile
 router.put('/profile', protect, requireRole('funding_agency'), updateProfile);
+
+// GET /api/agency/profile/insights — live numbers + recent activity for the Profile page
+router.get('/profile/insights', protect, requireRole('funding_agency'), getProfileInsights);
+
+// POST /api/agency/profile/logo — upload / replace the agency logo (PNG/JPG/WEBP, 3 MB)
+router.post(
+  '/profile/logo',
+  protect,
+  requireRole('funding_agency'),
+  (req, res, next) => {
+    uploadAgencyLogo.single('logo')(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({
+          success: false,
+          message:
+            err.code === 'LIMIT_FILE_SIZE'
+              ? 'Logo exceeds the 3 MB size limit'
+              : err.message || 'Logo upload failed',
+        });
+      }
+      next();
+    });
+  },
+  uploadAgencyLogoHandler
+);
+
+// DELETE /api/agency/profile/logo
+router.delete('/profile/logo', protect, requireRole('funding_agency'), removeAgencyLogo);
 
 module.exports = router;

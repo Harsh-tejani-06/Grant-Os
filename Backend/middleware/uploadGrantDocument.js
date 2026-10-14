@@ -44,4 +44,38 @@ const uploadGrantDoc = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
 });
 
-module.exports = { uploadGrantDoc };
+// ─── Agency logo (profile branding) ───
+// Images only (PNG / JPG / WEBP), max 3 MB, stored under uploads/agency-logos.
+// Kept in this file so the project doesn't grow another upload module.
+const LOGO_DIR = path.join(__dirname, '..', 'uploads', 'agency-logos');
+
+if (!fs.existsSync(LOGO_DIR)) {
+  fs.mkdirSync(LOGO_DIR, { recursive: true });
+}
+
+const LOGO_TYPES = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/webp': '.webp',
+};
+
+const logoStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, LOGO_DIR),
+  filename: (req, file, cb) => {
+    const owner = String(req.user?.fundingAgency || 'agency');
+    cb(null, `${owner}-${Date.now()}${LOGO_TYPES[file.mimetype] || '.png'}`);
+  },
+});
+
+const uploadAgencyLogo = multer({
+  storage: logoStorage,
+  fileFilter: (req, file, cb) => {
+    if (!LOGO_TYPES[file.mimetype]) {
+      return cb(new Error('Logo must be a PNG, JPG or WEBP image'));
+    }
+    cb(null, true);
+  },
+  limits: { fileSize: 3 * 1024 * 1024 }, // 3 MB
+});
+
+module.exports = { uploadGrantDoc, uploadAgencyLogo, LOGO_DIR };

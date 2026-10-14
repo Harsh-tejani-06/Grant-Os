@@ -46,33 +46,52 @@ async function evaluateEligibility(organization, grantProgram) {
   }
 
   // Geographic eligibility
-  if (
-    rules.geographicScope === 'State' &&
-    rules.eligibleStates?.length > 0
-  ) {
-    const orgState = (
-      organization.address?.state || ''
-    ).trim().toLowerCase();
+  const norm = (v) => String(v || '').trim().toLowerCase();
+  const orgState = norm(organization.address?.state);
+  const orgCity = norm(organization.address?.city);
+  const orgCountry = norm(organization.address?.country || 'India');
+  const inList = (list, value) => value !== '' && list.some((item) => norm(item) === value);
 
+  const geoStates = rules.eligibleStates || [];
+  const geoExcluded = rules.excludedStates || [];
+  const geoDistricts = rules.eligibleDistricts || [];
+  const geoCountries = rules.eligibleCountries || [];
+
+  if (rules.geographicScope === 'State' && geoStates.length > 0) {
     checks.push({
-      label: `Organization state is within eligible states (${rules.eligibleStates.join(', ')})`,
-      passed: rules.eligibleStates.some(
-        (s) => s.trim().toLowerCase() === orgState
-      ),
+      label: `Organization state is within eligible states (${geoStates.join(', ')})`,
+      passed: inList(geoStates, orgState),
     });
-  } else if (
-    rules.geographicScope === 'National' &&
-    rules.eligibleStates?.length > 0
-  ) {
-    const orgState = (
-      organization.address?.state || ''
-    ).trim().toLowerCase();
-
+  } else if (rules.geographicScope === 'Local') {
+    if (geoStates.length > 0) {
+      checks.push({
+        label: `Organization is located in ${geoStates.join(', ')}`,
+        passed: inList(geoStates, orgState),
+      });
+    }
+    if (geoDistricts.length > 0) {
+      checks.push({
+        label: `Organization is located in an eligible district / city (${geoDistricts.join(', ')})`,
+        passed: inList(geoDistricts, orgCity),
+      });
+    }
+  } else if (rules.geographicScope === 'National') {
+    if (geoStates.length > 0) {
+      checks.push({
+        label: `Organization state is within funded regions (${geoStates.join(', ')})`,
+        passed: inList(geoStates, orgState),
+      });
+    }
+    if (geoExcluded.length > 0) {
+      checks.push({
+        label: `Organization state is not among excluded regions (${geoExcluded.join(', ')})`,
+        passed: !inList(geoExcluded, orgState),
+      });
+    }
+  } else if (rules.geographicScope === 'International' && geoCountries.length > 0) {
     checks.push({
-      label: `Organization state is within funded regions (${rules.eligibleStates.join(', ')})`,
-      passed: rules.eligibleStates.some(
-        (s) => s.trim().toLowerCase() === orgState
-      ),
+      label: `Organization country is within eligible countries (${geoCountries.join(', ')})`,
+      passed: inList(geoCountries, orgCountry),
     });
   }
 

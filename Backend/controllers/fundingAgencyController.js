@@ -5,6 +5,9 @@ const Proposal = require('../models/Proposal');
 const User = require('../models/User');
 const { embedGrantText } = require('../utils/embeddings');
 const socketHelper = require('../socket');
+const fs = require('fs');
+const path = require('path');
+const { LOGO_DIR } = require('../middleware/uploadGrantDocument');
 
 // Helper: ensure the logged-in user has an approved funding agency profile,
 // and return it. Sends the appropriate error response itself if not.
@@ -179,6 +182,84 @@ const GRANT_LOCKED_AFTER_PUBLISH = [
 const GRANT_ALWAYS_EDITABLE = ['title', 'description', 'status', 'contactInformation', 'applicationProcess'];
 const GRANT_ALL_EDITABLE_FIELDS = [...GRANT_ALWAYS_EDITABLE, ...GRANT_LOCKED_AFTER_PUBLISH];
 
+// ─── Geographic eligibility sanitising ───
+// Keeps whatever the client sends consistent with the chosen scope, so a call
+// can never be saved with, say, countries on a State-scope grant.
+class GrantValidationError extends Error {}
+
+const GEO_SCOPES = ['Local', 'State', 'National', 'International', ''];
+const GEO_AREA_TYPES = ['urban', 'semi_urban', 'rural', 'tribal', 'aspirational_districts', 'border_areas', 'coastal'];
+
+const cleanGeoList = (value, { max, label }) => {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new GrantValidationError(`${label} must be a list`);
+  const seen = new Set();
+  const out = [];
+  value.forEach((item) => {
+    const text = String(item ?? '').trim();
+    if (!text) return;
+    if (text.length > 80) throw new GrantValidationError(`${label}: "${text.slice(0, 20)}…" is too long`);
+    const key = text.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(text);
+  });
+  if (out.length > max) throw new GrantValidationError(`${label}: at most ${max} entries are allowed`);
+  return out;
+};
+
+const sanitizeEligibility = (input, existing = {}) => {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return input;
+  const merged = { ...existing, ...input };
+
+  const scope = merged.geographicScope ?? '';
+  if (!GEO_SCOPES.includes(scope)) throw new GrantValidationError('Invalid geographic scope');
+
+  let eligibleStates = cleanGeoList(merged.eligibleStates, { max: 40, label: 'Eligible states' });
+  let excludedStates = cleanGeoList(merged.excludedStates, { max: 40, label: 'Excluded states' });
+  let eligibleCountries = cleanGeoList(merged.eligibleCountries, { max: 60, label: 'Eligible countries' });
+  let eligibleDistricts = cleanGeoList(merged.eligibleDistricts, { max: 50, label: 'Districts / cities' });
+
+  // Only keep what the chosen scope actually uses.
+  if (scope === 'International') {
+    eligibleStates = [];
+    excludedStates = [];
+    eligibleDistricts = [];
+  } else {
+    eligibleCountries = [];
+    if (scope !== 'National') excludedStates = [];
+    if (scope !== 'Local') eligibleDistricts = [];
+  }
+  if (scope === 'Local' && eligibleStates.length > 1) eligibleStates = eligibleStates.slice(0, 1);
+
+  const eligibleLower = new Set(eligibleStates.map((s) => s.toLowerCase()));
+  if (excludedStates.some((s) => eligibleLower.has(s.toLowerCase()))) {
+    throw new GrantValidationError('A state cannot be both eligible and excluded');
+  }
+
+  const areaTypes = Array.isArray(merged.areaTypes) ? [...new Set(merged.areaTypes)] : [];
+  if (areaTypes.some((a) => !GEO_AREA_TYPES.includes(a))) {
+    throw new GrantValidationError('Invalid area type');
+  }
+
+  const geographicNotes = String(merged.geographicNotes ?? '').trim();
+  if (geographicNotes.length > 500) {
+    throw new GrantValidationError('Geographic notes can be at most 500 characters');
+  }
+
+  return {
+    applicantTypes: merged.applicantTypes,
+    geographicScope: scope,
+    eligibleStates,
+    excludedStates,
+    eligibleCountries,
+    eligibleDistricts,
+    areaTypes,
+    geographicNotes,
+    minOrganizationAge: merged.minOrganizationAge,
+  };
+};
+
 // @desc    Create a new grant program as a Draft
 // @route   POST /api/agency/programs
 // @access  Private (funding_agency, agency must be approved)
@@ -239,7 +320,7 @@ const createGrantProgram = async (req, res) => {
       startDate: startDate || null,
       deadline: deadline || null,
       projectDurationMonths: projectDurationMonths || {},
-      eligibility: eligibility || {},
+      eligibility: sanitizeEligibility(eligibility || {}),
       eligibilityRulesText: eligibilityRulesText || '',
       researchAreas: researchAreas || [],
       projectRequirements: projectRequirements || '',
@@ -270,6 +351,9 @@ const createGrantProgram = async (req, res) => {
       program,
     });
   } catch (error) {
+    if (error instanceof GrantValidationError) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
     console.error('Create grant program error:', error);
     res.status(500).json({ success: false, message: 'Server error while creating grant program' });
   }
@@ -336,6 +420,11 @@ const updateGrantProgram = async (req, res) => {
       }
     }
 
+    if (req.body.eligibility !== undefined && !isLifecycleLocked) {
+      const current = typeof program.eligibility?.toObject === 'function' ? program.eligibility.toObject() : {};
+      req.body.eligibility = sanitizeEligibility(req.body.eligibility, current);
+    }
+
     const allowedFields = isLifecycleLocked ? GRANT_ALWAYS_EDITABLE : GRANT_ALL_EDITABLE_FIELDS;
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) {
@@ -356,6 +445,9 @@ const updateGrantProgram = async (req, res) => {
 
     res.json({ success: true, message: 'Grant program updated', program });
   } catch (error) {
+    if (error instanceof GrantValidationError) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
     console.error('Update grant program error:', error);
     res.status(500).json({ success: false, message: 'Server error while updating grant program' });
   }
@@ -406,6 +498,18 @@ const publishGrantProgram = async (req, res) => {
       errors.push('Submission deadline is required.');
     } else if (new Date(program.deadline) <= new Date()) {
       errors.push('Submission deadline must be in the future.');
+    }
+
+    const geo = program.eligibility || {};
+    if (geo.geographicScope === 'State' && (geo.eligibleStates || []).length === 0) {
+      errors.push('Select at least one eligible state or union territory.');
+    }
+    if (
+      geo.geographicScope === 'Local' &&
+      (geo.eligibleStates || []).length === 0 &&
+      (geo.eligibleDistricts || []).length === 0
+    ) {
+      errors.push('Choose the state, or add the districts / cities, this local call covers.');
     }
 
     const criteria = program.evaluationCriteria || [];
@@ -1384,12 +1488,189 @@ const updateLegalVerification = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────────────────────────────────
+// Agency Profile
+// ─────────────────────────────────────────────────────────────
+
 // Fields the agency is allowed to self-edit after approval.
-// Everything else (agencyName, agencyType, establishedYear, contactPerson.email,
-// status, cin/darpanId, registration documents) is locked — identity/legal
-// fields go through admin review or the dedicated legal-verification endpoint.
+// Everything else (agencyName, agencyType, establishedYear, contactPerson.name/email,
+// status, registration documents) is locked — identity fields go through admin
+// review, and CIN / Darpan ID go through the dedicated legal-verification endpoint.
 const EDITABLE_HEADQUARTERS_FIELDS = ['street', 'city', 'state', 'pincode', 'country'];
 const EDITABLE_CONTACT_FIELDS = ['designation', 'phone']; // name/email are identity-locked
+const REQUIRED_HEADQUARTERS_FIELDS = ['street', 'city', 'state', 'pincode'];
+
+const GRANT_TYPE_VALUES = [
+  'research_grant',
+  'fellowship',
+  'travel_grant',
+  'startup_seed',
+  'institutional_infra',
+];
+const APPLICANT_TYPE_VALUES = [
+  'universities',
+  'research_institutions',
+  'ngos',
+  'startups',
+  'government_organizations',
+  'individuals',
+  'private_companies',
+];
+const FUNDING_FREQUENCY_VALUES = ['Annual', 'Biannual', 'Quarterly', 'Rolling', ''];
+const FUNDING_SCOPE_VALUES = ['Local', 'State', 'National', 'International', ''];
+
+const MAX_FOCUS_AREAS = 12;
+const MAX_FOCUS_AREA_LENGTH = 40;
+const MAX_FUNDING_STATES = 40;
+const MAX_PROFILE_HISTORY = 15;
+const PHONE_RE = /^[+()\d\s-]{7,20}$/;
+
+// Thrown by the validators below; caught in updateProfile and returned as a 400.
+class ProfileValidationError extends Error {}
+
+const fail = (message) => {
+  throw new ProfileValidationError(message);
+};
+
+// Accepts "example.org" or "https://example.org"; stores a normalised https URL.
+const normalizeUrl = (value, label) => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  let parsed;
+  try {
+    parsed = new URL(withProtocol);
+  } catch {
+    return fail(`${label} is not a valid URL`);
+  }
+  if (!parsed.hostname.includes('.')) return fail(`${label} is not a valid URL`);
+  return parsed.toString().replace(/\/$/, '');
+};
+
+const cleanStringList = (value, { max, maxLength, label, allowed }) => {
+  if (!Array.isArray(value)) return fail(`${label} must be a list`);
+  const seen = new Set();
+  const out = [];
+  value.forEach((item) => {
+    const text = String(item ?? '').trim();
+    if (!text) return;
+    if (allowed && !allowed.includes(text)) fail(`${label}: "${text}" is not a valid option`);
+    if (maxLength && text.length > maxLength) fail(`${label}: "${text.slice(0, 20)}…" is too long`);
+    const key = text.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(text);
+  });
+  if (max && out.length > max) fail(`${label}: at most ${max} entries are allowed`);
+  return out;
+};
+
+// null / '' clears the value; anything else must be a finite number >= 0.
+const parseOptionalNumber = (value, label) => {
+  if (value === null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return fail(`${label} must be a positive number`);
+  return n;
+};
+
+// Profile fields we diff to build the "recent changes" log.
+const PROFILE_CHANGE_LABELS = {
+  description: 'Description',
+  mission: 'Mission',
+  vision: 'Vision',
+  website: 'Website',
+  csrRegistrationNumber: 'CSR registration number',
+  focusAreas: 'Focus areas',
+  socialLinks: 'Social links',
+  headquarters: 'Headquarters address',
+  contactPerson: 'Contact details',
+  grantTypesOffered: 'Grant types',
+  fundingRange: 'Funding amount range',
+  fundingDurationMonths: 'Funding duration',
+  fundingFrequency: 'Funding frequency',
+  eligibleApplicantTypes: 'Eligible applicants',
+  fundingScope: 'Funding scope',
+  fundingStates: 'States / regions covered',
+};
+
+const snapshotProfile = (agency) => ({
+  description: agency.description,
+  mission: agency.mission,
+  vision: agency.vision,
+  website: agency.website,
+  csrRegistrationNumber: agency.csrRegistrationNumber,
+  focusAreas: agency.focusAreas,
+  socialLinks: {
+    linkedin: agency.socialLinks?.linkedin || '',
+    twitter: agency.socialLinks?.twitter || '',
+    other: agency.socialLinks?.other || '',
+  },
+  headquarters: EDITABLE_HEADQUARTERS_FIELDS.reduce((acc, f) => {
+    acc[f] = agency.headquarters?.[f] || '';
+    return acc;
+  }, {}),
+  contactPerson: {
+    designation: agency.contactPerson?.designation || '',
+    phone: agency.contactPerson?.phone || '',
+  },
+  grantTypesOffered: agency.grantTypesOffered,
+  fundingRange: [agency.fundingAmountMin, agency.fundingAmountMax],
+  fundingDurationMonths: [agency.fundingDurationMonths?.min, agency.fundingDurationMonths?.max],
+  fundingFrequency: agency.fundingFrequency,
+  eligibleApplicantTypes: agency.eligibleApplicantTypes,
+  fundingScope: agency.fundingScope,
+  fundingStates: agency.fundingStates,
+});
+
+const changedProfileFields = (before, after) =>
+  Object.keys(PROFILE_CHANGE_LABELS)
+    .filter((key) => JSON.stringify(before[key]) !== JSON.stringify(after[key]))
+    .map((key) => PROFILE_CHANGE_LABELS[key]);
+
+// Shape sent to the Profile page. Explicit on purpose: nothing sensitive
+// (reviewedBy, createdBy, internal ids) leaks, and the change log is separate.
+const serializeProfile = (agency) => ({
+  id: agency._id,
+  agencyName: agency.agencyName,
+  shortName: agency.shortName,
+  agencyType: agency.agencyType,
+  organizationType: agency.organizationType,
+  ownershipType: agency.ownershipType,
+  registrationNumber: agency.registrationNumber,
+  establishedYear: agency.establishedYear,
+  website: agency.website,
+  description: agency.description,
+  mission: agency.mission,
+  vision: agency.vision,
+  logoUrl: agency.logoUrl || '',
+  focusAreas: agency.focusAreas || [],
+  socialLinks: {
+    linkedin: agency.socialLinks?.linkedin || '',
+    twitter: agency.socialLinks?.twitter || '',
+    other: agency.socialLinks?.other || '',
+  },
+  headquarters: agency.headquarters,
+  cin: agency.cin,
+  darpanId: agency.darpanId,
+  csrRegistrationNumber: agency.csrRegistrationNumber,
+  grantTypesOffered: agency.grantTypesOffered,
+  fundingAmountMin: agency.fundingAmountMin,
+  fundingAmountMax: agency.fundingAmountMax,
+  fundingDurationMonths: agency.fundingDurationMonths,
+  fundingFrequency: agency.fundingFrequency,
+  eligibleApplicantTypes: agency.eligibleApplicantTypes,
+  fundingScope: agency.fundingScope,
+  fundingStates: agency.fundingStates,
+  contactPerson: agency.contactPerson,
+  authorizationLetterUrl: agency.authorizationLetterUrl,
+  registrationCertificateUrl: agency.registrationCertificateUrl,
+  status: agency.status,
+  submittedAt: agency.submittedAt,
+  reviewedAt: agency.reviewedAt,
+  updatedAt: agency.updatedAt,
+  isLegallyVerified: Boolean(agency.cin || agency.darpanId),
+  profileCompletion: agency.profileCompletion,
+});
 
 // @desc    Get the full agency profile (for the Profile page)
 // @route   GET /api/agency/profile
@@ -1399,44 +1680,7 @@ const getFullProfile = async (req, res) => {
     const agency = await getApprovedAgencyOrRespond(req, res);
     if (!agency) return;
 
-    res.json({
-      success: true,
-      agency: {
-        id: agency._id,
-        agencyName: agency.agencyName,
-        shortName: agency.shortName,
-        agencyType: agency.agencyType,
-        organizationType: agency.organizationType,
-        ownershipType: agency.ownershipType,
-        registrationNumber: agency.registrationNumber,
-        establishedYear: agency.establishedYear,
-        website: agency.website,
-        description: agency.description,
-        mission: agency.mission,
-        vision: agency.vision,
-        headquarters: agency.headquarters,
-        cin: agency.cin,
-        darpanId: agency.darpanId,
-        csrRegistrationNumber: agency.csrRegistrationNumber,
-        grantTypesOffered: agency.grantTypesOffered,
-        fundingAmountMin: agency.fundingAmountMin,
-        fundingAmountMax: agency.fundingAmountMax,
-        fundingDurationMonths: agency.fundingDurationMonths,
-        fundingFrequency: agency.fundingFrequency,
-        eligibleApplicantTypes: agency.eligibleApplicantTypes,
-        fundingScope: agency.fundingScope,
-        fundingStates: agency.fundingStates,
-        contactPerson: agency.contactPerson,
-        authorizationLetterUrl: agency.authorizationLetterUrl,
-        registrationCertificateUrl: agency.registrationCertificateUrl,
-        status: agency.status,
-        submittedAt: agency.submittedAt,
-        reviewedAt: agency.reviewedAt,
-        updatedAt: agency.updatedAt,
-        isLegallyVerified: Boolean(agency.cin || agency.darpanId),
-        profileCompletion: agency.profileCompletion,
-      },
-    });
+    res.json({ success: true, agency: serializeProfile(agency) });
   } catch (error) {
     console.error('Get full profile error:', error);
     res.status(500).json({ success: false, message: 'Server error while fetching profile' });
@@ -1457,6 +1701,8 @@ const updateProfile = async (req, res) => {
       description,
       mission,
       vision,
+      focusAreas,
+      socialLinks,
       grantTypesOffered,
       headquarters,
       contactPerson,
@@ -1469,58 +1715,325 @@ const updateProfile = async (req, res) => {
       fundingStates,
     } = req.body;
 
-    // Simple top-level strings — allow clearing (empty string) as a deliberate "delete"
-    if (website !== undefined) agency.website = website.trim();
-    if (csrRegistrationNumber !== undefined) agency.csrRegistrationNumber = csrRegistrationNumber.trim();
-    if (description !== undefined) agency.description = description.slice(0, 1000);
-    if (mission !== undefined) agency.mission = mission.slice(0, 1000);
-    if (vision !== undefined) agency.vision = vision.slice(0, 1000);
+    const before = snapshotProfile(agency);
 
-    // Arrays — full replace, lets the client add/remove entries (chip UI)
-    if (Array.isArray(grantTypesOffered)) agency.grantTypesOffered = grantTypesOffered;
-    if (Array.isArray(eligibleApplicantTypes)) agency.eligibleApplicantTypes = eligibleApplicantTypes;
-    if (Array.isArray(fundingStates)) agency.fundingStates = fundingStates;
+    // ── Validate everything first, then assign — a bad field never leaves the
+    //    document half-updated.
+    const next = {};
 
-    // Funding range / duration / frequency / scope
-    if (fundingAmountMin !== undefined) agency.fundingAmountMin = fundingAmountMin;
-    if (fundingAmountMax !== undefined) agency.fundingAmountMax = fundingAmountMax;
-    if (fundingDurationMonths && typeof fundingDurationMonths === 'object') {
-      agency.fundingDurationMonths = {
-        min: fundingDurationMonths.min ?? null,
-        max: fundingDurationMonths.max ?? null,
+    if (website !== undefined) next.website = normalizeUrl(website, 'Website');
+    if (csrRegistrationNumber !== undefined) {
+      next.csrRegistrationNumber = String(csrRegistrationNumber).trim().toUpperCase();
+    }
+    ['description', 'mission', 'vision'].forEach((key) => {
+      const value = req.body[key];
+      if (value === undefined) return;
+      if (typeof value !== 'string') fail(`${key.charAt(0).toUpperCase() + key.slice(1)} must be text`);
+      if (value.length > 1000) fail(`${key.charAt(0).toUpperCase() + key.slice(1)} can be at most 1000 characters`);
+      next[key] = value.trim();
+    });
+
+    if (focusAreas !== undefined) {
+      next.focusAreas = cleanStringList(focusAreas, {
+        max: MAX_FOCUS_AREAS,
+        maxLength: MAX_FOCUS_AREA_LENGTH,
+        label: 'Focus areas',
+      });
+    }
+
+    if (socialLinks !== undefined) {
+      if (!socialLinks || typeof socialLinks !== 'object') fail('Social links are invalid');
+      next.socialLinks = {
+        linkedin: normalizeUrl(socialLinks.linkedin ?? agency.socialLinks?.linkedin, 'LinkedIn link'),
+        twitter: normalizeUrl(socialLinks.twitter ?? agency.socialLinks?.twitter, 'X / Twitter link'),
+        other: normalizeUrl(socialLinks.other ?? agency.socialLinks?.other, 'Other link'),
       };
     }
-    if (fundingFrequency !== undefined) agency.fundingFrequency = fundingFrequency;
-    if (fundingScope !== undefined) agency.fundingScope = fundingScope;
 
-    // Headquarters — only the whitelisted sub-fields
-    if (headquarters && typeof headquarters === 'object') {
-      EDITABLE_HEADQUARTERS_FIELDS.forEach((field) => {
-        if (headquarters[field] !== undefined) {
-          agency.headquarters[field] = String(headquarters[field]).trim();
-        }
+    if (grantTypesOffered !== undefined) {
+      next.grantTypesOffered = cleanStringList(grantTypesOffered, {
+        label: 'Grant types',
+        allowed: GRANT_TYPE_VALUES,
       });
+    }
+    if (eligibleApplicantTypes !== undefined) {
+      next.eligibleApplicantTypes = cleanStringList(eligibleApplicantTypes, {
+        label: 'Eligible applicant types',
+        allowed: APPLICANT_TYPE_VALUES,
+      });
+    }
+    if (fundingStates !== undefined) {
+      next.fundingStates = cleanStringList(fundingStates, {
+        max: MAX_FUNDING_STATES,
+        maxLength: 60,
+        label: 'States / regions',
+      });
+    }
+
+    // Funding range
+    const minAmount =
+      fundingAmountMin !== undefined
+        ? parseOptionalNumber(fundingAmountMin, 'Minimum grant amount')
+        : agency.fundingAmountMin;
+    const maxAmount =
+      fundingAmountMax !== undefined
+        ? parseOptionalNumber(fundingAmountMax, 'Maximum grant amount')
+        : agency.fundingAmountMax;
+    if (minAmount != null && maxAmount != null && minAmount > maxAmount) {
+      fail('Minimum grant amount cannot be greater than the maximum');
+    }
+    if (fundingAmountMin !== undefined) next.fundingAmountMin = minAmount;
+    if (fundingAmountMax !== undefined) next.fundingAmountMax = maxAmount;
+
+    // Funding duration
+    if (fundingDurationMonths !== undefined) {
+      if (!fundingDurationMonths || typeof fundingDurationMonths !== 'object') {
+        fail('Funding duration is invalid');
+      }
+      const dMin = parseOptionalNumber(fundingDurationMonths.min, 'Minimum duration');
+      const dMax = parseOptionalNumber(fundingDurationMonths.max, 'Maximum duration');
+      if (dMin != null && dMax != null && dMin > dMax) {
+        fail('Minimum duration cannot be greater than the maximum');
+      }
+      next.fundingDurationMonths = { min: dMin, max: dMax };
+    }
+
+    if (fundingFrequency !== undefined) {
+      if (!FUNDING_FREQUENCY_VALUES.includes(fundingFrequency)) fail('Invalid funding frequency');
+      next.fundingFrequency = fundingFrequency;
+    }
+    if (fundingScope !== undefined) {
+      if (!FUNDING_SCOPE_VALUES.includes(fundingScope)) fail('Invalid funding scope');
+      next.fundingScope = fundingScope;
+      // Regions only make sense for State / National scope.
+      if (!['State', 'National'].includes(fundingScope)) next.fundingStates = [];
+    }
+
+    // Headquarters — only whitelisted sub-fields; required ones can't be blanked
+    const nextHq = {};
+    if (headquarters !== undefined) {
+      if (!headquarters || typeof headquarters !== 'object') fail('Headquarters address is invalid');
+      EDITABLE_HEADQUARTERS_FIELDS.forEach((field) => {
+        if (headquarters[field] === undefined) return;
+        const value = String(headquarters[field]).trim();
+        if (!value && REQUIRED_HEADQUARTERS_FIELDS.includes(field)) {
+          fail(`Headquarters ${field} cannot be empty`);
+        }
+        nextHq[field] = value;
+      });
+      if (nextHq.pincode !== undefined && !/^[A-Za-z0-9 -]{3,10}$/.test(nextHq.pincode)) {
+        fail('Pincode looks invalid');
+      }
     }
 
     // Contact person — only designation/phone; name and email stay locked
-    if (contactPerson && typeof contactPerson === 'object') {
+    const nextContact = {};
+    if (contactPerson !== undefined) {
+      if (!contactPerson || typeof contactPerson !== 'object') fail('Contact details are invalid');
       EDITABLE_CONTACT_FIELDS.forEach((field) => {
-        if (contactPerson[field] !== undefined) {
-          agency.contactPerson[field] = String(contactPerson[field]).trim();
+        if (contactPerson[field] === undefined) return;
+        const value = String(contactPerson[field]).trim();
+        if (field === 'phone' && !PHONE_RE.test(value)) {
+          fail('Enter a valid contact phone number (digits, spaces, + - ( ) only)');
         }
+        nextContact[field] = value;
       });
+    }
+
+    // ── Apply
+    Object.entries(next).forEach(([key, value]) => {
+      agency[key] = value;
+    });
+    Object.entries(nextHq).forEach(([field, value]) => {
+      agency.headquarters[field] = value;
+    });
+    Object.entries(nextContact).forEach(([field, value]) => {
+      agency.contactPerson[field] = value;
+    });
+
+    // ── Change log (only when something actually changed)
+    const changed = changedProfileFields(before, snapshotProfile(agency));
+    if (changed.length > 0) {
+      const entry = { fields: changed, changedAt: new Date(), changedBy: req.user._id };
+      agency.profileHistory = [entry, ...(agency.profileHistory || [])].slice(0, MAX_PROFILE_HISTORY);
     }
 
     await agency.save();
 
     res.json({
       success: true,
-      message: 'Profile updated successfully',
-      agency: agency.toObject({ virtuals: true }),
+      message: changed.length > 0 ? 'Profile updated successfully' : 'No changes to save',
+      changedFields: changed,
+      agency: serializeProfile(agency),
     });
   } catch (error) {
+    if (error instanceof ProfileValidationError) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    if (error.name === 'ValidationError') {
+      const first = Object.values(error.errors || {})[0];
+      return res.status(400).json({ success: false, message: first?.message || 'Invalid profile data' });
+    }
     console.error('Update profile error:', error);
     res.status(500).json({ success: false, message: 'Server error while updating profile' });
+  }
+};
+
+// Removes a previously uploaded logo file. Only ever touches files inside
+// the agency-logos directory, whatever string is stored in the document.
+const deleteLogoFile = (logoUrl) => {
+  if (!logoUrl || !logoUrl.startsWith('/uploads/agency-logos/')) return;
+  const target = path.join(LOGO_DIR, path.basename(logoUrl));
+  fs.unlink(target, () => {}); // best-effort, a missing file is fine
+};
+
+// @desc    Upload / replace the agency logo
+// @route   POST /api/agency/profile/logo
+// @access  Private (funding_agency)
+const uploadAgencyLogoHandler = async (req, res) => {
+  try {
+    const agency = await getApprovedAgencyOrRespond(req, res);
+    if (!agency) {
+      if (req.file) fs.unlink(req.file.path, () => {});
+      return;
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No image was uploaded' });
+    }
+
+    const previous = agency.logoUrl;
+    agency.logoUrl = `/uploads/agency-logos/${req.file.filename}`;
+    agency.profileHistory = [
+      { fields: ['Logo'], changedAt: new Date(), changedBy: req.user._id },
+      ...(agency.profileHistory || []),
+    ].slice(0, MAX_PROFILE_HISTORY);
+    await agency.save();
+    deleteLogoFile(previous);
+
+    res.json({ success: true, message: 'Logo updated', agency: serializeProfile(agency) });
+  } catch (error) {
+    if (req.file) fs.unlink(req.file.path, () => {});
+    console.error('Upload agency logo error:', error);
+    res.status(500).json({ success: false, message: 'Server error while uploading logo' });
+  }
+};
+
+// @desc    Remove the agency logo
+// @route   DELETE /api/agency/profile/logo
+// @access  Private (funding_agency)
+const removeAgencyLogo = async (req, res) => {
+  try {
+    const agency = await getApprovedAgencyOrRespond(req, res);
+    if (!agency) return;
+
+    if (!agency.logoUrl) {
+      return res.json({ success: true, message: 'No logo to remove', agency: serializeProfile(agency) });
+    }
+
+    const previous = agency.logoUrl;
+    agency.logoUrl = '';
+    agency.profileHistory = [
+      { fields: ['Logo removed'], changedAt: new Date(), changedBy: req.user._id },
+      ...(agency.profileHistory || []),
+    ].slice(0, MAX_PROFILE_HISTORY);
+    await agency.save();
+    deleteLogoFile(previous);
+
+    res.json({ success: true, message: 'Logo removed', agency: serializeProfile(agency) });
+  } catch (error) {
+    console.error('Remove agency logo error:', error);
+    res.status(500).json({ success: false, message: 'Server error while removing logo' });
+  }
+};
+
+// @desc    Live numbers + recent activity for the Profile page. Everything is
+//          derived from GrantProgram / Proposal documents owned by this
+//          agency — nothing is stored or invented.
+// @route   GET /api/agency/profile/insights
+// @access  Private (funding_agency)
+const getProfileInsights = async (req, res) => {
+  try {
+    const agency = await getApprovedAgencyOrRespond(req, res);
+    if (!agency) return;
+
+    const allPrograms = await GrantProgram.find({ fundingAgency: agency._id })
+      .select('title shortTitle status isDeleted')
+      .lean();
+    const programIds = allPrograms.map((p) => p._id);
+    const livePrograms = allPrograms.filter((p) => p.isDeleted !== true);
+
+    const proposals = await Proposal.find({
+      grantProgram: { $in: programIds },
+      status: { $in: AGENCY_VISIBLE_STATUSES },
+    })
+      .select(
+        'title status awardAmount agencySubmission submittedAt createdAt decision awardDetails trackingTimeline organization'
+      )
+      .populate('organization', 'organizationName')
+      .lean();
+
+    const awarded = proposals.filter((p) => AWARDED_STATUSES.includes(p.status));
+    const rejected = proposals.filter((p) => REJECTED_STATUSES.includes(p.status));
+    const decided = awarded.length + rejected.length;
+
+    // Days from submission to final decision, for decided proposals only.
+    const decisionDays = [...awarded, ...rejected]
+      .map((p) => {
+        const submitted = submittedDateOf(p);
+        const decidedAt = p.awardDetails?.awardedAt || p.decision?.decidedAt;
+        if (!submitted || !decidedAt) return null;
+        const days = daysBetween(submitted, decidedAt);
+        return Number.isFinite(days) && days >= 0 ? days : null;
+      })
+      .filter((d) => d !== null);
+
+    const totalAwarded = awarded.reduce((sum, p) => sum + (p.awardAmount || 0), 0);
+
+    // Latest decisions this agency recorded, across all proposals.
+    const recentDecisions = proposals
+      .flatMap((p) =>
+        (p.trackingTimeline || [])
+          .filter((t) => t.source === 'funding_agency')
+          .map((t) => ({
+            proposalId: p._id,
+            proposalTitle: p.title || 'Untitled proposal',
+            organizationName: p.organization?.organizationName || '',
+            stage: t.stage,
+            notes: t.notes ? String(t.notes).slice(0, 160) : '',
+            timestamp: t.timestamp,
+          }))
+      )
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, 6);
+
+    const history = (agency.profileHistory || []).slice(0, MAX_PROFILE_HISTORY).map((h) => ({
+      fields: h.fields || [],
+      changedAt: h.changedAt,
+    }));
+
+    res.json({
+      success: true,
+      insights: {
+        totalGrantCalls: livePrograms.length,
+        activeGrantCalls: livePrograms.filter((p) => p.status === 'Active').length,
+        draftGrantCalls: livePrograms.filter((p) => p.status === 'Draft').length,
+        proposalsReceived: proposals.length,
+        awaitingReview: proposals.filter((p) => AWAITING_REVIEW_STATUSES.includes(p.status)).length,
+        underEvaluation: proposals.filter((p) => p.status === 'Under Evaluation').length,
+        awardedCount: awarded.length,
+        rejectedCount: rejected.length,
+        totalAwarded,
+        awardRate: decided > 0 ? Math.round((awarded.length / decided) * 100) : null,
+        avgDecisionDays: decisionDays.length > 0 ? round1(avg(decisionDays)) : null,
+        memberSince: agency.submittedAt,
+      },
+      recentDecisions,
+      history,
+    });
+  } catch (error) {
+    console.error('Get profile insights error:', error);
+    res.status(500).json({ success: false, message: 'Server error while fetching profile insights' });
   }
 };
 
@@ -1541,4 +2054,7 @@ module.exports = {
   updateLegalVerification,
   getFullProfile,
   updateProfile,
+  uploadAgencyLogo: uploadAgencyLogoHandler,
+  removeAgencyLogo,
+  getProfileInsights,
 };
