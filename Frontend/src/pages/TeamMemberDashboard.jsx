@@ -165,6 +165,7 @@ export default function TeamMemberDashboard() {
 
   // ─── Grant context for assigned proposals (shown above the writing workspace) ───
   const [myAssignedProposals, setMyAssignedProposals] = useState([])
+  const [contextExpanded, setContextExpanded] = useState(true)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -268,7 +269,10 @@ export default function TeamMemberDashboard() {
   if (loading) {
     return (
       <div className="min-h-screen bg-cream flex items-center justify-center">
-        <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm font-medium text-warm-gray-400 tracking-wide">Loading workspace…</p>
+        </div>
       </div>
     )
   }
@@ -355,22 +359,28 @@ export default function TeamMemberDashboard() {
   })()
 
   return (
-    <div className="min-h-screen bg-cream flex">
+    <div className="min-h-screen bg-cream flex overflow-x-hidden w-full max-w-full">
       {/* ─── Sidebar ─── */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-surface-elevated border-r border-warm-gray-200/60 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-[272px] bg-surface-elevated/95 backdrop-blur-xl border-r border-warm-gray-200/40 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        style={{ boxShadow: '4px 0 24px rgba(0,0,0,0.03)' }}
+      >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="p-6 border-b border-warm-gray-200/60">
-            <Link to="/" className="flex items-center gap-2 group" id="member-dash-logo">
-              <div className="w-9 h-9 bg-primary rounded-[10px] flex items-center justify-center text-white transition-transform duration-300 group-hover:scale-105"><LeafIcon /></div>
-              <span className="font-heading text-xl font-semibold text-warm-gray-900 tracking-tight">Grant<span className="text-primary">OS</span></span>
+          <div className="px-6 pt-7 pb-5 border-b border-warm-gray-200/40">
+            <Link to="/" className="flex items-center gap-2.5 group" id="member-dash-logo">
+              <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-dark rounded-[12px] flex items-center justify-center text-white transition-transform duration-300 group-hover:scale-105 shadow-soft">
+                <LeafIcon />
+              </div>
+              <div>
+                <span className="font-heading text-[22px] font-bold text-warm-gray-900 tracking-tight leading-none">Grant<span className="text-primary">OS</span></span>
+                {orgName && <p className="text-[11px] text-warm-gray-400 mt-0.5 truncate max-w-[160px] leading-tight">{orgName}</p>}
+              </div>
             </Link>
-            {orgName && <p className="text-xs text-warm-gray-500 mt-2 truncate">{orgName}</p>}
           </div>
 
           {/* Task Nav */}
-          <div className="p-4">
-            <p className="text-xs font-bold text-warm-gray-400 uppercase tracking-wider mb-3 px-2">My Tasks</p>
+          <div className="px-4 pt-6 pb-2">
+            <p className="text-[10px] font-bold text-warm-gray-400 uppercase tracking-[0.1em] mb-3 px-3">Workspace</p>
             <nav className="space-y-1">
               {assignedTasks.map((taskKey) => {
                 const task = TASK_FEATURES[taskKey]
@@ -379,12 +389,13 @@ export default function TeamMemberDashboard() {
                   <button
                     key={taskKey}
                     onClick={() => { setActiveTask(taskKey); setSidebarOpen(false) }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-[12px] text-sm font-medium transition-all duration-200 cursor-pointer ${activeTask === taskKey
-                        ? 'bg-primary text-white shadow-soft'
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-[14px] text-[13px] font-semibold transition-all duration-200 cursor-pointer ${activeTask === taskKey
+                        ? 'bg-gradient-to-r from-primary to-primary-light text-white shadow-md'
                         : 'text-warm-gray-600 hover:bg-warm-gray-50 hover:text-warm-gray-900'
                       }`}
+                    style={activeTask === taskKey ? { boxShadow: '0 4px 14px rgba(74,124,89,0.25)' } : {}}
                   >
-                    <span className="text-lg">{task.icon}</span>
+                    <span className="text-[17px] leading-none">{task.icon}</span>
                     {task.label}
                   </button>
                 )
@@ -392,13 +403,13 @@ export default function TeamMemberDashboard() {
             </nav>
           </div>
 
-          {/* My Organization button — always visible regardless of active task */}
-          <div className="px-4">
+          {/* My Organization button */}
+          <div className="px-4 pt-2">
             <button
               onClick={openMyOrganizationModal}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-[12px] text-sm font-medium text-warm-gray-600 hover:bg-warm-gray-50 hover:text-warm-gray-900 transition-all duration-200 cursor-pointer border border-warm-gray-200/60"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-[14px] text-[13px] font-semibold text-warm-gray-500 hover:bg-warm-gray-50 hover:text-warm-gray-800 transition-all duration-200 cursor-pointer border border-warm-gray-200/50"
             >
-              <span className="text-lg">🏢</span>
+              <span className="text-[17px] leading-none">🏢</span>
               My Organization
             </button>
           </div>
@@ -406,17 +417,17 @@ export default function TeamMemberDashboard() {
           <div className="flex-1" />
 
           {/* User */}
-          <div className="p-4 border-t border-warm-gray-200/60">
+          <div className="p-5 border-t border-warm-gray-200/40">
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-9 h-9 rounded-full bg-primary-50 flex items-center justify-center text-primary font-bold text-sm">
+              <div className="w-10 h-10 rounded-[12px] bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center text-primary font-bold text-sm shadow-soft">
                 {userName.charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-warm-gray-900 truncate">{userName}</p>
-                <p className="text-xs text-warm-gray-500">Team Member</p>
+                <p className="text-sm font-bold text-warm-gray-900 truncate">{userName}</p>
+                <p className="text-[11px] text-warm-gray-400 font-medium">Team Member</p>
               </div>
             </div>
-            <button onClick={handleLogout} className="w-full px-4 py-2 rounded-[10px] text-sm text-warm-gray-500 hover:text-warm-gray-700 hover:bg-warm-gray-50 transition-colors cursor-pointer">
+            <button onClick={handleLogout} className="w-full px-4 py-2.5 rounded-[12px] text-xs text-warm-gray-400 hover:text-warm-gray-700 hover:bg-warm-gray-50 transition-colors cursor-pointer font-medium">
               Sign Out
             </button>
           </div>
@@ -424,56 +435,78 @@ export default function TeamMemberDashboard() {
       </aside>
 
       {/* Mobile overlay */}
-      {sidebarOpen && <div className="fixed inset-0 bg-black/20 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
+      {sidebarOpen && <div className="fixed inset-0 bg-black/20 backdrop-blur-xs z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
       {/* ─── Main Content ─── */}
-      <main className="flex-1 lg:ml-64">
+      <main className="flex-1 lg:ml-[272px] min-w-0 overflow-x-hidden">
         {/* Mobile header */}
-        <header className="lg:hidden sticky top-0 z-30 bg-surface-elevated border-b border-warm-gray-200/60 px-4 py-3 flex items-center justify-between">
-          <button onClick={() => setSidebarOpen(true)} className="p-2 text-warm-gray-600 cursor-pointer">
+        <header className="lg:hidden sticky top-0 z-30 bg-surface-elevated/90 backdrop-blur-lg border-b border-warm-gray-200/40 px-4 py-3 flex items-center justify-between">
+          <button onClick={() => setSidebarOpen(true)} className="p-2 text-warm-gray-600 cursor-pointer rounded-lg hover:bg-warm-gray-50 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
               <line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <span className="font-heading font-semibold text-warm-gray-900">Grant<span className="text-primary">OS</span></span>
-          <button onClick={openMyOrganizationModal} className="p-2 text-warm-gray-600 cursor-pointer">🏢</button>
+          <span className="font-heading font-bold text-warm-gray-900 text-lg">Grant<span className="text-primary">OS</span></span>
+          <button onClick={openMyOrganizationModal} className="p-2 text-warm-gray-600 cursor-pointer rounded-lg hover:bg-warm-gray-50 transition-colors">🏢</button>
         </header>
 
         {activeFeature && (
-          <div className="p-6 lg:p-10 max-w-7xl mx-auto">
+          <div className="p-3 sm:p-4 lg:p-5 max-w-[1500px] w-full min-w-0 mx-auto">
             {/* ─── Proposal Writing: grant context strip + unmodified workspace ─── */}
             {activeTask === 'proposal_writing' ? (
               <>
-                                {grantContextItems.length > 0 && (
-                  <div className="mb-6 flex flex-wrap gap-2">
-                    {grantContextItems.map((item) => (
-                      <div
-                        key={item.proposalId}
-                        className="flex items-center gap-2 px-3 py-2 rounded-[10px] bg-surface-elevated border border-warm-gray-200/60 shadow-soft text-xs"
-                      >
-                        <span className="text-warm-gray-500">Writing for:</span>
-                        <span className="font-semibold text-warm-gray-900">{item.grantTitle || item.proposalTitle}</span>
-                        {item.grantAgency && <span className="text-warm-gray-400">• {item.grantAgency}</span>}
-                        {item.resolvedGrant ? (
-                          <>
-                            <button
-                              onClick={() => setViewAgencyGrant(item.resolvedGrant)}
-                              className="ml-1 px-2 py-1 rounded-[8px] bg-cream text-warm-gray-700 font-semibold hover:bg-warm-gray-100 border border-warm-gray-200 transition-colors cursor-pointer"
-                            >
-                              View Agency
-                            </button>
-                            <button
-                              onClick={() => setViewGrantDetails(item.resolvedGrant)}
-                              className="px-2 py-1 rounded-[8px] bg-primary-50 text-primary font-semibold hover:bg-primary-100 transition-colors cursor-pointer"
-                            >
-                              View Grant Details
-                            </button>
-                          </>
-                        ) : (
-                          <span className="ml-1 text-warm-gray-400 italic">(details unavailable)</span>
-                        )}
+                {/* Active Grants Strip — Ultra-compact wrap pill strip */}
+                {grantContextItems.length > 0 && (
+                  <div className="mb-3.5 bg-surface-elevated/95 backdrop-blur-sm rounded-[14px] border border-warm-gray-200/50 px-3.5 py-2 shadow-xs flex flex-wrap items-center gap-2.5 animate-fade-in min-w-0">
+                    <div className="flex items-center gap-2 shrink-0 pr-1">
+                      <div className="w-6 h-6 rounded-[8px] bg-primary-50 flex items-center justify-center text-primary text-[11px] font-bold">
+                        📋
                       </div>
-                    ))}
+                      <span className="text-[11px] font-bold text-warm-gray-600 uppercase tracking-wider">
+                        Active Grants ({grantContextItems.length})
+                      </span>
+                    </div>
+
+                    {/* Clean wrap pills — all left-aligned */}
+                    <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0 justify-start">
+                      {grantContextItems.map((item) => (
+                        <div
+                          key={item.proposalId}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-[10px] bg-white border border-warm-gray-200/60 shadow-xs hover:border-primary/30 transition-all text-xs shrink-0 max-w-full"
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+                          <span
+                            className="font-semibold text-warm-gray-800 text-[11px] max-w-[140px] sm:max-w-[200px] truncate"
+                            title={item.grantTitle || item.proposalTitle}
+                          >
+                            {item.grantTitle || item.proposalTitle}
+                          </span>
+                          {item.grantAgency && (
+                            <span className="text-[10px] text-warm-gray-400 font-medium border-l border-warm-gray-200 pl-1.5 shrink-0 max-w-[90px] truncate" title={item.grantAgency}>
+                              {item.grantAgency}
+                            </span>
+                          )}
+                          {item.resolvedGrant && (
+                            <div className="flex items-center gap-1 border-l border-warm-gray-200 pl-1.5 shrink-0">
+                              <button
+                                onClick={() => setViewAgencyGrant(item.resolvedGrant)}
+                                className="px-1.5 py-0.5 rounded bg-warm-gray-100 hover:bg-warm-gray-200 text-warm-gray-600 text-[10px] font-semibold transition-colors cursor-pointer"
+                                title="View Agency Profile"
+                              >
+                                Agency
+                              </button>
+                              <button
+                                onClick={() => setViewGrantDetails(item.resolvedGrant)}
+                                className="px-1.5 py-0.5 rounded bg-primary-50 hover:bg-primary-100 text-primary text-[10px] font-semibold transition-colors cursor-pointer"
+                                title="View Grant Details"
+                              >
+                                Details
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
                 <ProposalWritingWorkspace userName={userName} />

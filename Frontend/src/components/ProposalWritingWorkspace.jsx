@@ -18,6 +18,25 @@ export default function ProposalWritingWorkspace({ userName }) {
   const [liveNotification, setLiveNotification] = useState(null)
   const [unreadChatCount, setUnreadChatCount] = useState(0)
 
+  // Proposal Switcher Dropdown & Search
+  const [proposalDropdownOpen, setProposalDropdownOpen] = useState(false)
+  const [proposalSearch, setProposalSearch] = useState('')
+  const proposalDropdownRef = useRef(null)
+
+  // Section Review Filter & Layout Mode
+  const [sectionFilter, setSectionFilter] = useState('all') // 'all' | 'ready' | 'approved' | 'pending'
+  const [sectionViewMode, setSectionViewMode] = useState('grid') // 'grid' (2 columns) | 'table' (1 column)
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (proposalDropdownRef.current && !proposalDropdownRef.current.contains(e.target)) {
+        setProposalDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   const showLiveNotification = (message, type = 'info') => {
     setLiveNotification({ message, type })
     setTimeout(() => {
@@ -945,170 +964,240 @@ export default function ProposalWritingWorkspace({ userName }) {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-
-      {/* ─── Proposal Switcher Tabs (For switching between active proposals) ─── */}
-      {proposals.length > 0 && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-warm-gray-200/60">
-          <span className="text-xs font-bold text-warm-gray-400 uppercase tracking-wider whitespace-nowrap mr-1">
-            Active Proposals ({proposals.length}):
-          </span>
-          {proposals.map((prop) => {
-            const isSelected = prop._id === selectedProposalId
-            return (
-              <button
-                key={prop._id}
-                onClick={() => {
-                  setSelectedProposalId(prop._id)
-                  if (prop.sections && prop.sections.length > 0) {
-                    setSelectedSectionId(prop.sections[0]._id)
-                  }
-                }}
-                className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer border whitespace-nowrap flex items-center gap-2 ${
-                  isSelected
-                    ? 'bg-purple-600 text-white border-purple-600 shadow-soft'
-                    : 'bg-white text-warm-gray-700 border-warm-gray-200 hover:bg-warm-gray-50'
-                }`}
+    <div className="space-y-3.5 animate-fade-in">
+      {/* ─── Unified Proposal Workspace Header with Dropdown Switcher ─── */}
+      <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/50 shadow-xs relative z-30">
+        {/* Top Bar: Proposal Selector Dropdown + Metadata Badges */}
+        <div className="p-3.5 sm:p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-warm-gray-200/40">
+          {/* Left: Proposal Selector Dropdown */}
+          <div className="relative" ref={proposalDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setProposalDropdownOpen(!proposalDropdownOpen)}
+              className="flex items-center gap-2.5 px-3.5 py-2 rounded-[12px] bg-white hover:bg-warm-gray-50/80 border border-warm-gray-200/80 hover:border-primary/40 shadow-xs transition-all cursor-pointer text-left group w-full sm:w-auto"
+              title="Click to switch active proposal"
+            >
+              <div className="w-8 h-8 rounded-[8px] bg-primary-50 text-primary flex items-center justify-center text-sm font-bold shrink-0">
+                📄
+              </div>
+              <div className="min-w-0 pr-1 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-heading font-bold text-sm text-warm-gray-900 truncate max-w-[200px] sm:max-w-[280px]">
+                    {currentProposal?.title || 'Select Proposal'}
+                  </span>
+                  <span className="text-[10px] text-warm-gray-400 font-medium shrink-0">
+                    ({proposals.length})
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px] text-warm-gray-500 font-medium">
+                  <span className="text-primary font-semibold">
+                    {currentProposal?.sections?.filter(s => s.status === 'Ready for Review' || s.status === 'Approved').length || 0}/{currentProposal?.sections?.length || 0} sections
+                  </span>
+                  <span>•</span>
+                  <span className="truncate max-w-[140px] text-warm-gray-400">{currentProposal?.grantAgency || 'Grant'}</span>
+                </div>
+              </div>
+              <svg
+                className={`w-4 h-4 text-warm-gray-400 group-hover:text-warm-gray-600 transition-transform duration-200 shrink-0 ${proposalDropdownOpen ? 'rotate-180 text-primary' : ''}`}
+                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"
               >
-                <span>📄</span>
-                <span>{prop.title}</span>
-                <span className={`px-1.5 py-0.2 rounded-full text-xs font-bold ${
-                  isSelected ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-700'
-                }`}>
-                  {prop.sections?.length || 0} sections
-                </span>
-              </button>
-            )
-          })}
-        </div>
-      )}
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
 
-      {/* ─── Proposal Header ─── */}
-      <div className="bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-soft p-6">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${isPI ? 'bg-purple-100 text-purple-900 border-purple-300' : 'bg-purple-50 text-purple-700 border-purple-200'}`}>
-                {isPI ? '🎓 Principal Investigator (PI) Workspace' : 'Active Workspace'}
-              </span>
-              <span className="text-xs text-warm-gray-400">•</span>
-              <span className="text-xs text-warm-gray-500 font-medium">{currentProposal?.grantAgency}</span>
-              <span className="text-xs text-warm-gray-400">•</span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Live Sync Active
-              </span>
-            </div>
-            <h2 className="font-heading text-2xl font-bold text-warm-gray-900">{currentProposal?.title}</h2>
-            <p className="text-xs text-warm-gray-500 mt-1">
-              Grant: <span className="font-semibold text-warm-gray-700">{currentProposal?.grantTitle}</span>
-              {currentProposal?.deadline && <> &nbsp;•&nbsp; Deadline: <span className="font-semibold text-warm-gray-700">{currentProposal.deadline}</span></>}
-              {currentProposal?.fundingAmount && <> &nbsp;•&nbsp; Amount: <span className="font-semibold text-primary">{currentProposal.fundingAmount}</span></>}
-            </p>
+            {/* Dropdown Menu Panel */}
+            {proposalDropdownOpen && (
+              <div className="absolute left-0 top-full mt-1.5 w-[320px] sm:w-[420px] bg-surface-elevated rounded-[16px] border border-warm-gray-200/80 shadow-2xl z-50 p-2 animate-fade-in max-h-[380px] flex flex-col">
+                {/* Search if more than 3 proposals */}
+                {proposals.length > 3 && (
+                  <div className="p-1 mb-1">
+                    <input
+                      type="text"
+                      value={proposalSearch}
+                      onChange={(e) => setProposalSearch(e.target.value)}
+                      placeholder="Search proposals..."
+                      className="w-full px-3 py-1.5 text-xs bg-white border border-warm-gray-200/80 rounded-[10px] focus:outline-none focus:ring-1 focus:ring-primary/30"
+                    />
+                  </div>
+                )}
+                <div className="overflow-y-auto space-y-1 flex-1 pr-0.5">
+                  {proposals
+                    .filter((p) => {
+                      const q = proposalSearch.toLowerCase()
+                      return !q || p.title?.toLowerCase().includes(q) || p.grantAgency?.toLowerCase().includes(q) || p.grantTitle?.toLowerCase().includes(q)
+                    })
+                    .map((prop) => {
+                      const isSelected = prop._id === selectedProposalId
+                      const completedSections = prop.sections?.filter(s => s.status === 'Ready for Review' || s.status === 'Approved').length || 0
+                      const totalSections = prop.sections?.length || 0
+                      return (
+                        <button
+                          key={prop._id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedProposalId(prop._id)
+                            if (prop.sections && prop.sections.length > 0) {
+                              const mySec = prop.sections.find((s) => isAssignedToUser(s)) || prop.sections[0]
+                              setSelectedSectionId(mySec._id)
+                              setContent(mySec.content || '')
+                              setSectionStatus(mySec.status || 'Not Started')
+                            }
+                            setProposalDropdownOpen(false)
+                          }}
+                          className={`w-full flex items-center justify-between p-2.5 rounded-[12px] text-left transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-primary-50/70 border border-primary/20 text-warm-gray-900'
+                              : 'hover:bg-warm-gray-50/80 border border-transparent text-warm-gray-700'
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1 mr-2">
+                            <p className={`font-semibold text-xs leading-snug truncate ${isSelected ? 'text-primary font-bold' : ''}`}>
+                              {prop.title}
+                            </p>
+                            <div className="flex items-center gap-1.5 text-[10px] text-warm-gray-400 mt-0.5">
+                              <span>{prop.grantAgency}</span>
+                              <span>•</span>
+                              <span>{completedSections}/{totalSections} sections</span>
+                            </div>
+                          </div>
+                          {isSelected && (
+                            <span className="text-primary font-bold text-xs shrink-0">✓</span>
+                          )}
+                        </button>
+                      )
+                    })}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Action Buttons & Progress */}
-          <div className="flex flex-wrap items-center gap-3">
+          {/* Right / Center Metadata Badges */}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-[8px] text-[11px] font-bold ${isPI ? 'bg-purple-100 text-purple-900 border border-purple-200/60' : 'bg-primary-50 text-primary border border-primary/15'}`}>
+              {isPI ? '🎓 Principal Investigator' : '✏️ Writer'}
+            </span>
+            {currentProposal?.grantAgency && (
+              <span className="px-2.5 py-1 rounded-[8px] bg-warm-gray-100/80 text-warm-gray-700 font-semibold text-[11px] border border-warm-gray-200/50">
+                🏛️ {currentProposal.grantAgency}
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Live Sync
+            </span>
+            {currentProposal?.deadline && (
+              <span className="px-2.5 py-1 rounded-[8px] bg-warm-gray-50 text-warm-gray-600 font-medium text-[11px] border border-warm-gray-200/40 hidden sm:inline-flex">
+                📅 Deadline: {currentProposal.deadline}
+              </span>
+            )}
+            {currentProposal?.fundingAmount && (
+              <span className="px-2.5 py-1 rounded-[8px] bg-emerald-50/60 text-emerald-800 font-bold text-[11px] border border-emerald-200/50 hidden sm:inline-flex">
+                💰 {currentProposal.fundingAmount}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Bottom Row: Actions + Compact Progress Bar */}
+        <div className="px-3.5 sm:px-4 py-2 bg-cream/20 flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             {/* View Mode Switcher for PI */}
             {isPI && (
-              <div className="flex items-center bg-warm-gray-100/80 p-1 rounded-[12px] border border-warm-gray-200">
+              <div className="flex items-center bg-warm-gray-100/80 p-0.5 rounded-[10px] border border-warm-gray-200/50">
                 <button
                   type="button"
                   onClick={() => setWorkspaceView('review')}
-                  className={`px-3 py-2 rounded-[9px] text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-[8px] text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                     workspaceView === 'review'
-                      ? 'bg-purple-600 text-white shadow-soft'
-                      : 'text-warm-gray-600 hover:text-warm-gray-900'
+                      ? 'bg-white text-warm-gray-900 shadow-xs'
+                      : 'text-warm-gray-500 hover:text-warm-gray-800'
                   }`}
                 >
-                  <span>📋</span> Section Review ({currentProposal?.sections?.length || 17})
+                  📋 Review ({currentProposal?.sections?.length || 0})
                 </button>
                 <button
                   type="button"
                   onClick={() => setWorkspaceView('editor')}
-                  className={`px-3 py-2 rounded-[9px] text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-[8px] text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                     workspaceView === 'editor'
-                      ? 'bg-purple-600 text-white shadow-soft'
-                      : 'text-warm-gray-600 hover:text-warm-gray-900'
+                      ? 'bg-white text-warm-gray-900 shadow-xs'
+                      : 'text-warm-gray-500 hover:text-warm-gray-800'
                   }`}
                 >
-                  <span>✍️</span> Editor Workspace
+                  ✍️ Editor
                 </button>
               </div>
             )}
 
-            {/* ONLY PI CAN EXPORT FINAL PDF */}
+            {/* Export PDF — PI only */}
             {isPI && (
               <button
                 type="button"
                 onClick={() => handleExportPDF(currentProposal)}
-                className="px-4 py-2.5 rounded-[12px] bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-soft transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap"
+                className="px-3 py-1.5 rounded-[8px] bg-warm-gray-800 hover:bg-warm-gray-900 text-white font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1 shadow-xs"
               >
-                <span>📥</span> Export PDF
+                📥 Export PDF
               </button>
             )}
 
             {/* PROPOSAL STATUS & PI ACTIONS */}
             {currentProposal?.status === 'Awarded' ? (
-              <span className="px-4 py-2.5 rounded-[12px] bg-gradient-to-r from-emerald-100 to-amber-100 text-emerald-900 border border-emerald-300 font-bold text-xs flex items-center gap-1.5 shadow-soft">
-                <span>🏆</span> Sanctioned & Awarded
+              <span className="px-3 py-1.5 rounded-[8px] bg-gradient-to-r from-emerald-50 to-amber-50 text-emerald-900 border border-emerald-200 font-bold text-[11px] flex items-center gap-1">
+                🏆 Sanctioned & Awarded
               </span>
             ) : currentProposal?.status === 'Under Evaluation' ? (
-              <span className="px-4 py-2.5 rounded-[12px] bg-indigo-50 text-indigo-800 border border-indigo-200 font-bold text-xs flex items-center gap-1.5 shadow-soft">
-                <span>🔍</span> Agency Evaluation
+              <span className="px-3 py-1.5 rounded-[8px] bg-indigo-50 text-indigo-800 border border-indigo-200 font-bold text-[11px] flex items-center gap-1">
+                🔍 Agency Evaluation
               </span>
             ) : currentProposal?.status === 'Revisions Requested' ? (
-              <span className="px-4 py-2.5 rounded-[12px] bg-amber-50 text-amber-900 border border-amber-300 font-bold text-xs flex items-center gap-1.5 shadow-soft">
-                <span>📝</span> Revisions Requested
+              <span className="px-3 py-1.5 rounded-[8px] bg-amber-50 text-amber-900 border border-amber-200 font-bold text-[11px] flex items-center gap-1">
+                📝 Revisions Requested
               </span>
             ) : currentProposal?.status === 'Rejected' ? (
-              <span className="px-4 py-2.5 rounded-[12px] bg-rose-50 text-rose-800 border border-rose-200 font-bold text-xs flex items-center gap-1.5 shadow-soft">
-                <span>❌</span> Not Sanctioned
+              <span className="px-3 py-1.5 rounded-[8px] bg-rose-50 text-rose-800 border border-rose-200 font-bold text-[11px] flex items-center gap-1">
+                ❌ Not Sanctioned
               </span>
             ) : currentProposal?.status === 'Submitted to Agency' ? (
-              <span className="px-4 py-2.5 rounded-[12px] bg-blue-50 text-blue-800 border border-blue-200 font-bold text-xs flex items-center gap-1.5 shadow-soft">
-                <span>🏛️</span> Submitted to Agency
+              <span className="px-3 py-1.5 rounded-[8px] bg-blue-50 text-blue-800 border border-blue-200 font-bold text-[11px] flex items-center gap-1">
+                🏛️ Submitted to Agency
               </span>
             ) : currentProposal?.status === 'Submitted to Admin' ? (
-              <span className="px-4 py-2.5 rounded-[12px] bg-amber-50 text-amber-800 border border-amber-200 font-bold text-xs flex items-center gap-1.5 shadow-soft">
-                <span>⏳</span> In Institutional Review
+              <span className="px-3 py-1.5 rounded-[8px] bg-amber-50 text-amber-800 border border-amber-200 font-bold text-[11px] flex items-center gap-1">
+                ⏳ In Review
               </span>
             ) : isPI ? (
               <button
                 type="button"
                 onClick={handleSubmitToAdmin}
                 disabled={submittingToAdmin}
-                className="px-4 py-2.5 rounded-[12px] bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-90 text-white font-bold text-xs shadow-soft transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap disabled:opacity-50"
+                className="px-3.5 py-1.5 rounded-[8px] bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-90 text-white font-bold text-[11px] shadow-xs transition-all cursor-pointer flex items-center gap-1 disabled:opacity-50"
               >
-                <span>🚀</span> {submittingToAdmin ? 'Submitting...' : 'Submit to Admin'}
+                🚀 {submittingToAdmin ? 'Submitting...' : 'Submit to Admin'}
               </button>
             ) : null}
+          </div>
 
-            {/* Progress */}
-            <div className="flex items-center gap-4 bg-cream/70 p-2.5 rounded-[12px] border border-warm-gray-200/50 min-w-[180px]">
-              <div className="flex-1">
-                <div className="flex justify-between text-xs mb-1 font-semibold">
-                  <span className="text-warm-gray-700">Progress</span>
-                  <span className="text-purple-600">{currentProposal?.progress || 0}%</span>
-                </div>
-                <div className="w-full h-2 rounded-full bg-warm-gray-200/80 overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-purple-500 to-purple-600 rounded-full transition-all duration-700"
-                    style={{ width: `${currentProposal?.progress || 0}%` }}
-                  />
-                </div>
-                <p className="text-xs text-warm-gray-400 mt-1">
-                  {currentProposal?.sections?.filter(s => s.status === 'Approved').length || 0} / {currentProposal?.sections?.length || 0} approved
-                </p>
+          {/* Progress — compact horizontal bar */}
+          <div className="flex items-center gap-2.5 min-w-[180px] max-w-[280px] flex-1 sm:flex-initial">
+            <div className="flex-1">
+              <div className="w-full h-[5px] rounded-full bg-warm-gray-200/60 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-primary to-primary-light rounded-full transition-all duration-700"
+                  style={{ width: `${currentProposal?.progress || 0}%` }}
+                />
               </div>
             </div>
+            <span className="text-xs font-bold text-primary shrink-0">{currentProposal?.progress || 0}%</span>
+            <span className="text-[10px] text-warm-gray-400 shrink-0">
+              ({currentProposal?.sections?.filter(s => s.status === 'Approved').length || 0}/{currentProposal?.sections?.length || 0} approved)
+            </span>
           </div>
         </div>
       </div>
 
       {/* ─── Lifecycle & Dossier Lock Banner ─── */}
       {(isProposalLocked || currentProposal?.status === 'Revisions Requested') && (
-        <div className={`p-4 rounded-[16px] border flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in ${
+        <div className={`p-3.5 sm:p-4 rounded-[16px] border flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in min-w-0 max-w-full overflow-hidden ${
           currentProposal?.status === 'Awarded'
             ? 'bg-gradient-to-r from-emerald-50 via-teal-50 to-amber-50 border-emerald-300 text-emerald-950'
             : currentProposal?.status === 'Under Evaluation'
@@ -1121,16 +1210,16 @@ export default function ProposalWritingWorkspace({ userName }) {
             ? 'bg-blue-50/90 border-blue-200 text-blue-950'
             : 'bg-amber-50/90 border-amber-200 text-amber-950'
         }`}>
-          <div className="flex items-start sm:items-center gap-3">
-            <span className="text-2xl shrink-0 mt-0.5 sm:mt-0">
+          <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+            <span className="text-xl sm:text-2xl shrink-0 mt-0.5 sm:mt-0">
               {currentProposal?.status === 'Awarded' ? '🏆' :
                currentProposal?.status === 'Under Evaluation' ? '🔍' :
                currentProposal?.status === 'Revisions Requested' ? '📝' :
                currentProposal?.status === 'Rejected' ? '❌' :
                currentProposal?.status === 'Submitted to Agency' ? '🏛️' : '🔒'}
             </span>
-            <div>
-              <p className="text-xs font-bold font-heading">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold font-heading break-words">
                 {currentProposal?.status === 'Awarded'
                   ? `Grant Sanctioned & Awarded! Sanction Order #${currentProposal?.awardDetails?.sanctionOrderNumber || 'Verified'}`
                   : currentProposal?.status === 'Under Evaluation'
@@ -1143,7 +1232,7 @@ export default function ProposalWritingWorkspace({ userName }) {
                   ? `Officially Endorsed & Dispatched to Agency: Confirmation Ref #${currentProposal?.agencySubmission?.agencySubmissionId || 'N/A'}`
                   : 'Proposal Submitted to Organization Admin (Institutional Compliance & Clearance Phase)'}
               </p>
-              <p className="text-xs opacity-80 mt-0.5 leading-relaxed">
+              <p className="text-xs opacity-80 mt-0.5 leading-relaxed break-words">
                 {currentProposal?.status === 'Awarded'
                   ? `Sanctioned Amount: ₹${Number(currentProposal?.awardDetails?.sanctionedAmount || 0).toLocaleString()} | Tenure: ${currentProposal?.awardDetails?.durationMonths || 36} months. Congratulations to the project team!`
                   : currentProposal?.status === 'Under Evaluation'
@@ -1158,14 +1247,14 @@ export default function ProposalWritingWorkspace({ userName }) {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-            <span className="px-2.5 py-1 rounded-[8px] bg-white/80 border border-current font-mono text-xs font-bold">
+          <div className="flex flex-wrap items-center gap-2 shrink-0 self-start sm:self-center">
+            <span className="px-2.5 py-1 rounded-[8px] bg-white/80 border border-current font-mono text-xs font-bold shrink-0">
               {currentProposal?.status}
             </span>
             <button
               type="button"
               onClick={() => setShowFullProposalModal(true)}
-              className="px-3 py-1.5 rounded-[8px] bg-white hover:bg-white/90 text-xs font-bold text-warm-gray-800 border border-warm-gray-300 shadow-xs cursor-pointer flex items-center gap-1"
+              className="px-3 py-1.5 rounded-[8px] bg-white hover:bg-white/90 text-xs font-bold text-warm-gray-800 border border-warm-gray-300 shadow-xs cursor-pointer flex items-center gap-1 shrink-0"
             >
               <span>📄</span> View Master Dossier
             </button>
@@ -1173,129 +1262,325 @@ export default function ProposalWritingWorkspace({ userName }) {
         </div>
       )}
 
-      {/* ─── PI Section-by-Section Review Table View ─── */}
-      {isPI && workspaceView === 'review' && (
-        <div className="bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-soft overflow-hidden animate-fade-in">
-          <div className="px-6 py-4 border-b border-warm-gray-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-cream/40">
-            <div>
-              <h3 className="font-heading font-bold text-warm-gray-900 text-base">
-                Proposal Sections Review ({currentProposal?.sections?.length || 17} Sections)
-              </h3>
-              <p className="text-xs text-warm-gray-500">
-                Review each section submitted by your team members. Approve them section-by-section or approve all at once.
-              </p>
+      {/* ─── PI Section-by-Section Review Table / Grid View ─── */}
+      {isPI && workspaceView === 'review' && (() => {
+        const sections = currentProposal?.sections || []
+        const readyCount = sections.filter(s => s.status === 'Ready for Review').length
+        const approvedCount = sections.filter(s => s.status === 'Approved').length
+        const pendingCount = sections.length - readyCount - approvedCount
+
+        const filteredSections = sections.filter(sec => {
+          if (sectionFilter === 'ready') return sec.status === 'Ready for Review'
+          if (sectionFilter === 'approved') return sec.status === 'Approved'
+          if (sectionFilter === 'pending') return sec.status !== 'Approved' && sec.status !== 'Ready for Review'
+          return true
+        })
+
+        return (
+          <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/50 shadow-xs overflow-hidden animate-fade-in">
+            {/* Header with Title, Filter Chips, View Mode, and Approve All */}
+            <div className="px-4 py-3 border-b border-warm-gray-200/50 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 bg-cream/30">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-heading font-bold text-warm-gray-900 text-sm">
+                  Sections Review ({sections.length})
+                </h3>
+
+                {/* Filter Pills */}
+                <div className="flex items-center gap-1 bg-warm-gray-100/80 p-0.5 rounded-[10px] text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setSectionFilter('all')}
+                    className={`px-2.5 py-1 rounded-[7px] font-semibold transition-all cursor-pointer ${
+                      sectionFilter === 'all'
+                        ? 'bg-white text-warm-gray-900 shadow-xs'
+                        : 'text-warm-gray-500 hover:text-warm-gray-800'
+                    }`}
+                  >
+                    All ({sections.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSectionFilter('ready')}
+                    className={`px-2.5 py-1 rounded-[7px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                      sectionFilter === 'ready'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : readyCount > 0
+                        ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
+                        : 'text-warm-gray-500 hover:text-warm-gray-800'
+                    }`}
+                  >
+                    <span>Ready</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${sectionFilter === 'ready' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'}`}>
+                      {readyCount}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSectionFilter('approved')}
+                    className={`px-2.5 py-1 rounded-[7px] font-semibold transition-all cursor-pointer ${
+                      sectionFilter === 'approved'
+                        ? 'bg-white text-warm-gray-900 shadow-xs'
+                        : 'text-warm-gray-500 hover:text-warm-gray-800'
+                    }`}
+                  >
+                    Approved ({approvedCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSectionFilter('pending')}
+                    className={`px-2.5 py-1 rounded-[7px] font-semibold transition-all cursor-pointer ${
+                      sectionFilter === 'pending'
+                        ? 'bg-white text-warm-gray-900 shadow-xs'
+                        : 'text-warm-gray-500 hover:text-warm-gray-800'
+                    }`}
+                  >
+                    Draft ({pendingCount})
+                  </button>
+                </div>
+              </div>
+
+              {/* View Toggle & Approve All */}
+              <div className="flex items-center gap-2 self-end lg:self-center">
+                {/* View Mode Toggle: 2-Cols Grid vs Table */}
+                <div className="hidden sm:flex items-center bg-warm-gray-100/80 p-0.5 rounded-[8px] text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setSectionViewMode('grid')}
+                    className={`px-2 py-1 rounded-[6px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                      sectionViewMode === 'grid'
+                        ? 'bg-white text-warm-gray-900 shadow-xs'
+                        : 'text-warm-gray-400 hover:text-warm-gray-700'
+                    }`}
+                    title="2-Column Grid (Fits single window)"
+                  >
+                    <span>⊞</span> Grid
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSectionViewMode('table')}
+                    className={`px-2 py-1 rounded-[6px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                      sectionViewMode === 'table'
+                        ? 'bg-white text-warm-gray-900 shadow-xs'
+                        : 'text-warm-gray-400 hover:text-warm-gray-700'
+                    }`}
+                    title="Dense List View"
+                  >
+                    <span>☰</span> List
+                  </button>
+                </div>
+
+                {!isProposalLocked && (
+                  <button
+                    type="button"
+                    onClick={handleApproveAllSections}
+                    className="px-3 py-1.5 rounded-[8px] bg-green-600 hover:bg-green-700 text-white font-bold text-[11px] shadow-xs transition-all cursor-pointer flex items-center gap-1"
+                  >
+                    <span>✓</span> Approve All ({sections.length})
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              {!isProposalLocked && (
-                <button
-                  type="button"
-                  onClick={handleApproveAllSections}
-                  className="px-4 py-2 rounded-[10px] bg-green-600 hover:bg-green-700 text-white font-bold text-xs shadow-soft transition-all cursor-pointer flex items-center gap-1.5"
-                >
-                  <span>✓</span> Approve All 17 Sections
-                </button>
+
+            {/* Sections Container — Fitted to Window with Internal Scroll */}
+            <div className="max-h-[calc(100vh-270px)] min-h-[340px] overflow-y-auto p-3 bg-warm-gray-50/20">
+              {filteredSections.length === 0 ? (
+                <div className="p-8 text-center text-xs text-warm-gray-400 bg-white rounded-[12px] border border-warm-gray-200/50">
+                  <p className="font-semibold text-warm-gray-600 mb-1">No sections match this filter.</p>
+                  <button
+                    type="button"
+                    onClick={() => setSectionFilter('all')}
+                    className="text-primary font-bold hover:underline cursor-pointer"
+                  >
+                    View All Sections ({sections.length})
+                  </button>
+                </div>
+              ) : sectionViewMode === 'grid' ? (
+                /* 2-Column Responsive Grid View — utilizes the horizontal space to fit in a single window */
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  {filteredSections.map((sec) => {
+                    const secWordCount = sec.content?.trim() ? sec.content.trim().split(/\s+/).length : 0
+                    const commentCount = sec.comments?.length || 0
+                    const isReady = sec.status === 'Ready for Review'
+                    const isApproved = sec.status === 'Approved'
+                    return (
+                      <div
+                        key={sec._id}
+                        className={`p-3 rounded-[12px] bg-white border transition-all flex items-center justify-between gap-2.5 shadow-xs hover:shadow-soft ${
+                          isReady
+                            ? 'border-emerald-400 ring-1 ring-emerald-300/40 bg-emerald-50/20'
+                            : isApproved
+                            ? 'border-warm-gray-200/50 bg-white'
+                            : 'border-warm-gray-200/50 hover:border-primary/30'
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                            <span className="font-heading font-bold text-xs text-warm-gray-900 truncate max-w-[210px] sm:max-w-[240px]" title={sec.title}>
+                              {sec.title}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${statusColor(sec.status)}`}>
+                              {sec.status}
+                            </span>
+                            {commentCount > 0 && (
+                              <span className="px-1.5 py-0.2 text-[10px] font-bold bg-amber-100 text-amber-800 rounded-full shrink-0">
+                                💬 {commentCount}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[11px] text-warm-gray-400">
+                            <span className="truncate max-w-[130px]">
+                              Writer: <strong className="text-warm-gray-700 font-medium">{sec.assignedToName || 'Unassigned'}</strong>
+                            </span>
+                            <span>•</span>
+                            <span className="shrink-0">{secWordCount}/{sec.wordCountLimit || 500} w</span>
+                            {sec.lastEditedAt && (
+                              <>
+                                <span>•</span>
+                                <span className="shrink-0 hidden xl:inline">
+                                  {new Date(sec.lastEditedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setReviewSectionModal(sec)}
+                            className={`px-2.5 py-1.5 rounded-[8px] text-[11px] font-bold border transition-all cursor-pointer flex items-center gap-1 ${
+                              !isProposalLocked && isReady
+                                ? 'bg-green-600 text-white border-green-600 hover:bg-green-700 shadow-soft animate-pulse'
+                                : isApproved
+                                ? 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'
+                                : 'bg-warm-gray-100 hover:bg-warm-gray-200 text-warm-gray-700 border-warm-gray-300'
+                            }`}
+                          >
+                            <span>👁️</span>
+                            {!isProposalLocked && isReady ? 'Review & Approve' : isApproved ? 'View' : 'View Text'}
+                          </button>
+                          {!isProposalLocked && isAssignedToUser(sec) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedSectionId(sec._id)
+                                setWorkspaceView('editor')
+                              }}
+                              className="px-2 py-1.5 rounded-[8px] text-[11px] font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition-all cursor-pointer"
+                              title="Edit in Workspace"
+                            >
+                              ✍️
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                /* Dense List View */
+                <div className="divide-y divide-warm-gray-200/50 bg-white rounded-[12px] border border-warm-gray-200/50 overflow-hidden">
+                  {filteredSections.map((sec) => {
+                    const secWordCount = sec.content?.trim() ? sec.content.trim().split(/\s+/).length : 0
+                    const commentCount = sec.comments?.length || 0
+                    const isReady = sec.status === 'Ready for Review'
+                    const isApproved = sec.status === 'Approved'
+                    return (
+                      <div
+                        key={sec._id}
+                        className={`px-3.5 py-2 hover:bg-cream/40 transition-colors flex items-center justify-between gap-3 ${
+                          isReady ? 'bg-emerald-50/20' : ''
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                            <span className="font-heading font-bold text-xs text-warm-gray-900 truncate max-w-[280px]">
+                              {sec.title}
+                            </span>
+                            <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold border ${statusColor(sec.status)}`}>
+                              {sec.status}
+                            </span>
+                            {commentCount > 0 && (
+                              <span className="px-1.5 py-0.2 text-[10px] font-bold bg-amber-100 text-amber-800 rounded-full">
+                                💬 {commentCount}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-[11px] text-warm-gray-400">
+                            <span>Writer: <strong className="text-warm-gray-700 font-medium">{sec.assignedToName || 'Unassigned'}</strong></span>
+                            <span>•</span>
+                            <span>Words: <strong className="text-warm-gray-700 font-medium">{secWordCount}</strong> / {sec.wordCountLimit || 500}</span>
+                            {sec.lastEditedAt && (
+                              <>
+                                <span>•</span>
+                                <span>{new Date(sec.lastEditedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setReviewSectionModal(sec)}
+                            className={`px-2.5 py-1.5 rounded-[8px] text-[11px] font-bold border transition-all cursor-pointer flex items-center gap-1 ${
+                              !isProposalLocked && isReady
+                                ? 'bg-green-600 text-white border-green-600 hover:bg-green-700 shadow-soft'
+                                : isApproved
+                                ? 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'
+                                : 'bg-warm-gray-100 hover:bg-warm-gray-200 text-warm-gray-700 border-warm-gray-300'
+                            }`}
+                          >
+                            <span>👁️</span> {!isProposalLocked && isReady ? 'Review & Approve' : isApproved ? 'View' : 'View Text'}
+                          </button>
+                          {!isProposalLocked && isAssignedToUser(sec) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedSectionId(sec._id)
+                                setWorkspaceView('editor')
+                              }}
+                              className="px-2 py-1.5 rounded-[8px] text-[11px] font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition-all cursor-pointer"
+                              title="Edit in Workspace"
+                            >
+                              ✍️
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               )}
             </div>
           </div>
-
-          <div className="divide-y divide-warm-gray-200/60 max-h-[700px] overflow-y-auto">
-            {currentProposal?.sections?.map((sec) => {
-              const secWordCount = sec.content?.trim() ? sec.content.trim().split(/\s+/).length : 0
-              const commentCount = sec.comments?.length || 0
-              return (
-                <div
-                  key={sec._id}
-                  className="p-4 sm:p-5 hover:bg-cream/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                      <span className="font-heading font-bold text-sm text-warm-gray-900">
-                        {sec.title}
-                      </span>
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusColor(sec.status)}`}>
-                        {sec.status}
-                      </span>
-                      {commentCount > 0 && (
-                        <span className="px-2 py-0.5 text-xs font-bold bg-amber-100 text-amber-800 rounded-full flex items-center gap-1">
-                          💬 {commentCount} comments
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-warm-gray-500">
-                      <span>
-                        Assigned writer: <strong className="text-warm-gray-800">{sec.assignedToName || 'Unassigned'}</strong>
-                      </span>
-                      <span>•</span>
-                      <span>
-                        Words: <strong className="text-warm-gray-800">{secWordCount}</strong> / {sec.wordCountLimit || 500}
-                      </span>
-                      {sec.lastEditedAt && (
-                        <>
-                          <span>•</span>
-                          <span>Last updated: {new Date(sec.lastEditedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Section Actions */}
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setReviewSectionModal(sec)}
-                      className={`px-3.5 py-2 rounded-[10px] text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
-                        !isProposalLocked && sec.status === 'Ready for Review'
-                          ? 'bg-green-600 text-white border-green-600 hover:bg-green-700 shadow-soft animate-pulse'
-                          : sec.status === 'Approved'
-                          ? 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'
-                          : 'bg-warm-gray-100 hover:bg-warm-gray-200 text-warm-gray-800 border-warm-gray-300'
-                      }`}
-                    >
-                      <span>👁️</span> {!isProposalLocked && sec.status === 'Ready for Review' ? 'Review & Approve' : sec.status === 'Approved' ? 'View Approved' : 'View Text'}
-                    </button>
-                    {!isProposalLocked && isAssignedToUser(sec) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedSectionId(sec._id)
-                          setWorkspaceView('editor')
-                        }}
-                        className="px-3 py-2 rounded-[10px] text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition-all cursor-pointer flex items-center gap-1"
-                      >
-                        <span>✍️</span> Edit
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* ─── 3-Column Workspace ─── */}
       {(!isPI || workspaceView === 'editor') && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-start">
 
         {/* ── Left: Section Selector (3 cols) ── */}
-        <div className="lg:col-span-3 bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-soft overflow-hidden">
-          <div className="p-4 border-b border-warm-gray-200/60 bg-cream/30 flex items-center justify-between">
-            <p className="text-xs font-bold text-warm-gray-500 uppercase tracking-wider">
-              My Assigned Sections ({myAssignedSections.length})
+        <div className="lg:col-span-3 bg-surface-elevated rounded-[16px] border border-warm-gray-200/50 overflow-hidden flex flex-col lg:h-[calc(100vh-220px)] lg:min-h-[460px] shadow-xs">
+          <div className="px-3.5 py-3 border-b border-warm-gray-200/40 flex items-center justify-between shrink-0">
+            <p className="text-[11px] font-bold text-warm-gray-500 uppercase tracking-[0.08em]">
+              Sections ({myAssignedSections.length})
             </p>
-            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">
+            <span className="text-[10px] bg-primary-50 text-primary px-2 py-0.5 rounded-[6px] font-bold border border-primary/10">
               Assigned to Me
             </span>
           </div>
-          <div className="p-3 space-y-1.5 max-h-[600px] overflow-y-auto">
+          <div className="p-2 space-y-1 flex-1 overflow-y-auto">
             {myAssignedSections.length === 0 ? (
-              <div className="p-6 text-center text-xs text-warm-gray-500">
-                <p className="font-semibold mb-1">No writing sections assigned to you.</p>
+              <div className="p-6 text-center text-xs text-warm-gray-400">
+                <p className="font-semibold mb-1">No sections assigned.</p>
                 {isPI && (
                   <button
                     type="button"
                     onClick={() => setWorkspaceView('review')}
-                    className="mt-2 text-purple-600 font-bold hover:underline cursor-pointer"
+                    className="mt-2 text-primary font-bold hover:underline cursor-pointer"
                   >
                     Go to Section Review →
                   </button>
@@ -1312,28 +1597,23 @@ export default function ProposalWritingWorkspace({ userName }) {
                       setSelectedProposalId(currentProposal._id)
                       setSelectedSectionId(sec._id)
                     }}
-                    className={`w-full text-left p-3 rounded-[12px] transition-all text-xs font-medium cursor-pointer border ${
+                    className={`w-full text-left px-3 py-2.5 rounded-[10px] transition-all text-xs cursor-pointer ${
                       isSelected
-                        ? 'bg-purple-50 border-purple-200 text-purple-900 shadow-soft'
-                        : 'bg-white hover:bg-warm-gray-50 text-warm-gray-700 border-warm-gray-200/60'
+                        ? 'bg-primary-50/70 border-l-[3px] border-l-primary border border-primary/10 text-warm-gray-900 shadow-xs'
+                        : 'bg-white hover:bg-warm-gray-50/80 text-warm-gray-600 border border-transparent hover:border-warm-gray-200/40'
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <span className="font-semibold leading-tight">{sec.title}</span>
+                    <div className="flex items-start justify-between gap-1.5 mb-1">
+                      <span className={`font-semibold leading-tight text-[12px] truncate ${isSelected ? 'text-warm-gray-900 font-bold' : ''}`}>{sec.title}</span>
                       {commentCount > 0 && (
-                        <span className="px-1.5 py-0.5 text-xs font-bold bg-amber-100 text-amber-800 rounded-full flex-shrink-0 flex items-center gap-0.5">
+                        <span className="px-1.5 py-0.2 text-[10px] font-bold bg-amber-100 text-amber-800 rounded-[5px] flex-shrink-0">
                           💬 {commentCount}
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className={`px-1.5 py-0.5 text-xs font-bold rounded-full border ${statusColor(sec.status)}`}>
-                        {sec.status}
-                      </span>
-                      <span className="text-xs text-warm-gray-500 truncate max-w-[110px]">
-                        👤 Assigned to Me
-                      </span>
-                    </div>
+                    <span className={`inline-block px-2 py-0.2 text-[10px] font-bold rounded-[5px] border ${statusColor(sec.status)}`}>
+                      {sec.status}
+                    </span>
                   </div>
                 )
               })
@@ -1342,16 +1622,16 @@ export default function ProposalWritingWorkspace({ userName }) {
         </div>
 
         {/* ── Center: Editor (6 cols) ── */}
-        <div className="lg:col-span-6 bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-soft overflow-hidden flex flex-col">
+        <div className="lg:col-span-6 bg-surface-elevated rounded-[16px] border border-warm-gray-200/50 overflow-hidden flex flex-col lg:h-[calc(100vh-220px)] lg:min-h-[460px] shadow-xs">
 
           {/* Toolbar */}
-          <div className="p-5 border-b border-warm-gray-200/60 flex flex-wrap items-center justify-between gap-3 bg-cream/30">
+          <div className="px-5 py-4 border-b border-warm-gray-200/40 flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
-              <h3 className="font-heading font-bold text-warm-gray-900 text-base truncate">
+              <h3 className="font-heading font-bold text-warm-gray-900 text-[15px] truncate leading-snug">
                 {currentSection?.title || 'Select a Section'}
               </h3>
-              <p className="text-xs text-warm-gray-500">
-                {wordCount} / {wordLimit} words &nbsp;•&nbsp; {charCount} chars
+              <p className="text-[11px] text-warm-gray-400 mt-0.5 font-medium">
+                {wordCount}/{wordLimit} words &nbsp;•&nbsp; {charCount} chars
               </p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -1365,9 +1645,9 @@ export default function ProposalWritingWorkspace({ userName }) {
                     <button
                       onClick={() => handleSaveSection('Approved')}
                       disabled={saving}
-                      className="px-3 py-1.5 rounded-[10px] bg-green-600 hover:bg-green-700 text-white text-xs font-bold transition-all cursor-pointer shadow-soft disabled:opacity-50"
+                      className="px-3 py-1.5 rounded-[8px] bg-green-600 hover:bg-green-700 text-white text-[11px] font-bold transition-all cursor-pointer disabled:opacity-50"
                     >
-                      ✓ Approve Section
+                      ✓ Approve
                     </button>
                   )}
                   {isAssignedToUser(currentSection) ? (
@@ -1375,25 +1655,25 @@ export default function ProposalWritingWorkspace({ userName }) {
                       <button
                         onClick={handleToggleReview}
                         disabled={saving}
-                        className={`px-3 py-1.5 rounded-[10px] text-xs font-bold transition-all cursor-pointer border ${
+                        className={`px-3 py-1.5 rounded-[8px] text-[11px] font-bold transition-all cursor-pointer border ${
                           sectionStatus === 'Ready for Review'
-                            ? 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
-                            : 'bg-warm-gray-100 hover:bg-warm-gray-200 text-warm-gray-800 border-warm-gray-300'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                            : 'bg-warm-gray-50 hover:bg-warm-gray-100 text-warm-gray-700 border-warm-gray-200'
                         }`}
                       >
-                        {sectionStatus === 'Ready for Review' ? '✓ Ready for Review' : '⬆ Mark Ready'}
+                        {sectionStatus === 'Ready for Review' ? '✓ Ready' : '⬆ Mark Ready'}
                       </button>
                       <button
                         onClick={() => handleSaveSection(sectionStatus === 'Not Started' ? 'In Progress' : sectionStatus)}
                         disabled={saving}
-                        className="px-4 py-1.5 rounded-[10px] bg-primary text-white text-xs font-bold hover:bg-primary/90 transition-all cursor-pointer shadow-soft disabled:opacity-50"
+                        className="px-4 py-1.5 rounded-[8px] bg-primary text-white text-[11px] font-bold hover:bg-primary-dark transition-all cursor-pointer disabled:opacity-50"
                       >
-                        {saving ? 'Saving...' : '💾 Save'}
+                        {saving ? 'Saving…' : '💾 Save'}
                       </button>
                     </>
                   ) : (
-                    <span className="px-3 py-1.5 rounded-[10px] bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold flex items-center gap-1">
-                      🔒 Read-Only (Assigned to {currentSection?.assignedToName || 'another member'})
+                    <span className="px-3 py-1.5 rounded-[8px] bg-amber-50 border border-amber-200/60 text-amber-700 text-[11px] font-medium">
+                      🔒 Read-Only
                     </span>
                   )}
                 </>
@@ -1402,99 +1682,71 @@ export default function ProposalWritingWorkspace({ userName }) {
           </div>
 
           {/* Format Bar */}
-          <div className="px-5 py-3 bg-warm-gray-50/90 border-b border-warm-gray-200/60 flex flex-wrap items-center gap-2 text-xs text-warm-gray-700">
-            {/* View Mode Toggle Pill (Centered & Larger Height/Text) */}
-            <div className="flex items-center bg-warm-gray-200/80 p-1 rounded-[10px] mr-2 shadow-inner">
+          <div className="px-5 py-2.5 bg-warm-gray-50/60 border-b border-warm-gray-200/30 flex flex-wrap items-center gap-1.5 text-xs">
+            {/* View Mode Toggle */}
+            <div className="flex items-center bg-warm-gray-200/50 p-0.5 rounded-[8px] mr-1.5">
               <button
                 onClick={() => setEditorMode('edit')}
-                className={`px-3.5 py-1.5 rounded-[8px] text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-[6px] text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
                   editorMode === 'edit'
-                    ? 'bg-white text-purple-900 shadow-soft'
-                    : 'text-warm-gray-600 hover:text-warm-gray-900'
+                    ? 'bg-white text-warm-gray-900 shadow-xs'
+                    : 'text-warm-gray-500 hover:text-warm-gray-800'
                 }`}
               >
-                <span>✏️</span> Edit
+                ✏️ Edit
               </button>
               <button
                 onClick={() => setEditorMode('preview')}
-                className={`px-3.5 py-1.5 rounded-[8px] text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-[6px] text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
                   editorMode === 'preview'
-                    ? 'bg-white text-purple-900 shadow-soft'
-                    : 'text-warm-gray-600 hover:text-warm-gray-900'
+                    ? 'bg-white text-warm-gray-900 shadow-xs'
+                    : 'text-warm-gray-500 hover:text-warm-gray-800'
                 }`}
               >
-                <span>👁️</span> Live Preview
+                👁️ Preview
               </button>
             </div>
 
-            {/* Selection Formatting Buttons */}
+            {/* Formatting Buttons */}
             {editorMode === 'edit' && isAssignedToUser(currentSection) && !isProposalLocked && (
-              <div className="flex flex-wrap items-center gap-1.5">
-                <button
-                  onClick={() => applyFormatting('**', '**', 'bold text')}
-                  className="h-8 px-2.5 bg-white hover:bg-purple-50 border border-warm-gray-200 rounded-[8px] font-bold text-xs cursor-pointer text-warm-gray-800 shadow-xs hover:border-purple-300 transition-all"
-                  title="Bold (Wraps selected text)"
-                >
-                  B
-                </button>
-                <button
-                  onClick={() => applyFormatting('*', '*', 'italic text')}
-                  className="h-8 px-2.5 bg-white hover:bg-purple-50 border border-warm-gray-200 rounded-[8px] italic font-semibold text-xs cursor-pointer text-warm-gray-800 shadow-xs hover:border-purple-300 transition-all"
-                  title="Italic (Wraps selected text)"
-                >
-                  I
-                </button>
-                <button
-                  onClick={() => applyFormatting('\n## ', '', 'Heading 2')}
-                  className="h-8 px-2.5 bg-white hover:bg-purple-50 border border-warm-gray-200 rounded-[8px] font-bold text-xs cursor-pointer text-warm-gray-800 shadow-xs hover:border-purple-300 transition-all"
-                  title="Heading 2"
-                >
-                  H2
-                </button>
-                <button
-                  onClick={() => applyFormatting('\n### ', '', 'Heading 3')}
-                  className="h-8 px-2.5 bg-white hover:bg-purple-50 border border-warm-gray-200 rounded-[8px] font-semibold text-xs cursor-pointer text-warm-gray-800 shadow-xs hover:border-purple-300 transition-all"
-                  title="Heading 3"
-                >
-                  H3
-                </button>
-                <button
-                  onClick={() => applyFormatting('\n- ', '', 'List item')}
-                  className="h-8 px-2.5 bg-white hover:bg-purple-50 border border-warm-gray-200 rounded-[8px] font-medium text-xs cursor-pointer text-warm-gray-800 shadow-xs hover:border-purple-300 transition-all"
-                  title="Bullet List"
-                >
-                  • List
-                </button>
-                <button
-                  onClick={() => applyFormatting('\n1. ', '', 'Numbered item')}
-                  className="h-8 px-2.5 bg-white hover:bg-purple-50 border border-warm-gray-200 rounded-[8px] font-medium text-xs cursor-pointer text-warm-gray-800 shadow-xs hover:border-purple-300 transition-all"
-                  title="Numbered List"
-                >
-                  1. Num
-                </button>
-                <button
-                  onClick={() => applyFormatting('\n> ', '', 'Quote text')}
-                  className="h-8 px-2.5 bg-white hover:bg-purple-50 border border-warm-gray-200 rounded-[8px] font-medium text-xs cursor-pointer text-warm-gray-800 shadow-xs hover:border-purple-300 transition-all"
-                  title="Quote"
-                >
-                  " Quote
-                </button>
-                <button
-                  onClick={() => setShowTableModal(true)}
-                  className="h-8 px-3 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-[8px] font-bold text-xs cursor-pointer text-purple-900 flex items-center gap-1.5 shadow-xs transition-all"
-                  title="Interactive Table Builder"
-                >
-                  <span>⊞</span> Table Builder
-                </button>
-              </div>
+              <>
+                <div className="w-px h-5 bg-warm-gray-200/60 mx-1" />
+                <div className="flex items-center gap-1">
+                  {[
+                    { action: () => applyFormatting('**', '**', 'bold text'), label: 'B', title: 'Bold', bold: true },
+                    { action: () => applyFormatting('*', '*', 'italic text'), label: 'I', title: 'Italic', italic: true },
+                    { action: () => applyFormatting('\n## ', '', 'Heading 2'), label: 'H2', title: 'Heading 2' },
+                    { action: () => applyFormatting('\n### ', '', 'Heading 3'), label: 'H3', title: 'Heading 3' },
+                    { action: () => applyFormatting('\n- ', '', 'List item'), label: '•', title: 'Bullet List' },
+                    { action: () => applyFormatting('\n1. ', '', 'Numbered item'), label: '1.', title: 'Numbered List' },
+                    { action: () => applyFormatting('\n> ', '', 'Quote text'), label: '"', title: 'Quote' },
+                  ].map((btn) => (
+                    <button
+                      key={btn.title}
+                      onClick={btn.action}
+                      className={`w-7 h-7 flex items-center justify-center bg-white hover:bg-primary-50 border border-warm-gray-200/60 rounded-[6px] text-[11px] cursor-pointer text-warm-gray-700 hover:border-primary/30 hover:text-primary transition-all ${btn.bold ? 'font-extrabold' : ''} ${btn.italic ? 'italic font-semibold' : 'font-semibold'}`}
+                      title={btn.title}
+                    >
+                      {btn.label}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setShowTableModal(true)}
+                    className="h-7 px-2.5 bg-primary-50 hover:bg-primary-100 border border-primary/15 rounded-[6px] font-bold text-[11px] cursor-pointer text-primary flex items-center gap-1 transition-all"
+                    title="Table Builder"
+                  >
+                    ⊞ Table
+                  </button>
+                </div>
+              </>
             )}
 
             <div className="flex-1" />
-            {lastSavedTime && <span className="text-xs text-warm-gray-400 font-medium italic">Saved at {lastSavedTime}</span>}
+            {lastSavedTime && <span className="text-[11px] text-warm-gray-400 font-medium">Saved {lastSavedTime}</span>}
           </div>
 
           {/* Editor / Live Preview Container */}
-          <div className="p-5 flex-1 min-h-[420px]">
+          <div className="p-3 flex-1 min-h-0 flex flex-col">
             {editorMode === 'edit' ? (
               <textarea
                 ref={textareaRef}
@@ -1510,47 +1762,47 @@ export default function ProposalWritingWorkspace({ userName }) {
                     ? `Proposal dossier is locked (${currentProposal?.status}). Section content is in read-only mode.`
                     : !isAssignedToUser(currentSection)
                     ? 'This section is assigned to another team member. You can view and approve it, but only the assigned member can edit it.'
-                    : `Start writing your "${currentSection?.title || 'section'}" here...\n\nSelect text and click B, I, H2, H3 to format highlighted text. Or click "📝 Draft Section" in the AI panel to auto-generate a draft.`
+                    : `Start writing your "${currentSection?.title || 'section'}" here...\n\nSelect text and use the toolbar to format. Or click "📝 Draft Section" in the AI panel.`
                 }
-                className={`w-full h-full min-h-[380px] p-4 rounded-[12px] border text-sm font-mono leading-relaxed resize-y transition-all ${
+                className={`w-full h-full flex-1 p-3.5 rounded-[12px] border text-[13px] font-mono leading-relaxed resize-none transition-all ${
                   isProposalLocked || !isAssignedToUser(currentSection)
-                    ? 'bg-warm-gray-50/80 text-warm-gray-800 border-warm-gray-200 cursor-not-allowed'
-                    : 'bg-white border-warm-gray-200/70 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-warm-gray-900'
+                    ? 'bg-warm-gray-50/50 text-warm-gray-700 border-warm-gray-200/60 cursor-not-allowed'
+                    : 'bg-white border-warm-gray-200/40 focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary/40 text-warm-gray-900'
                 }`}
               />
             ) : (
-              <div className="w-full h-full min-h-[380px] max-h-[500px] overflow-y-auto p-5 rounded-[12px] bg-white border border-warm-gray-200/70 shadow-inner">
+              <div className="w-full h-full flex-1 overflow-y-auto p-4 rounded-[12px] bg-white border border-warm-gray-200/40">
                 {renderFormattedContent(content)}
               </div>
             )}
           </div>
 
           {/* Footer */}
-          <div className="px-5 py-3 border-t border-warm-gray-200/60 bg-cream/30 flex items-center justify-between text-xs">
-            <span className="text-warm-gray-500">{wordCount} Words &nbsp;|&nbsp; {charCount} Characters</span>
+          <div className="px-4 py-2 border-t border-warm-gray-200/30 flex items-center justify-between text-[11px] shrink-0">
+            <span className="text-warm-gray-400 font-medium">{wordCount} words &nbsp;·&nbsp; {charCount} chars</span>
             <span className={isOverLimit ? 'text-red-500 font-bold' : 'text-warm-gray-400'}>
-              {isOverLimit ? `⚠️ Over limit by ${wordCount - wordLimit} words` : `${wordLimit - wordCount} words remaining`}
+              {isOverLimit ? `⚠ Over by ${wordCount - wordLimit}` : `${wordLimit - wordCount} remaining`}
             </span>
           </div>
         </div>
 
         {/* ── Right: AI + Comments + Guide (3 cols) ── */}
-        <div className="lg:col-span-3 bg-surface-elevated rounded-[20px] border border-warm-gray-200/60 shadow-soft overflow-hidden">
+        <div className="lg:col-span-3 bg-surface-elevated rounded-[16px] border border-warm-gray-200/50 overflow-hidden flex flex-col lg:h-[calc(100vh-220px)] lg:min-h-[460px] shadow-xs">
 
           {/* Tab Header */}
-          <div className="flex border-b border-warm-gray-200/60 bg-cream/40">
+          <div className="flex border-b border-warm-gray-200/40 shrink-0">
             {[
               { key: 'ai', label: '🤖 AI' },
-              { key: 'comments', label: '💬 Team Chat', badge: currentProposal?.comments?.length, unread: unreadChatCount },
+              { key: 'comments', label: '💬 Chat', badge: currentProposal?.comments?.length, unread: unreadChatCount },
               { key: 'guide', label: '📋 Guide' },
             ].map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveRightTab(tab.key)}
-                className={`flex-1 py-3 text-xs font-bold transition-colors cursor-pointer border-b-2 flex items-center justify-center gap-1 ${
+                className={`flex-1 py-3 text-[11px] font-bold transition-colors cursor-pointer border-b-2 flex items-center justify-center gap-1 ${
                   activeRightTab === tab.key
-                    ? 'border-purple-600 text-purple-700 bg-white'
-                    : 'border-transparent text-warm-gray-500 hover:text-warm-gray-800'
+                    ? 'border-primary text-primary bg-white'
+                    : 'border-transparent text-warm-gray-400 hover:text-warm-gray-700'
                 }`}
               >
                 <span>{tab.label}</span>
@@ -1569,16 +1821,16 @@ export default function ProposalWritingWorkspace({ userName }) {
 
           {/* ── AI Tab ── */}
           {activeRightTab === 'ai' && (
-            <div className="p-4 space-y-4 text-xs">
-              <div className="p-3 rounded-[12px] bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200/60">
-                <p className="font-bold text-purple-900 mb-0.5 flex items-center gap-1.5">
-                  <span>✨</span> GrantOS AI Research Assistant
+            <div className="p-3.5 space-y-3 text-xs flex-1 overflow-y-auto">
+              <div className="p-3 rounded-[12px] bg-gradient-to-br from-primary-50 to-emerald-50 border border-primary/10">
+                <p className="font-bold text-warm-gray-900 mb-0.5 flex items-center gap-1.5 text-[12px]">
+                  ✨ AI Research Assistant
                 </p>
-                <p className="text-xs text-purple-900 font-semibold leading-snug truncate">
-                  Target: <span className="text-purple-700">{currentProposal?.grantTitle || 'Research Grant'}</span>
+                <p className="text-[11px] text-warm-gray-600 font-medium leading-snug truncate">
+                  {currentProposal?.grantTitle || 'Research Grant'}
                 </p>
-                <p className="text-xs text-purple-600 mt-0.5">
-                  Agency: {currentProposal?.grantAgency || 'Funding Agency'} &nbsp;•&nbsp; Section: "{currentSection?.title}"
+                <p className="text-[11px] text-warm-gray-400 mt-0.5">
+                  {currentProposal?.grantAgency || 'Agency'} · "{currentSection?.title}"
                 </p>
               </div>
 
@@ -1656,15 +1908,15 @@ export default function ProposalWritingWorkspace({ userName }) {
 
           {/* ── Unified Team Chat Tab ── */}
           {activeRightTab === 'comments' && (
-            <div className="p-4 flex flex-col h-[500px] text-xs">
-              <div className="flex items-center justify-between pb-2 mb-2 border-b border-warm-gray-200/50">
+            <div className="p-3.5 flex flex-col flex-1 min-h-0 text-xs">
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-warm-gray-200/50 shrink-0">
                 <span className="font-bold text-warm-gray-700 text-xs">💬 Proposal Discussion</span>
                 <span className="inline-flex items-center gap-1 text-xs text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   Instant Live Sync
                 </span>
               </div>
-              <div ref={chatContainerRef} className="flex-1 overflow-y-auto space-y-3 pr-1 mb-3">
+              <div ref={chatContainerRef} className="flex-1 overflow-y-auto space-y-3 pr-1 mb-3 min-h-0">
                 {(!currentProposal?.comments || currentProposal.comments.length === 0) ? (
                   <div className="text-center text-warm-gray-400 py-12">
                     <span className="text-3xl block mb-2">💬</span>
@@ -1701,7 +1953,7 @@ export default function ProposalWritingWorkspace({ userName }) {
               </div>
 
               {/* Comment Input */}
-              <form onSubmit={handleAddComment} className="pt-3 border-t border-warm-gray-200/60 flex gap-2">
+              <form onSubmit={handleAddComment} className="pt-2.5 border-t border-warm-gray-200/60 flex gap-2 shrink-0">
                 <input
                   type="text"
                   value={newComment}
@@ -1722,7 +1974,7 @@ export default function ProposalWritingWorkspace({ userName }) {
 
           {/* ── Guide Tab ── */}
           {activeRightTab === 'guide' && (
-            <div className="p-4 space-y-4 text-xs">
+            <div className="p-3.5 space-y-3 text-xs flex-1 overflow-y-auto">
               <div className="p-3 rounded-[12px] bg-blue-50 border border-blue-200">
                 <p className="font-bold text-blue-900 mb-0.5">📋 Section Writing Guide</p>
                 <p className="text-xs text-blue-700/80 leading-snug">

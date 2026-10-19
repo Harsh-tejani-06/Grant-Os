@@ -404,22 +404,22 @@ export function GrantDetailPanel({
           {/* Focus Areas / Research Areas */}
           {((grant.focusAreas && grant.focusAreas.length > 0) ||
             (grant.researchAreas && grant.researchAreas.length > 0)) && (
-            <div>
-              <h3 className="font-heading text-sm font-bold text-warm-gray-900 mb-2">
-                Focus Areas
-              </h3>
-              <div className="flex flex-wrap gap-1.5">
-                {(grant.focusAreas || grant.researchAreas || []).map((area, i) => (
-                  <span
-                    key={i}
-                    className="px-2.5 py-1 rounded-full bg-primary-50 text-primary text-xs font-medium border border-primary/15"
-                  >
-                    {area}
-                  </span>
-                ))}
+              <div>
+                <h3 className="font-heading text-sm font-bold text-warm-gray-900 mb-2">
+                  Focus Areas
+                </h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {(grant.focusAreas || grant.researchAreas || []).map((area, i) => (
+                    <span
+                      key={i}
+                      className="px-2.5 py-1 rounded-full bg-primary-50 text-primary text-xs font-medium border border-primary/15"
+                    >
+                      {area}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
           {/* Eligible Applicant Types */}
           {grant.eligibleApplicantTypes &&
@@ -566,11 +566,10 @@ export function SectionHeader({ icon, title, subtitle, count, accentColor = 'pri
   return (
     <div className="flex items-center gap-3 mb-5">
       <div
-        className={`w-10 h-10 rounded-[12px] flex items-center justify-center text-lg ${
-          accentColor === 'primary'
+        className={`w-10 h-10 rounded-[12px] flex items-center justify-center text-lg ${accentColor === 'primary'
             ? 'bg-primary-50 text-primary border border-primary/20'
             : 'bg-amber-50 text-amber-700 border border-amber-200/60'
-        }`}
+          }`}
       >
         {icon}
       </div>
@@ -610,11 +609,10 @@ export function PaginationControls({ currentPage, totalPages, onPageChange }) {
           <button
             key={pageNum}
             onClick={() => onPageChange(pageNum)}
-            className={`w-8 h-8 rounded-[10px] text-xs font-bold transition-all cursor-pointer ${
-              pageNum === currentPage
+            className={`w-8 h-8 rounded-[10px] text-xs font-bold transition-all cursor-pointer ${pageNum === currentPage
                 ? 'bg-primary text-white shadow-soft'
                 : 'bg-surface-elevated border border-warm-gray-200/70 text-warm-gray-600 hover:bg-warm-gray-50'
-            }`}
+              }`}
           >
             {pageNum}
           </button>
@@ -922,21 +920,19 @@ export default function GrantDiscoveryModule({
       >
         <button
           onClick={() => handleTabChange('government')}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-[12px] text-sm font-semibold transition-all cursor-pointer ${
-            activeTab === 'government'
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-[12px] text-sm font-semibold transition-all cursor-pointer ${activeTab === 'government'
               ? 'bg-primary text-white shadow-soft'
               : 'bg-surface-elevated text-warm-gray-600 hover:bg-warm-gray-100/80 border border-warm-gray-200/70'
-          }`}
+            }`}
           id="tab-government-source"
         >
           <span>🏛️</span>
           Government & Other Sources
           <span
-            className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-              activeTab === 'government'
+            className={`px-2 py-0.5 rounded-full text-xs font-bold ${activeTab === 'government'
                 ? 'bg-white/20 text-white'
                 : 'bg-warm-gray-100 text-warm-gray-600'
-            }`}
+              }`}
           >
             {govTotal}
           </span>
@@ -944,21 +940,19 @@ export default function GrantDiscoveryModule({
 
         <button
           onClick={() => handleTabChange('grantos')}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-[12px] text-sm font-semibold transition-all cursor-pointer ${
-            activeTab === 'grantos'
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-[12px] text-sm font-semibold transition-all cursor-pointer ${activeTab === 'grantos'
               ? 'bg-amber-600 text-white shadow-soft'
               : 'bg-surface-elevated text-warm-gray-600 hover:bg-warm-gray-100/80 border border-warm-gray-200/70'
-          }`}
+            }`}
           id="tab-grantos-source"
         >
           <span>🌿</span>
           GrantOS Funding Agencies
           <span
-            className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-              activeTab === 'grantos'
+            className={`px-2 py-0.5 rounded-full text-xs font-bold ${activeTab === 'grantos'
                 ? 'bg-white/20 text-white'
                 : 'bg-warm-gray-100 text-warm-gray-600'
-            }`}
+              }`}
           >
             {grantosTotal}
           </span>
@@ -966,21 +960,19 @@ export default function GrantDiscoveryModule({
 
         <button
           onClick={() => handleTabChange('all')}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-[12px] text-sm font-semibold transition-all cursor-pointer ${
-            activeTab === 'all'
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-[12px] text-sm font-semibold transition-all cursor-pointer ${activeTab === 'all'
               ? 'bg-warm-gray-800 text-white shadow-soft'
               : 'bg-surface-elevated text-warm-gray-600 hover:bg-warm-gray-100/80 border border-warm-gray-200/70'
-          }`}
+            }`}
           id="tab-all-sources"
         >
           <span>📋</span>
           All Sources
           <span
-            className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-              activeTab === 'all'
+            className={`px-2 py-0.5 rounded-full text-xs font-bold ${activeTab === 'all'
                 ? 'bg-white/20 text-white'
                 : 'bg-warm-gray-100 text-warm-gray-600'
-            }`}
+              }`}
           >
             {totalGrants}
           </span>
@@ -1119,7 +1111,7 @@ export default function GrantDiscoveryModule({
           >
             <option value="all">🌐 All Regions & Scopes</option>
             {orgState && (
-              <option value="my_state">🎯 My State: {orgState} (Eligible)</option>
+              <option value="my_state">🎯  State: {orgState} (Eligible)</option>
             )}
             <optgroup label="Geographic Scope">
               <option value="National">🇮🇳 Pan-India / National Schemes</option>
