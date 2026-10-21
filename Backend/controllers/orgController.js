@@ -342,7 +342,7 @@ function matchesRegionFilter(item, regionFilter, orgState) {
 }
 
 // @desc    Discover grants ranked by semantic similarity to org profile
-//          Returns government/scraped grants AND GrantOS funding agency grants
+//          Returns government/scraped grants AND GrantIQ funding agency grants
 //          as two separate sections, plus dropdown filter options for each.
 // @route   GET /api/org/grants/discover
 // @access  Private (org_admin, team_member)
@@ -373,7 +373,7 @@ const discoverGrants = async (req, res) => {
     const orgEmbedding = org.embedding && org.embedding.length === 768 ? org.embedding : null;
 
     // ── 2. Build grant query ──
-    const { search, category, status, page = 1, limit = 20, agencyFilter, sourceTab, govPage, grantosPage, region } = req.query;
+    const { search, category, status, page = 1, limit = 20, agencyFilter, sourceTab, govPage, grantiqPage, grantosPage, region } = req.query;
     const filter = { isActive: true };
 
     // Status filter — maps to GrantListing.status
@@ -555,7 +555,7 @@ const discoverGrants = async (req, res) => {
       filtered = results.filter((r) => r.displayStatus === 'Closing Soon');
     }
 
-    // ── 6. Separate into government (scraped) and GrantOS (agency_submitted) ──
+    // ── 6. Separate into government (scraped) and GrantIQ (agency_submitted) ──
     // Strictly restrict scraped government grants to AICTE, DBT, DST, and UGC
     const ALLOWED_GOV_REGEX = /^(aicte|dbt|dst|ugc|serb)$|all india council for technical education|department of biotechnology|dept of biotechnology|department of science and technology|dept of science and technology|science and engineering research board|university grants commission/i;
     const govGrants = filtered.filter((g) => {
@@ -563,7 +563,7 @@ const discoverGrants = async (req, res) => {
       const agencyText = `${g.agencyName || ''} ${g.source?.website || ''}`;
       return ALLOWED_GOV_REGEX.test(agencyText);
     });
-    const grantosGrants = filtered.filter((g) => g.sourceType === 'agency_submitted');
+    const grantiqGrants = filtered.filter((g) => g.sourceType === 'agency_submitted');
 
     // ── 6a. Also fetch GrantProgram entries from approved funding agencies ──
     // These are grants created directly by funding agencies on the platform
@@ -766,7 +766,7 @@ const discoverGrants = async (req, res) => {
       })
       .sort((a, b) => (a.shortName || a.name).localeCompare(b.shortName || b.name));
 
-    // GrantOS private/partner agency names (exclude any government agencies)
+    // GrantIQ private/partner agency names (exclude any government agencies)
     const allApprovedAgencies = await FundingAgency.find({ status: 'approved' })
       .select('agencyName shortName agencyType')
       .lean();
@@ -777,7 +777,7 @@ const discoverGrants = async (req, res) => {
       return true;
     });
 
-    const grantosAgencyOptions = privateAgencies
+    const grantiqAgencyOptions = privateAgencies
       .map((a) => {
         const short = (a.shortName || '').trim();
         const name = (a.agencyName || '').trim();
@@ -790,14 +790,14 @@ const discoverGrants = async (req, res) => {
       })
       .sort((a, b) => a.label.localeCompare(b.label));
 
-    // ── 7a. Apply Region Filter across both Government & GrantOS datasets ──
+    // ── 7a. Apply Region Filter across both Government & GrantIQ datasets ──
     const orgState = org.address?.state || '';
     let finalGovGrants = govGrants;
-    let combinedGrantos = [...grantosGrants, ...filteredPrograms];
+    let combinedGrantiq = [...grantiqGrants, ...filteredPrograms];
 
     if (region && region !== 'all') {
       finalGovGrants = govGrants.filter((g) => matchesRegionFilter(g, region, orgState));
-      combinedGrantos = combinedGrantos.filter((g) => matchesRegionFilter(g, region, orgState));
+      combinedGrantiq = combinedGrantiq.filter((g) => matchesRegionFilter(g, region, orgState));
     }
 
     // ── 8. Paginate the data ──
@@ -808,16 +808,23 @@ const discoverGrants = async (req, res) => {
     const govStartIdx = (govPageNum - 1) * limitNum;
     const govPaginated = finalGovGrants.slice(govStartIdx, govStartIdx + limitNum);
 
-    // GrantOS pagination (listings + programs combined)
-    combinedGrantos.sort((a, b) => (b.matchPercentage || 0) - (a.matchPercentage || 0));
+    // GrantIQ pagination (listings + programs combined)
+    combinedGrantiq.sort((a, b) => (b.matchPercentage || 0) - (a.matchPercentage || 0));
 
-    const grantosPageNum = Math.max(1, parseInt(grantosPage || page, 10) || 1);
-    const grantosStartIdx = (grantosPageNum - 1) * limitNum;
-    const grantosPaginated = combinedGrantos.slice(grantosStartIdx, grantosStartIdx + limitNum);
+    const grantiqPageNum = Math.max(1, parseInt(grantiqPage || grantosPage || page, 10) || 1);
+    const grantiqStartIdx = (grantiqPageNum - 1) * limitNum;
+    const grantiqPaginated = combinedGrantiq.slice(grantiqStartIdx, grantiqStartIdx + limitNum);
 
     // Strip _similarity field before sending
     const cleanGovGrants = govPaginated.map(({ _similarity, ...rest }) => rest);
-    const cleanGrantosGrants = grantosPaginated.map(({ _similarity, ...rest }) => rest);
+    const cleanGrantiqGrants = grantiqPaginated.map(({ _similarity, ...rest }) => rest);
+
+    const grantiqResponseData = {
+      grants: cleanGrantiqGrants,
+      total: combinedGrantiq.length,
+      page: grantiqPageNum,
+      totalPages: Math.ceil(combinedGrantiq.length / limitNum),
+    };
 
     res.json({
       success: true,
@@ -827,15 +834,12 @@ const discoverGrants = async (req, res) => {
         page: govPageNum,
         totalPages: Math.ceil(finalGovGrants.length / limitNum),
       },
-      grantos: {
-        grants: cleanGrantosGrants,
-        total: combinedGrantos.length,
-        page: grantosPageNum,
-        totalPages: Math.ceil(combinedGrantos.length / limitNum),
-      },
+      grantiq: grantiqResponseData,
+      grantos: grantiqResponseData,
       filters: {
         govAgencies: govAgencyOptions,
-        grantosAgencies: grantosAgencyOptions,
+        grantiqAgencies: grantiqAgencyOptions,
+        grantosAgencies: grantiqAgencyOptions,
         orgState,
       },
       pagination: {

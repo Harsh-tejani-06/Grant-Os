@@ -73,7 +73,7 @@ export default function ProposalWritingWorkspace({ userName }) {
   // ─── User Info & PI Master State ───
   const getInitialUser = () => {
     try {
-      const stored = localStorage.getItem('grantos_user')
+      const stored = localStorage.getItem('grantiq_user') || localStorage.getItem('grantos_user')
       if (stored) {
         const u = JSON.parse(stored)
         return {

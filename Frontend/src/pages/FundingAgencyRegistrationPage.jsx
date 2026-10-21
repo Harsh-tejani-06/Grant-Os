@@ -118,6 +118,7 @@ export default function FundingAgencyRegistrationPage() {
       // Refresh user auth status
       const meRes = await api.get('/auth/me')
       if (meRes.data.success) {
+        localStorage.setItem('grantiq_user', JSON.stringify(meRes.data.user))
         localStorage.setItem('grantos_user', JSON.stringify(meRes.data.user))
       }
     } catch (err) {
@@ -177,7 +178,7 @@ export default function FundingAgencyRegistrationPage() {
               <LeafIcon />
             </div>
             <span className="font-heading text-2xl font-semibold text-warm-gray-900 tracking-tight">
-              Grant<span className="text-amber">OS</span>
+              Grant<span className="text-amber">IQ</span>
             </span>
           </Link>
 

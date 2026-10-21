@@ -203,7 +203,7 @@ export default function ProposalDocument({ proposal }) {
         </dl>
 
         <p className="mt-8 text-xs text-warm-gray-400">
-          {sections.length} sections • {totalWords.toLocaleString('en-IN')} words • Submitted via GrantOS
+          {sections.length} sections • {totalWords.toLocaleString('en-IN')} words • Submitted via GrantIQ
         </p>
       </header>
 
@@ -306,7 +306,7 @@ export function printProposal(proposal) {
         `<h2>${esc(s.title)}<small>${wordCount(s.content)} / ${esc(s.wordCountLimit)} words</small></h2>${blocksToHtml(s.content)}`
     )
     .join('')}
-  <div class="foot">Confidential — submitted via GrantOS</div>
+  <div class="foot">Confidential — submitted via GrantIQ</div>
 </body>
 </html>`
 

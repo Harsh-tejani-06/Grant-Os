@@ -123,7 +123,7 @@ export default function FundingAgencyWelcomePage() {
 
   useEffect(() => {
     // 1. Check local storage
-    const savedUser = localStorage.getItem('grantos_user')
+    const savedUser = localStorage.getItem('grantiq_user') || localStorage.getItem('grantos_user')
     if (savedUser) {
       try {
         const parsed = JSON.parse(savedUser)
@@ -169,6 +169,8 @@ export default function FundingAgencyWelcomePage() {
   }, [navigate])
 
   const handleLogout = () => {
+    localStorage.removeItem('grantiq_token')
+    localStorage.removeItem('grantiq_user')
     localStorage.removeItem('grantos_token')
     localStorage.removeItem('grantos_user')
     navigate('/login')
@@ -260,7 +262,7 @@ export default function FundingAgencyWelcomePage() {
               </div>
               <div className="flex flex-col">
                 <span className="font-heading text-xl font-bold text-warm-gray-900 tracking-tight leading-none">
-                  Grant<span className="text-amber">OS</span>
+                  Grant<span className="text-amber">IQ</span>
                 </span>
                 <span className="text-xs font-semibold tracking-wider text-amber uppercase mt-0.5">
                   Funding Agency Portal
@@ -323,7 +325,7 @@ export default function FundingAgencyWelcomePage() {
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="max-w-2xl">
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-50 border border-amber/15 text-amber text-xs font-semibold uppercase tracking-wider mb-4">
-                <span>🏛️</span> Welcome to GrantOS Funding Agency Hub
+                <span>🏛️</span> Welcome to GrantIQ Funding Agency Hub
               </div>
               <h1 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold text-warm-gray-900 tracking-tight leading-tight mb-3">
                 Welcome, <span className="text-amber">{displayName}</span>!
@@ -436,10 +438,10 @@ export default function FundingAgencyWelcomePage() {
             {/* Core Capabilities Showcase */}
             <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/70 p-6 sm:p-8 shadow-soft">
               <h2 className="font-heading text-2xl font-bold text-warm-gray-900 mb-2">
-                Funding Agency Capabilities on GrantOS
+                Funding Agency Capabilities on GrantIQ
               </h2>
               <p className="text-warm-gray-500 text-sm mb-6">
-                GrantOS connects your agency with top academic institutions, researchers, and innovation labs across India.
+                GrantIQ connects your agency with top academic institutions, researchers, and innovation labs across India.
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -559,7 +561,7 @@ export default function FundingAgencyWelcomePage() {
                       <span className="text-emerald-600 mt-0.5">✓</span>
                       <div>
                         <p className="text-xs font-semibold text-warm-gray-900">Agency Account Activated</p>
-                        <p className="text-xs text-warm-gray-500">Official email verified for GrantOS network</p>
+                        <p className="text-xs text-warm-gray-500">Official email verified for GrantIQ network</p>
                       </div>
                     </div>
 
@@ -703,7 +705,7 @@ export default function FundingAgencyWelcomePage() {
           <div className="space-y-6 animate-fade-in">
             <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/70 p-6 shadow-soft">
               <h2 className="font-heading text-2xl font-bold text-warm-gray-900">Submitted Research Proposals</h2>
-              <p className="text-xs text-warm-gray-500 mt-1">Review applications ranked by GrantOS AI Mandate Matching.</p>
+              <p className="text-xs text-warm-gray-500 mt-1">Review applications ranked by GrantIQ AI Mandate Matching.</p>
             </div>
 
             <div className="space-y-4">
@@ -888,7 +890,7 @@ export default function FundingAgencyWelcomePage() {
 
               {isVerified ? (
                 <p className="text-xs text-warm-gray-400">
-                  This document has been verified and is now read-only. Contact the GrantOS admin
+                  This document has been verified and is now read-only. Contact the GrantIQ admin
                   team if you need to submit a replacement.
                 </p>
               ) : (
@@ -921,7 +923,7 @@ export default function FundingAgencyWelcomePage() {
 
       {/* Footer */}
       <footer className="mt-auto border-t border-warm-gray-200/60 py-6 px-6 text-center text-xs text-warm-gray-400">
-        <p>GrantOS Funding Agency Network • Secure Institutional Grants Infrastructure</p>
+        <p>GrantIQ Funding Agency Network • Secure Institutional Grants Infrastructure</p>
       </footer>
     </div>
   )

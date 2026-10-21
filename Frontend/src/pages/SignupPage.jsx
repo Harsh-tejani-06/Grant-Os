@@ -92,10 +92,12 @@ export default function SignupPage() {
         })
         if (res.data.success) {
           // Store minimal info for the pending page
-          localStorage.setItem('grantos_member_pending', JSON.stringify({
+          const memberPayload = JSON.stringify({
             fullName: res.data.member.fullName,
             organizationName: res.data.member.organizationName,
-          }))
+          })
+          localStorage.setItem('grantiq_member_pending', memberPayload)
+          localStorage.setItem('grantos_member_pending', memberPayload)
           navigate('/member/pending-verification')
         }
       } else {
@@ -108,6 +110,8 @@ export default function SignupPage() {
           role: signupRole,
         })
         if (res.data.success) {
+          localStorage.setItem('grantiq_token', res.data.token)
+          localStorage.setItem('grantiq_user', JSON.stringify(res.data.user))
           localStorage.setItem('grantos_token', res.data.token)
           localStorage.setItem('grantos_user', JSON.stringify(res.data.user))
           if (res.data.user.role === 'org_admin') {
@@ -145,7 +149,7 @@ export default function SignupPage() {
               <LeafIcon />
             </div>
             <span className="font-heading text-2xl font-semibold text-warm-gray-900 tracking-tight">
-              Grant<span className="text-primary">OS</span>
+              Grant<span className="text-primary">IQ</span>
             </span>
           </Link>
 
@@ -157,7 +161,7 @@ export default function SignupPage() {
               </h1>
               <p className="text-warm-gray-500">
                 {isFundingAgency
-                  ? 'Post grants and review proposals on GrantOS'
+                  ? 'Post grants and review proposals on GrantIQ'
                   : 'Start discovering and winning grants today'}
               </p>
             </div>

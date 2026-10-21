@@ -12,7 +12,7 @@ const api = axios.create({
 // Attach token to every request if available
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('grantos_token');
+    const token = localStorage.getItem('grantiq_token') || localStorage.getItem('grantos_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -26,6 +26,8 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      localStorage.removeItem('grantiq_token');
+      localStorage.removeItem('grantiq_user');
       localStorage.removeItem('grantos_token');
       localStorage.removeItem('grantos_user');
       // Don't redirect if already on login/signup

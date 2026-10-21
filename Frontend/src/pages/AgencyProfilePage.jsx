@@ -823,7 +823,7 @@ function OverviewTab({ profile, form, logo, completion, insights, insightsLoadin
           <LockedField label="Registered Address" value={formatAddress(profile.headquarters)} compact />
         </div>
         <p className="text-xs text-warm-gray-400 mt-4">
-          Need to correct one of these? Contact the GrantOS admin team — identity fields require manual re-verification.
+          Need to correct one of these? Contact the GrantIQ admin team — identity fields require manual re-verification.
         </p>
       </section>
     </div>
@@ -1295,7 +1295,7 @@ function LegalTab({ profile, isLegallyVerified, cin, setCin, darpanId, setDarpan
           <DocumentRow label="Registration Certificate" url={profile.registrationCertificateUrl} />
         </div>
         <p className="text-xs text-warm-gray-400 mt-4">
-          These were submitted during registration. Document uploads and replacements are handled by the GrantOS admin team during verification review.
+          These were submitted during registration. Document uploads and replacements are handled by the GrantIQ admin team during verification review.
         </p>
       </Section>
     </div>

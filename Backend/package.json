@@ -1,5 +1,5 @@
 {
-  "name": "grantos-backend",
+  "name": "grantiq-backend",
   "version": "1.0.0",
   "scripts": {
     "start": "node server.js",

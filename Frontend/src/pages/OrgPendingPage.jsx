@@ -105,7 +105,7 @@ export default function OrgPendingPage() {
               <LeafIcon />
             </div>
             <span className="font-heading text-2xl font-semibold text-warm-gray-900 tracking-tight">
-              Grant<span className="text-primary">OS</span>
+              Grant<span className="text-primary">IQ</span>
             </span>
           </Link>
 
@@ -167,6 +167,8 @@ export default function OrgPendingPage() {
           <p className="mt-8">
             <button
               onClick={() => {
+                localStorage.removeItem('grantiq_token')
+                localStorage.removeItem('grantiq_user')
                 localStorage.removeItem('grantos_token')
                 localStorage.removeItem('grantos_user')
                 window.location.href = '/login'

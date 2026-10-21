@@ -21,7 +21,7 @@ export default function AdminDashboard() {
   const [agencies, setAgencies] = useState([])
   const [counts, setCounts] = useState({ total: 0, pending: 0, approved: 0, rejected: 0 })
   const [filter, setFilter] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoadingw] = useState(true)
   const [selectedItem, setSelectedItem] = useState(null)
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
@@ -120,12 +120,14 @@ export default function AdminDashboard() {
               <LeafIcon />
             </div>
             <span className="font-heading text-xl font-semibold text-warm-gray-900 tracking-tight">
-              Grant<span className="text-primary">OS</span>
+              Grant<span className="text-primary">IQ</span>
             </span>
             <span className="ml-2 px-2.5 py-0.5 rounded-full bg-primary-50 text-primary text-xs font-bold uppercase tracking-wider">System Admin</span>
           </Link>
           <button
             onClick={() => {
+              localStorage.removeItem('grantiq_token')
+              localStorage.removeItem('grantiq_user')
               localStorage.removeItem('grantos_token')
               localStorage.removeItem('grantos_user')
               window.location.href = '/login'

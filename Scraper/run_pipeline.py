@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-run_pipeline.py — Single entrypoint for the GrantOS scraping pipeline.
+run_pipeline.py — Single entrypoint for the GrantIQ scraping pipeline.
 
 Usage:
     python scraper/run_pipeline.py                   # full run
@@ -159,7 +159,7 @@ def post_delist(grant_ids_by_website, token, endpoint):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="GrantOS Grant Discovery & Scraping Pipeline",
+        description="GrantIQ Grant Discovery & Scraping Pipeline",
     )
     parser.add_argument(
         "--dry-run",
@@ -203,7 +203,7 @@ def main():
         sys.exit(1)
 
     logger.info("=" * 60)
-    logger.info("GrantOS Scraping Pipeline — %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    logger.info("GrantIQ Scraping Pipeline — %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     logger.info("Mode: %s", "DRY RUN" if args.dry_run else "LIVE")
     logger.info("Spiders: %s", ", ".join(groups.keys()))
     logger.info("=" * 60)

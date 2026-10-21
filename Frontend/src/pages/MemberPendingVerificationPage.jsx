@@ -13,7 +13,7 @@ export default function MemberPendingVerificationPage() {
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem('grantos_member_pending')
+      const stored = localStorage.getItem('grantiq_member_pending') || localStorage.getItem('grantos_member_pending')
       if (stored) setMemberInfo(JSON.parse(stored))
     } catch {}
   }, [])
@@ -35,7 +35,7 @@ export default function MemberPendingVerificationPage() {
               <LeafIcon />
             </div>
             <span className="font-heading text-2xl font-semibold text-warm-gray-900 tracking-tight">
-              Grant<span className="text-primary">OS</span>
+              Grant<span className="text-primary">IQ</span>
             </span>
           </Link>
 

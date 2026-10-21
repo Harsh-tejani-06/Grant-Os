@@ -490,7 +490,7 @@ export default function AgencyOverviewPage() {
             <ChecklistItem
               done={checklist.accountActivated}
               title="Agency account activated"
-              subtitle={checklist.accountActivated ? 'Official email verified for the GrantOS network' : 'Awaiting admin approval of your registration'}
+              subtitle={checklist.accountActivated ? 'Official email verified for the GrantIQ network' : 'Awaiting admin approval of your registration'}
             />
             <ChecklistItem
               done={checklist.hasPublishedGrant}

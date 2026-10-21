@@ -27,7 +27,7 @@ async function evaluateEligibility(organization, grantProgram) {
 
   // Organization must be approved
   checks.push({
-    label: 'Organization is approved on GrantOS',
+    label: 'Organization is approved on GrantIQ',
     passed: organization.status === 'approved',
   });
 
@@ -1210,7 +1210,7 @@ exports.updateProposalTrackingStatus = async (
         return res.status(403).json({
           success: false,
           message:
-            `"${status}" is recorded by the funding agency for proposals submitted through GrantOS.`,
+            `"${status}" is recorded by the funding agency for proposals submitted through GrantIQ.`,
         });
       }
 
@@ -1844,7 +1844,7 @@ exports.aiAssist = async (req, res) => {
 
     // Gemini system instruction
     const systemInstruction = `
-You are GrantOS AI Research Advisor, an elite proposal development specialist for premier funding bodies including India's DST, SERB, UGC, AICTE, CSIR, DBT, ICSSR, and international research foundations.
+You are GrantIQ AI Research Advisor, an elite proposal development specialist for premier funding bodies including India's DST, SERB, UGC, AICTE, CSIR, DBT, ICSSR, and international research foundations.
 
 CRITICAL INSTRUCTION:
 Your responses must be STRICTLY SPECIFIC and TAILORED to the real grant opportunity from the agency database and the selected proposal.
@@ -3285,7 +3285,7 @@ exports.submitProposal = async (
       return res.status(400).json({
         success: false,
         message:
-          'This proposal is not linked to a GrantOS funding agency grant call and cannot be submitted.',
+          'This proposal is not linked to a GrantIQ funding agency grant call and cannot be submitted.',
       });
     }
 

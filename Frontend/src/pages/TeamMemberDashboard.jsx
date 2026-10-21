@@ -261,6 +261,8 @@ export default function TeamMemberDashboard() {
   }
 
   const handleLogout = () => {
+    localStorage.removeItem('grantiq_token')
+    localStorage.removeItem('grantiq_user')
     localStorage.removeItem('grantos_token')
     localStorage.removeItem('grantos_user')
     navigate('/login')
@@ -285,7 +287,7 @@ export default function TeamMemberDashboard() {
           <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
             <Link to="/" className="flex items-center gap-2 group">
               <div className="w-9 h-9 bg-primary rounded-[10px] flex items-center justify-center text-white"><LeafIcon /></div>
-              <span className="font-heading text-xl font-semibold text-warm-gray-900 tracking-tight">Grant<span className="text-primary">OS</span></span>
+              <span className="font-heading text-xl font-semibold text-warm-gray-900 tracking-tight">Grant<span className="text-primary">IQ</span></span>
             </Link>
             <button onClick={handleLogout} className="text-sm text-warm-gray-500 hover:text-warm-gray-700 font-medium transition-colors cursor-pointer">Sign Out</button>
           </div>
@@ -372,7 +374,7 @@ export default function TeamMemberDashboard() {
                 <LeafIcon />
               </div>
               <div>
-                <span className="font-heading text-[22px] font-bold text-warm-gray-900 tracking-tight leading-none">Grant<span className="text-primary">OS</span></span>
+                <span className="font-heading text-[22px] font-bold text-warm-gray-900 tracking-tight leading-none">Grant<span className="text-primary">IQ</span></span>
                 {orgName && <p className="text-[11px] text-warm-gray-400 mt-0.5 truncate max-w-[160px] leading-tight">{orgName}</p>}
               </div>
             </Link>
@@ -446,7 +448,7 @@ export default function TeamMemberDashboard() {
               <line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <span className="font-heading font-bold text-warm-gray-900 text-lg">Grant<span className="text-primary">OS</span></span>
+          <span className="font-heading font-bold text-warm-gray-900 text-lg">Grant<span className="text-primary">IQ</span></span>
           <button onClick={openMyOrganizationModal} className="p-2 text-warm-gray-600 cursor-pointer rounded-lg hover:bg-warm-gray-50 transition-colors">🏢</button>
         </header>
 

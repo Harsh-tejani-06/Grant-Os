@@ -18,30 +18,30 @@ const sendApprovalEmail = async (orgEmail, orgName) => {
     const loginUrl = `${process.env.FRONTEND_URL}/login`;
 
     await transporter.sendMail({
-      from: `"GrantOS" <${process.env.EMAIL_USER}>`,
+      from: `"GrantIQ" <${process.env.EMAIL_USER}>`,
       to: orgEmail,
-      subject: '✅ Your Organization Has Been Approved — GrantOS',
+      subject: '✅ Your Organization Has Been Approved — GrantIQ',
       html: `
         <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 32px; background: #faf6f0; border-radius: 16px;">
           <div style="text-align: center; margin-bottom: 24px;">
-            <h1 style="color: #4a7c59; font-size: 28px; margin: 0;">Grant<span style="color: #4a7c59;">OS</span></h1>
+            <h1 style="color: #4a7c59; font-size: 28px; margin: 0;">Grant<span style="color: #4a7c59;">IQ</span></h1>
           </div>
           <div style="background: #ffffff; border-radius: 12px; padding: 32px; border: 1px solid #e2ddd4;">
             <h2 style="color: #252220; margin-top: 0;">Congratulations! 🎉</h2>
             <p style="color: #514a40; line-height: 1.6;">
-              Your organization <strong>${orgName}</strong> has been successfully verified and approved on GrantOS.
+              Your organization <strong>${orgName}</strong> has been successfully verified and approved on GrantIQ.
             </p>
             <p style="color: #514a40; line-height: 1.6;">
               You can now log in and access all grant discovery features, apply for grants, and manage your organization profile.
             </p>
             <div style="text-align: center; margin: 28px 0;">
               <a href="${loginUrl}" style="display: inline-block; background: #4a7c59; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 12px; font-weight: 600; font-size: 16px;">
-                Log In to GrantOS
+                Log In to GrantIQ
               </a>
             </div>
           </div>
           <p style="text-align: center; color: #a89e8c; font-size: 12px; margin-top: 24px;">
-            © ${new Date().getFullYear()} GrantOS. All rights reserved.
+            © ${new Date().getFullYear()} GrantIQ. All rights reserved.
           </p>
         </div>
       `,
@@ -60,13 +60,13 @@ const sendRejectionEmail = async (orgEmail, orgName, reason) => {
     const transporter = createTransporter();
 
     await transporter.sendMail({
-      from: `"GrantOS" <${process.env.EMAIL_USER}>`,
+      from: `"GrantIQ" <${process.env.EMAIL_USER}>`,
       to: orgEmail,
-      subject: '❌ Organization Registration Update — GrantOS',
+      subject: '❌ Organization Registration Update — GrantIQ',
       html: `
         <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 32px; background: #faf6f0; border-radius: 16px;">
           <div style="text-align: center; margin-bottom: 24px;">
-            <h1 style="color: #4a7c59; font-size: 28px; margin: 0;">Grant<span style="color: #4a7c59;">OS</span></h1>
+            <h1 style="color: #4a7c59; font-size: 28px; margin: 0;">Grant<span style="color: #4a7c59;">IQ</span></h1>
           </div>
           <div style="background: #ffffff; border-radius: 12px; padding: 32px; border: 1px solid #e2ddd4;">
             <h2 style="color: #252220; margin-top: 0;">Registration Not Approved</h2>
@@ -82,7 +82,7 @@ const sendRejectionEmail = async (orgEmail, orgName, reason) => {
             </p>
           </div>
           <p style="text-align: center; color: #a89e8c; font-size: 12px; margin-top: 24px;">
-            © ${new Date().getFullYear()} GrantOS. All rights reserved.
+            © ${new Date().getFullYear()} GrantIQ. All rights reserved.
           </p>
         </div>
       `,
@@ -102,30 +102,30 @@ const sendAgencyApprovalEmail = async (agencyEmail, agencyName) => {
     const loginUrl = `${process.env.FRONTEND_URL}/login`;
 
     await transporter.sendMail({
-      from: `"GrantOS" <${process.env.EMAIL_USER}>`,
+      from: `"GrantIQ" <${process.env.EMAIL_USER}>`,
       to: agencyEmail,
-      subject: '✅ Your Funding Agency Has Been Approved — GrantOS',
+      subject: '✅ Your Funding Agency Has Been Approved — GrantIQ',
       html: `
         <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 32px; background: #faf6f0; border-radius: 16px;">
           <div style="text-align: center; margin-bottom: 24px;">
-            <h1 style="color: #4a7c59; font-size: 28px; margin: 0;">Grant<span style="color: #4a7c59;">OS</span></h1>
+            <h1 style="color: #4a7c59; font-size: 28px; margin: 0;">Grant<span style="color: #4a7c59;">IQ</span></h1>
           </div>
           <div style="background: #ffffff; border-radius: 12px; padding: 32px; border: 1px solid #e2ddd4;">
             <h2 style="color: #252220; margin-top: 0;">Congratulations! 🎉</h2>
             <p style="color: #514a40; line-height: 1.6;">
-              Your Funding Agency <strong>${agencyName}</strong> has been successfully verified and approved on GrantOS.
+              Your Funding Agency <strong>${agencyName}</strong> has been successfully verified and approved on GrantIQ.
             </p>
             <p style="color: #514a40; line-height: 1.6;">
               You can now log in to post grants, manage grant programs, and review incoming proposals.
             </p>
             <div style="text-align: center; margin: 28px 0;">
               <a href="${loginUrl}" style="display: inline-block; background: #705c30; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 12px; font-weight: 600; font-size: 16px;">
-                Log In to GrantOS
+                Log In to GrantIQ
               </a>
             </div>
           </div>
           <p style="text-align: center; color: #a89e8c; font-size: 12px; margin-top: 24px;">
-            © ${new Date().getFullYear()} GrantOS. All rights reserved.
+            © ${new Date().getFullYear()} GrantIQ. All rights reserved.
           </p>
         </div>
       `,
@@ -144,13 +144,13 @@ const sendAgencyRejectionEmail = async (agencyEmail, agencyName, reason) => {
     const transporter = createTransporter();
 
     await transporter.sendMail({
-      from: `"GrantOS" <${process.env.EMAIL_USER}>`,
+      from: `"GrantIQ" <${process.env.EMAIL_USER}>`,
       to: agencyEmail,
-      subject: '❌ Funding Agency Registration Update — GrantOS',
+      subject: '❌ Funding Agency Registration Update — GrantIQ',
       html: `
         <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 32px; background: #faf6f0; border-radius: 16px;">
           <div style="text-align: center; margin-bottom: 24px;">
-            <h1 style="color: #4a7c59; font-size: 28px; margin: 0;">Grant<span style="color: #4a7c59;">OS</span></h1>
+            <h1 style="color: #4a7c59; font-size: 28px; margin: 0;">Grant<span style="color: #4a7c59;">IQ</span></h1>
           </div>
           <div style="background: #ffffff; border-radius: 12px; padding: 32px; border: 1px solid #e2ddd4;">
             <h2 style="color: #252220; margin-top: 0;">Registration Not Approved</h2>
@@ -166,7 +166,7 @@ const sendAgencyRejectionEmail = async (agencyEmail, agencyName, reason) => {
             </p>
           </div>
           <p style="text-align: center; color: #a89e8c; font-size: 12px; margin-top: 24px;">
-            © ${new Date().getFullYear()} GrantOS. All rights reserved.
+            © ${new Date().getFullYear()} GrantIQ. All rights reserved.
           </p>
         </div>
       `,
@@ -204,7 +204,7 @@ const sendCriticalDeadlineEmail = async ({
       : 'Approaching Soon';
 
     await transporter.sendMail({
-      from: `"GrantOS Institutional Alerts" <${process.env.EMAIL_USER}>`,
+      from: `"GrantIQ Institutional Alerts" <${process.env.EMAIL_USER}>`,
       to: recipientEmail,
       subject: `🚨 URGENT: ${daysRemaining <= 1 ? 'Final Day' : `${daysRemaining} Days Left`} — Grant Application Deadline for "${proposalTitle.slice(0, 45)}"`,
       html: `
@@ -244,12 +244,12 @@ const sendCriticalDeadlineEmail = async ({
               </a>
             </div>
             <p style="text-align: center; color: #9ca3af; font-size: 12px; margin: 0;">
-              Please ensure all institutional clearances, endorsement letters, and budget audits are verified in GrantOS.
+              Please ensure all institutional clearances, endorsement letters, and budget audits are verified in GrantIQ.
             </p>
           </div>
 
           <p style="text-align: center; color: #9ca3af; font-size: 12px; margin-top: 20px;">
-            © ${new Date().getFullYear()} GrantOS Research Management Suite. All rights reserved.
+            © ${new Date().getFullYear()} GrantIQ Research Management Suite. All rights reserved.
           </p>
         </div>
       `,

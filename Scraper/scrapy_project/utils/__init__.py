@@ -1,1 +1,1 @@
-# scrapy_project/utils — shared utilities for the GrantOS scraper
+# scrapy_project/utils — shared utilities for the GrantIQ scraper

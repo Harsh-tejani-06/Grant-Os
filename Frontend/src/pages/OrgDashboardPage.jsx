@@ -1364,7 +1364,7 @@ export default function OrgAdminDashboard() {
 
   // Pre-fills the create-proposal form from a specific agency-created grant
   // call and opens the modal — this is the "Write Proposal" entry point from
-  // a Grant Discovery card (GrantOS Funding Agencies tab). grantProgramId is
+  // a Grant Discovery card (GrantIQ Funding Agencies tab). grantProgramId is
   // set, so createProposal on the backend links + eligibility-checks it, and
   // this proposal will later be submittable to that agency.
   const handleStartProposalForGrant = (grant) => {
@@ -2359,6 +2359,8 @@ Official Seal & Endorsement`
   }
 
   const handleLogout = () => {
+    localStorage.removeItem('grantiq_token')
+    localStorage.removeItem('grantiq_user')
     localStorage.removeItem('grantos_token')
     localStorage.removeItem('grantos_user')
     navigate('/login')
@@ -2387,7 +2389,7 @@ Official Seal & Endorsement`
                 <LeafIcon />
               </div>
               <span className="font-heading text-xl font-bold text-slate-900 tracking-tight">
-                Grant<span className="text-emerald-600 font-extrabold">OS</span>
+                Grant<span className="text-emerald-600 font-extrabold">IQ</span>
               </span>
             </Link>
             {orgName && (
@@ -2453,7 +2455,7 @@ Official Seal & Endorsement`
               <line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <span className="font-heading font-bold text-slate-900">Grant<span className="text-emerald-600 font-extrabold">OS</span></span>
+          <span className="font-heading font-bold text-slate-900">Grant<span className="text-emerald-600 font-extrabold">IQ</span></span>
           <div className="w-8" />
         </header>
 
@@ -2617,7 +2619,7 @@ Official Seal & Endorsement`
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
                           </span>
-                          <span>{orgName || 'GrantOS Command Center'} • Real-Time Sync</span>
+                          <span>{orgName || 'GrantIQ Command Center'} • Real-Time Sync</span>
                         </div>
                         <h1 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold text-white tracking-tight leading-tight">
                           {greeting}, {userName ? userName.split(' ')[0] : 'Administrator'} 👋

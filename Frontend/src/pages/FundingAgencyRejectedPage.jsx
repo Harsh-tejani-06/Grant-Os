@@ -75,7 +75,7 @@ export default function FundingAgencyRejectedPage() {
               <LeafIcon />
             </div>
             <span className="font-heading text-2xl font-semibold text-warm-gray-900 tracking-tight">
-              Grant<span className="text-amber">OS</span>
+              Grant<span className="text-amber">IQ</span>
             </span>
           </Link>
 
@@ -170,8 +170,8 @@ export default function FundingAgencyRejectedPage() {
             <p className="text-sm text-warm-gray-600 leading-relaxed mb-1">
               Have questions regarding agency verification?
             </p>
-            <a href="mailto:agencies@grantos.com" className="text-amber font-semibold text-sm hover:underline">
-              agencies@grantos.com
+            <a href="mailto:agencies@grantiq.com" className="text-amber font-semibold text-sm hover:underline">
+              agencies@grantiq.com
             </a>
           </div>
 
@@ -179,6 +179,8 @@ export default function FundingAgencyRejectedPage() {
           <p className="text-center mt-8">
             <button
               onClick={() => {
+                localStorage.removeItem('grantiq_token')
+                localStorage.removeItem('grantiq_user')
                 localStorage.removeItem('grantos_token')
                 localStorage.removeItem('grantos_user')
                 window.location.href = '/login'

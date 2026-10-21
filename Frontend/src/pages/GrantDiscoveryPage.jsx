@@ -61,6 +61,8 @@ export default function GrantDiscoveryPage() {
   }, [])
 
   const handleLogout = () => {
+    localStorage.removeItem('grantiq_token')
+    localStorage.removeItem('grantiq_user')
     localStorage.removeItem('grantos_token')
     localStorage.removeItem('grantos_user')
     navigate('/login')
@@ -106,7 +108,7 @@ export default function GrantDiscoveryPage() {
                 <LeafIcon />
               </div>
               <span className="font-heading text-xl font-semibold text-warm-gray-900 tracking-tight">
-                Grant<span className="text-primary">OS</span>
+                Grant<span className="text-primary">IQ</span>
               </span>
             </Link>
             {orgName && (
@@ -190,7 +192,7 @@ export default function GrantDiscoveryPage() {
             </svg>
           </button>
           <span className="font-heading font-semibold text-warm-gray-900">
-            Grant<span className="text-primary">OS</span>
+            Grant<span className="text-primary">IQ</span>
           </span>
           <div className="w-8" />
         </header>

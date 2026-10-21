@@ -112,7 +112,7 @@ export function StatusBadge({ status, size = 'sm' }) {
   )
 }
 
-// ─── Match Bar Component (Requirement 5: Similarity percentage for both Gov & GrantOS) ───
+// ─── Match Bar Component (Requirement 5: Similarity percentage for both Gov & GrantIQ) ───
 export function MatchBar({ percentage, compact = false }) {
   const pct = Math.max(0, Math.min(100, Math.round(percentage || 0)))
   const barWidth = compact ? 'w-14' : 'w-24'
@@ -137,7 +137,7 @@ export function MatchBar({ percentage, compact = false }) {
 
 // ─── Grant Card Component (Requirements 2, 5, 6: Explicit tags, similarity %, and status) ───
 export function GrantCard({ grant, index = 0, onSelect }) {
-  const isGrantosAgency = Boolean(
+  const isGrantiqAgency = Boolean(
     grant.isProgramGrant ||
     grant.sourceType === 'agency_submitted' ||
     grant.sourceType === 'agency'
@@ -153,9 +153,9 @@ export function GrantCard({ grant, index = 0, onSelect }) {
       <div className="p-5">
         {/* Top Tag & Status row (Requirement 2 & 6: Distinct tags & clear open/close status) */}
         <div className="flex items-center justify-between gap-2 mb-2.5">
-          {isGrantosAgency ? (
+          {isGrantiqAgency ? (
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200/80">
-              <span className="text-xs">🌿</span> GrantOS Partner Agency
+              <span className="text-xs">🌿</span> GrantIQ Partner Agency
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80">
@@ -224,7 +224,7 @@ export function GrantDetailPanel({
 }) {
   if (!grant) return null
 
-  const isGrantosAgency = Boolean(
+  const isGrantiqAgency = Boolean(
     grant.isProgramGrant ||
     grant.sourceType === 'agency_submitted' ||
     grant.sourceType === 'agency'
@@ -287,9 +287,9 @@ export function GrantDetailPanel({
 
           {/* Source Tag & Status */}
           <div className="flex items-center gap-2 mb-2 flex-wrap">
-            {isGrantosAgency ? (
+            {isGrantiqAgency ? (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200/80">
-                🌿 GrantOS Partner Agency
+                🌿 GrantIQ Partner Agency
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80">
@@ -545,7 +545,7 @@ export function GrantDetailPanel({
                       <line x1="12" y1="18" x2="12" y2="12" />
                       <line x1="9" y1="15" x2="15" y2="15" />
                     </svg>
-                    Start Proposal in GrantOS
+                    Start Proposal in GrantIQ
                   </>
                 )}
               </button>
@@ -640,19 +640,19 @@ export default function GrantDiscoveryModule({
 
   // Lists & totals
   const [govGrants, setGovGrants] = useState([])
-  const [grantosGrants, setGrantosGrants] = useState([])
+  const [grantiqGrants, setGrantiqGrants] = useState([])
   const [govTotal, setGovTotal] = useState(0)
-  const [grantosTotal, setGrantosTotal] = useState(0)
+  const [grantiqTotal, setGrantiqTotal] = useState(0)
   const [govTotalPages, setGovTotalPages] = useState(0)
-  const [grantosTotalPages, setGrantosTotalPages] = useState(0)
+  const [grantiqTotalPages, setGrantiqTotalPages] = useState(0)
 
   // Independent pagination
   const [govPage, setGovPage] = useState(1)
-  const [grantosPage, setGrantosPage] = useState(1)
+  const [grantiqPage, setGrantiqPage] = useState(1)
 
   // Agency options for dropdown filter (Requirement 3)
   const [govAgencyOptions, setGovAgencyOptions] = useState(DEFAULT_GOV_AGENCIES)
-  const [grantosAgencyOptions, setGrantosAgencyOptions] = useState(DEFAULT_PRIVATE_AGENCIES)
+  const [grantiqAgencyOptions, setGrantiqAgencyOptions] = useState(DEFAULT_PRIVATE_AGENCIES)
 
   // Search & Filters (Requirement 7: Resized search bar)
   const [search, setSearch] = useState('')
@@ -680,12 +680,13 @@ export default function GrantDiscoveryModule({
       setGrantsLoading(true)
       try {
         const targetGovPage = opts.govPage !== undefined ? opts.govPage : govPage
-        const targetGrantosPage = opts.grantosPage !== undefined ? opts.grantosPage : grantosPage
+        const targetGrantiqPage = opts.grantiqPage !== undefined ? opts.grantiqPage : (opts.grantosPage !== undefined ? opts.grantosPage : grantiqPage)
 
         const params = {
           limit: 20,
           govPage: targetGovPage,
-          grantosPage: targetGrantosPage,
+          grantiqPage: targetGrantiqPage,
+          grantosPage: targetGrantiqPage,
         }
         if (search.trim()) params.search = search.trim()
         if (category !== 'all') params.category = category
@@ -700,10 +701,11 @@ export default function GrantDiscoveryModule({
           setGovTotalPages(res.data.government?.totalPages || 0)
           if (res.data.government?.page) setGovPage(res.data.government.page)
 
-          setGrantosGrants(res.data.grantos?.grants || [])
-          setGrantosTotal(res.data.grantos?.total || 0)
-          setGrantosTotalPages(res.data.grantos?.totalPages || 0)
-          if (res.data.grantos?.page) setGrantosPage(res.data.grantos.page)
+          const agencyData = res.data.grantiq || res.data.grantos
+          setGrantiqGrants(agencyData?.grants || [])
+          setGrantiqTotal(agencyData?.total || 0)
+          setGrantiqTotalPages(agencyData?.totalPages || 0)
+          if (agencyData?.page) setGrantiqPage(agencyData.page)
 
           if (res.data.filters?.orgState) {
             setOrgState(res.data.filters.orgState)
@@ -718,13 +720,14 @@ export default function GrantDiscoveryModule({
             })
             setGovAgencyOptions(filteredGov.length > 0 ? filteredGov : DEFAULT_GOV_AGENCIES)
           }
-          if (res.data.filters?.grantosAgencies && res.data.filters.grantosAgencies.length > 0) {
+          const privateAgencies = res.data.filters?.grantiqAgencies || res.data.filters?.grantosAgencies
+          if (privateAgencies && privateAgencies.length > 0) {
             const govKeywords = ['aicte', 'dst', 'serb', 'ugc', 'dbt', 'csir', 'icmr', 'drdo', 'isro']
-            const sanitizedPrivate = res.data.filters.grantosAgencies.filter((item) => {
+            const sanitizedPrivate = privateAgencies.filter((item) => {
               const name = (typeof item === 'string' ? item : item.name || item.value || item.shortName || '').toLowerCase()
               return !govKeywords.includes(name)
             })
-            setGrantosAgencyOptions(sanitizedPrivate)
+            setGrantiqAgencyOptions(sanitizedPrivate)
           }
         }
       } catch (err) {
@@ -733,7 +736,7 @@ export default function GrantDiscoveryModule({
         setGrantsLoading(false)
       }
     },
-    [search, category, status, agencyFilter, regionFilter, govPage, grantosPage]
+    [search, category, status, agencyFilter, regionFilter, govPage, grantiqPage]
   )
 
   // Debounced search & filter trigger
@@ -741,8 +744,8 @@ export default function GrantDiscoveryModule({
     if (debounceTimer.current) clearTimeout(debounceTimer.current)
     debounceTimer.current = setTimeout(() => {
       setGovPage(1)
-      setGrantosPage(1)
-      fetchGrants({ govPage: 1, grantosPage: 1 })
+      setGrantiqPage(1)
+      fetchGrants({ govPage: 1, grantiqPage: 1 })
     }, 280)
     return () => {
       if (debounceTimer.current) clearTimeout(debounceTimer.current)
@@ -786,7 +789,7 @@ export default function GrantDiscoveryModule({
         const updateList = (prev) =>
           prev.map((g) => (g._id === grant._id ? { ...g, hasApplied: true } : g))
         setGovGrants(updateList)
-        setGrantosGrants(updateList)
+        setGrantiqGrants(updateList)
         setSelectedGrant((prev) => (prev ? { ...prev, hasApplied: true } : prev))
         if (onProposalCreated) onProposalCreated()
       }
@@ -820,7 +823,7 @@ export default function GrantDiscoveryModule({
     setRegionFilter('all')
   }
 
-  const totalGrants = govTotal + grantosTotal
+  const totalGrants = govTotal + grantiqTotal
   const hasActiveFilters = Boolean(
     search || category !== 'all' || status !== 'all' || agencyFilter !== 'all' || regionFilter !== 'all'
   )
@@ -839,7 +842,7 @@ export default function GrantDiscoveryModule({
   // Selected agency display label for human-readable filter chips
   const selectedAgencyLabel = useMemo(() => {
     if (agencyFilter === 'all') return ''
-    const allOptions = [...govAgencyOptions, ...grantosAgencyOptions]
+    const allOptions = [...govAgencyOptions, ...grantiqAgencyOptions]
     const found = allOptions.find((o) => {
       const v = typeof o === 'string' ? o : o.value || o.name || o.shortName
       return v && v.toLowerCase() === agencyFilter.toLowerCase()
@@ -849,7 +852,7 @@ export default function GrantDiscoveryModule({
       return found.shortName || found.name || found.label || agencyFilter
     }
     return agencyFilter
-  }, [agencyFilter, govAgencyOptions, grantosAgencyOptions])
+  }, [agencyFilter, govAgencyOptions, grantiqAgencyOptions])
 
   // Contextual tab switching: resets agencyFilter if it doesn't belong to the new tab
   const handleTabChange = (newTab) => {
@@ -862,7 +865,7 @@ export default function GrantDiscoveryModule({
           o.shortName?.toLowerCase() === agencyFilter.toLowerCase() ||
           o.name?.toLowerCase() === agencyFilter.toLowerCase()
       )
-      const isGrantos = grantosAgencyOptions.some(
+      const isGrantiq = grantiqAgencyOptions.some(
         (o) =>
           (typeof o === 'string' && o.toLowerCase() === agencyFilter.toLowerCase()) ||
           o.value?.toLowerCase() === agencyFilter.toLowerCase() ||
@@ -872,7 +875,7 @@ export default function GrantDiscoveryModule({
 
       if (newTab === 'government' && !isGov) {
         setAgencyFilter('all')
-      } else if (newTab === 'grantos' && !isGrantos) {
+      } else if ((newTab === 'grantiq' || newTab === 'grantos') && !isGrantiq) {
         setAgencyFilter('all')
       }
     }
@@ -889,7 +892,7 @@ export default function GrantDiscoveryModule({
           o.shortName?.toLowerCase() === val.toLowerCase() ||
           o.name?.toLowerCase() === val.toLowerCase()
       )
-      const isGrantos = grantosAgencyOptions.some(
+      const isGrantiq = grantiqAgencyOptions.some(
         (o) =>
           (typeof o === 'string' && o.toLowerCase() === val.toLowerCase()) ||
           o.value?.toLowerCase() === val.toLowerCase() ||
@@ -897,7 +900,7 @@ export default function GrantDiscoveryModule({
           o.name?.toLowerCase() === val.toLowerCase()
       )
       if (isGov) setActiveTab('government')
-      else if (isGrantos) setActiveTab('grantos')
+      else if (isGrantiq) setActiveTab('grantiq')
     }
   }
 
@@ -939,22 +942,22 @@ export default function GrantDiscoveryModule({
         </button>
 
         <button
-          onClick={() => handleTabChange('grantos')}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-[12px] text-sm font-semibold transition-all cursor-pointer ${activeTab === 'grantos'
+          onClick={() => handleTabChange('grantiq')}
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-[12px] text-sm font-semibold transition-all cursor-pointer ${(activeTab === 'grantiq' || activeTab === 'grantos')
               ? 'bg-amber-600 text-white shadow-soft'
               : 'bg-surface-elevated text-warm-gray-600 hover:bg-warm-gray-100/80 border border-warm-gray-200/70'
             }`}
-          id="tab-grantos-source"
+          id="tab-grantiq-source"
         >
           <span>🌿</span>
-          GrantOS Funding Agencies
+          GrantIQ Funding Agencies
           <span
-            className={`px-2 py-0.5 rounded-full text-xs font-bold ${activeTab === 'grantos'
+            className={`px-2 py-0.5 rounded-full text-xs font-bold ${(activeTab === 'grantiq' || activeTab === 'grantos')
                 ? 'bg-white/20 text-white'
                 : 'bg-warm-gray-100 text-warm-gray-600'
               }`}
           >
-            {grantosTotal}
+            {grantiqTotal}
           </span>
         </button>
 
@@ -1055,10 +1058,10 @@ export default function GrantDiscoveryModule({
                   )
                 })}
               </>
-            ) : activeTab === 'grantos' ? (
+            ) : (activeTab === 'grantiq' || activeTab === 'grantos') ? (
               <>
                 <option value="all">🌿 All Partner Agencies</option>
-                {grantosAgencyOptions.map((item) => {
+                {grantiqAgencyOptions.map((item) => {
                   const val = typeof item === 'string' ? item : item.value || item.name
                   const lbl = typeof item === 'string' ? item : item.label || item.name
                   return (
@@ -1084,9 +1087,9 @@ export default function GrantDiscoveryModule({
                     })}
                   </optgroup>
                 )}
-                {grantosAgencyOptions.length > 0 && (
+                {grantiqAgencyOptions.length > 0 && (
                   <optgroup label="Private & Partner Foundations">
-                    {grantosAgencyOptions.map((item) => {
+                    {grantiqAgencyOptions.map((item) => {
                       const val = typeof item === 'string' ? item : item.value || item.name
                       const lbl = typeof item === 'string' ? item : item.label || item.name
                       return (
@@ -1288,22 +1291,22 @@ export default function GrantDiscoveryModule({
       )}
 
       {/* ═════════════════════════════════════════════════════════════════ */}
-      {/* SECTION 2: GrantOS Funding Agencies (SHOWN SECOND)              */}
+      {/* SECTION 2: GrantIQ Funding Agencies (SHOWN SECOND)              */}
       {/* ═════════════════════════════════════════════════════════════════ */}
-      {!grantsLoading && (activeTab === 'grantos' || activeTab === 'all') && (
+      {!grantsLoading && (activeTab === 'grantiq' || activeTab === 'grantos' || activeTab === 'all') && (
         <div className="mb-10 animate-fade-up">
           <SectionHeader
             icon="🌿"
-            title="GrantOS Funding Agencies"
-            subtitle="Calls from verified partner institutions and private foundations on GrantOS"
-            count={grantosTotal}
+            title="GrantIQ Funding Agencies"
+            subtitle="Calls from verified partner institutions and private foundations on GrantIQ"
+            count={grantiqTotal}
             accentColor="amber"
           />
 
-          {grantosGrants.length > 0 ? (
+          {grantiqGrants.length > 0 ? (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {grantosGrants.map((grant, i) => (
+                {grantiqGrants.map((grant, i) => (
                   <GrantCard
                     key={grant._id}
                     grant={grant}
@@ -1314,18 +1317,18 @@ export default function GrantDiscoveryModule({
               </div>
 
               <PaginationControls
-                currentPage={grantosPage}
-                totalPages={grantosTotalPages}
+                currentPage={grantiqPage}
+                totalPages={grantiqTotalPages}
                 onPageChange={(page) => {
-                  setGrantosPage(page)
-                  fetchGrants({ grantosPage: page })
+                  setGrantiqPage(page)
+                  fetchGrants({ grantiqPage: page })
                 }}
               />
             </>
           ) : (
             <div className="bg-surface-elevated rounded-[14px] p-6 text-center border border-warm-gray-200/60">
               <p className="text-sm text-warm-gray-500">
-                No GrantOS partner agency grants match the selected filters.
+                No GrantIQ partner agency grants match the selected filters.
               </p>
               {hasActiveFilters && (
                 <button

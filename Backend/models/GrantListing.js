@@ -1,7 +1,7 @@
 /**
  * models/GrantListing.js
  *
- * Canonical schema for grants that are discoverable in GrantOS, regardless of
+ * Canonical schema for grants that are discoverable in GrantIQ, regardless of
  * whether they were (a) scraped from a public agency portal/PDF, or
  * (b) entered directly by a verified `funding_agency` user.
  *
@@ -242,7 +242,7 @@ const GrantListingSchema = new Schema(
     // The source site's own taxonomy label, kept verbatim because it does
     // NOT mean the same thing across agencies (DST's "R&D Programmes" vs
     // AICTE's "Student Development" are different classification schemes).
-    // `grantType` above is GrantOS's normalized cross-agency label.
+    // `grantType` above is GrantIQ's normalized cross-agency label.
     categoryRaw: { type: String, trim: true, default: '' },
 
     description: { type: String, trim: true, default: '', maxlength: 2000 },

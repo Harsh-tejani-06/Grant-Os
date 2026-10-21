@@ -1,4 +1,4 @@
-# GrantOS Scraping Pipeline
+# GrantIQ Scraping Pipeline
 
 ## Overview
 

@@ -40,6 +40,8 @@ export default function LoginPage() {
     try {
       const res = await api.post('/auth/login', { email, password })
       if (res.data.success) {
+        localStorage.setItem('grantiq_token', res.data.token)
+        localStorage.setItem('grantiq_user', JSON.stringify(res.data.user))
         localStorage.setItem('grantos_token', res.data.token)
         localStorage.setItem('grantos_user', JSON.stringify(res.data.user))
 
@@ -71,10 +73,12 @@ export default function LoginPage() {
         if (user.role === 'team_member') {
           if (memberStatus && !memberStatus.isVerified) {
             // Store info for pending page
-            localStorage.setItem('grantos_member_pending', JSON.stringify({
+            const pendingPayload = JSON.stringify({
               fullName: user.fullName,
               organizationName: orgStatus?.organizationName || '',
-            }))
+            })
+            localStorage.setItem('grantiq_member_pending', pendingPayload)
+            localStorage.setItem('grantos_member_pending', pendingPayload)
             navigate('/member/pending-verification')
           } else {
             navigate('/member/dashboard')
@@ -121,7 +125,7 @@ export default function LoginPage() {
               <LeafIcon />
             </div>
             <span className="font-heading text-2xl font-semibold text-warm-gray-900 tracking-tight">
-              Grant<span className="text-primary">OS</span>
+              Grant<span className="text-primary">IQ</span>
             </span>
           </Link>
 
@@ -129,7 +133,7 @@ export default function LoginPage() {
           <div className="bg-surface-elevated rounded-[16px] border border-warm-gray-200/60 shadow-soft p-8 sm:p-10">
             <div className="text-center mb-8">
               <h1 className="font-heading text-3xl font-bold text-warm-gray-900 mb-2">Welcome back</h1>
-              <p className="text-warm-gray-500">Sign in to your GrantOS account</p>
+              <p className="text-warm-gray-500">Sign in to your GrantIQ account</p>
             </div>
 
             {error && (

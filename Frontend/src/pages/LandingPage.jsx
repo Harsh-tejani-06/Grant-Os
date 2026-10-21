@@ -122,7 +122,7 @@ function Navbar() {
               <LeafIcon />
             </div>
             <span className="font-heading text-2xl font-semibold text-warm-gray-900 tracking-tight">
-              Grant<span className="text-primary">OS</span>
+              Grant<span className="text-primary">IQ</span>
             </span>
           </Link>
 
@@ -211,7 +211,7 @@ function HeroSection() {
 
         {/* Subtitle */}
         <p className="text-lg sm:text-xl text-warm-gray-500 max-w-2xl mx-auto mb-10 leading-relaxed animate-fade-up" style={{ animationDelay: '0.15s' }}>
-          GrantOS uses semantic matching to connect your organization with the right funding opportunities — then helps your team collaborate on winning proposals, all in one place.
+          GrantIQ uses semantic matching to connect your organization with the right funding opportunities — then helps your team collaborate on winning proposals, all in one place.
         </p>
 
         {/* CTAs */}
@@ -271,7 +271,7 @@ function FeaturesSection() {
     {
       icon: <RocketIcon />,
       title: 'One-Click Submission',
-      description: 'Once every section is marked as ready, the Organization Admin compiles and submits directly to the funding agency through GrantOS.',
+      description: 'Once every section is marked as ready, the Organization Admin compiles and submits directly to the funding agency through GrantIQ.',
       highlights: ['Compliance checklist', 'PDF export', 'Submission tracking'],
     },
     {
@@ -294,7 +294,7 @@ function FeaturesSection() {
             Everything you need to <span className="text-primary">win grants</span>
           </h2>
           <p className="text-warm-gray-500 text-lg leading-relaxed">
-            From discovery to submission to tracking — GrantOS streamlines the entire grant lifecycle for your team.
+            From discovery to submission to tracking — GrantIQ streamlines the entire grant lifecycle for your team.
           </p>
         </div>
 
@@ -466,7 +466,7 @@ function RolesSection() {
             Built for <span className="text-primary">every role</span> in the grant ecosystem
           </h2>
           <p className="text-warm-gray-500 text-lg leading-relaxed">
-            Whether you're writing proposals, reviewing applications, or managing an organization — GrantOS gives you exactly what you need.
+            Whether you're writing proposals, reviewing applications, or managing an organization — GrantIQ gives you exactly what you need.
           </p>
         </div>
 
@@ -524,7 +524,7 @@ function CTASection() {
           Ready to streamline your grant workflow?
         </h2>
         <p className="text-white/80 text-lg leading-relaxed mb-10 max-w-xl mx-auto">
-          Join organizations already using GrantOS to discover funding, collaborate on proposals, and track submissions — all powered by AI.
+          Join organizations already using GrantIQ to discover funding, collaborate on proposals, and track submissions — all powered by AI.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link
@@ -561,7 +561,7 @@ function Footer() {
               <LeafIcon />
             </div>
             <span className="font-heading text-xl font-semibold text-white tracking-tight">
-              Grant<span className="text-primary-light">OS</span>
+              Grant<span className="text-primary-light">IQ</span>
             </span>
           </div>
 
@@ -575,7 +575,7 @@ function Footer() {
 
           {/* Copyright */}
           <p className="text-warm-gray-500 text-sm">
-            &copy; {new Date().getFullYear()} GrantOS. All rights reserved.
+            &copy; {new Date().getFullYear()} GrantIQ. All rights reserved.
           </p>
         </div>
       </div>

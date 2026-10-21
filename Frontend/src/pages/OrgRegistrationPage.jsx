@@ -119,6 +119,7 @@ export default function OrgRegistrationPage() {
       // Update local user data with org status
       const meRes = await api.get('/auth/me')
       if (meRes.data.success) {
+        localStorage.setItem('grantiq_user', JSON.stringify(meRes.data.user))
         localStorage.setItem('grantos_user', JSON.stringify(meRes.data.user))
       }
     } catch (err) {
@@ -181,7 +182,7 @@ export default function OrgRegistrationPage() {
               <LeafIcon />
             </div>
             <span className="font-heading text-2xl font-semibold text-warm-gray-900 tracking-tight">
-              Grant<span className="text-primary">OS</span>
+              Grant<span className="text-primary">IQ</span>
             </span>
           </Link>
 

@@ -85,7 +85,7 @@ export default function OrgRejectedPage() {
               <LeafIcon />
             </div>
             <span className="font-heading text-2xl font-semibold text-warm-gray-900 tracking-tight">
-              Grant<span className="text-primary">OS</span>
+              Grant<span className="text-primary">IQ</span>
             </span>
           </Link>
 
@@ -180,8 +180,8 @@ export default function OrgRejectedPage() {
             <p className="text-sm text-warm-gray-600 leading-relaxed mb-1">
               Still have questions? Our support team is here to help.
             </p>
-            <a href="mailto:support@grantos.com" className="text-primary font-semibold text-sm hover:underline">
-              support@grantos.com
+            <a href="mailto:support@grantiq.com" className="text-primary font-semibold text-sm hover:underline">
+              support@grantiq.com
             </a>
           </div>
 
@@ -189,6 +189,8 @@ export default function OrgRejectedPage() {
           <p className="text-center mt-8">
             <button
               onClick={() => {
+                localStorage.removeItem('grantiq_token')
+                localStorage.removeItem('grantiq_user')
                 localStorage.removeItem('grantos_token')
                 localStorage.removeItem('grantos_user')
                 window.location.href = '/login'

@@ -88,7 +88,7 @@ export function AgencyProvider({ children }) {
 
   useEffect(() => {
     // Load saved user for instant display, then refresh from server
-    const savedUser = localStorage.getItem('grantos_user')
+    const savedUser = localStorage.getItem('grantiq_user') || localStorage.getItem('grantos_user')
     if (savedUser) {
       try {
         const parsed = JSON.parse(savedUser)

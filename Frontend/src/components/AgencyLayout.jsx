@@ -79,6 +79,8 @@ const ChevronIcon = ({ open }) => (
 // the next login. `replace` stops the Back button returning to the dashboard.
 const signOut = () => {
   try {
+    localStorage.removeItem('grantiq_token')
+    localStorage.removeItem('grantiq_user')
     localStorage.removeItem('grantos_token')
     localStorage.removeItem('grantos_user')
     sessionStorage.clear()
@@ -156,7 +158,7 @@ export default function AgencyLayout() {
             </div>
             <div className="flex flex-col">
               <span className="font-heading text-lg font-bold text-warm-gray-900 tracking-tight leading-none">
-                Grant<span className="text-amber">OS</span>
+                Grant<span className="text-amber">IQ</span>
               </span>
               <span className="text-xs font-semibold tracking-wider text-amber uppercase mt-0.5">
                 Agency Portal
@@ -240,7 +242,7 @@ export default function AgencyLayout() {
                 <LeafIcon />
               </div>
               <span className="font-heading text-lg font-bold text-warm-gray-900">
-                Grant<span className="text-amber">OS</span>
+                Grant<span className="text-amber">IQ</span>
               </span>
             </Link>
 
@@ -373,7 +375,7 @@ export default function AgencyLayout() {
         </main>
 
         <footer className="mt-auto border-t border-warm-gray-200/60 py-6 px-6 text-center text-xs text-warm-gray-400">
-          <p>GrantOS Funding Agency Network • Secure Institutional Grants Infrastructure</p>
+          <p>GrantIQ Funding Agency Network • Secure Institutional Grants Infrastructure</p>
         </footer>
       </div>
 
@@ -390,7 +392,7 @@ export default function AgencyLayout() {
             <div className="w-11 h-11 rounded-full bg-red-50 text-red-600 flex items-center justify-center mb-4">
               <LogoutIcon />
             </div>
-            <h2 id="signout-title" className="font-heading text-lg font-bold text-warm-gray-900">Sign out of GrantOS?</h2>
+            <h2 id="signout-title" className="font-heading text-lg font-bold text-warm-gray-900">Sign out of GrantIQ?</h2>
             <p className="text-sm text-warm-gray-500 mt-1.5 leading-relaxed">
               You'll need to sign in again to review proposals and manage your grant calls.
             </p>

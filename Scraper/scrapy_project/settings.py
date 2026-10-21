@@ -1,9 +1,9 @@
-# Scrapy settings for the GrantOS scraping pipeline
+# Scrapy settings for the GrantIQ scraping pipeline
 #
 # These are government sites — be respectful: obey robots.txt,
 # throttle requests, and identify ourselves clearly.
 
-BOT_NAME = "grantos_scraper"
+BOT_NAME = "grantiq_scraper"
 
 SPIDER_MODULES = ["scrapy_project.spiders"]
 NEWSPIDER_MODULE = "scrapy_project.spiders"
@@ -23,7 +23,7 @@ AUTOTHROTTLE_TARGET_CONCURRENCY = 1.0
 AUTOTHROTTLE_DEBUG = False
 
 # ─── Identity ───
-USER_AGENT = "GrantOS-Scraper/1.0 (+https://grantos.in; grant-discovery-pipeline)"
+USER_AGENT = "GrantIQ-Scraper/1.0 (+https://grantiq.in; grant-discovery-pipeline)"
 
 # ─── Pipelines (order matters) ───
 ITEM_PIPELINES = {
